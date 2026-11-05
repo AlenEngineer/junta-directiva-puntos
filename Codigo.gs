@@ -800,7 +800,9 @@ function telefonoWa_(tel, cp) {
   var internacional = /^(\+|00)/.test(s);
   var d = s.replace(/\D/g, '');
   if (/^00/.test(s)) d = d.slice(2);
-  if (!internacional) d = cp + d.replace(/^0+/, '');
+  // Si ya trae el código de país sin "+" (por ejemplo 50761234567), no se repite.
+  var yaTraeCodigo = d.indexOf(cp) === 0 && d.length >= cp.length + 7;
+  if (!internacional && !yaTraeCodigo) d = cp + d.replace(/^0+/, '');
   return d.length >= 8 && d.length <= 15 ? d : null;
 }
 

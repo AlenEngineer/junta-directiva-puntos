@@ -67,8 +67,9 @@ Se trabaja en dos lugares. Cada paso dice dónde:
 
 1. 📊 Vuelva a la pestaña de la hoja y **recárguela** (F5). Arriba aparece un menú nuevo: **Junta**.
 2. 📊 En la pestaña **Contactos** ya están los nombres. Complete el **Teléfono** (celular) y el **Correo** de cada persona. Si no tiene alguno de los dos, déjelo vacío.
-   - Los números de Panamá se escriben normal, por ejemplo `6123-4567`; el código +507 se agrega solo.
+   - Los números de Panamá se escriben normal, por ejemplo `6123-4567`; el código +507 se agrega solo. Da igual si usa guiones, espacios o nada (`61234567`), y si ya escribió `+507` o `507` delante tampoco se repite.
    - Un número de otro país se escribe con `+` y su código, por ejemplo `+1 555 123 4567`.
+   - Si el número no es válido, la pestaña *Enlaces* lo indica con *Teléfono no válido · elegir contacto*.
 
 Los teléfonos y correos quedan **solo en su hoja**: no están en el código ni en GitHub.
 

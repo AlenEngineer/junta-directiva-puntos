@@ -14,6 +14,9 @@ check(g.telefonoWa_('6123-4567', '507') === '50761234567', 'número local de Pan
 check(g.telefonoWa_('+507 6123 4567', '507') === '50761234567', 'número con +507');
 check(g.telefonoWa_('00507 6123 4567', '507') === '50761234567', 'número con 00507');
 check(g.telefonoWa_('+1 (555) 123-4567', '507') === '15551234567', 'número de otro país con +');
+check(g.telefonoWa_('50761234567', '507') === '50761234567', 'número con 507 sin + no repite el código');
+check(g.telefonoWa_('507 6123-4567', '507') === '50761234567', 'número con 507 y espacio sin +');
+check(g.telefonoWa_('61234567', '507') === '50761234567', 'número de 8 dígitos sin separador');
 check(g.telefonoWa_('', '507') === '', 'teléfono vacío');
 check(g.telefonoWa_('123', '507') === null, 'teléfono muy corto no es válido');
 
