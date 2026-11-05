@@ -97,11 +97,11 @@ Primera versión pública.
 - Agenda automática ordenada según el Manual de la Iglesia (evangelismo primero).
 
 [Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v0.6.0...v1.0.0
-[0.6.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v0.2.0...v0.3.0
+[1.0.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/0d31e92...v1.0.0
+[0.6.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/6ace68b...0d31e92
+[0.5.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/66fea6f...6ace68b
+[0.4.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/008f40b...66fea6f
+[0.3.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v0.2.0...008f40b
 [0.2.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AlenEngineer/junta-directiva-puntos/releases/tag/v0.1.0

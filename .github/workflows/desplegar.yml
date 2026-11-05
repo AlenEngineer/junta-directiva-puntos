@@ -118,24 +118,3 @@ jobs:
             dentro { print }
           ' CHANGELOG.md > notas.md
           gh release create "$ETIQUETA" --title "$ETIQUETA" --notes-file notas.md --verify-tag --latest
-
-      - name: Etiquetar las versiones anteriores a 1.0.0 (solo la primera vez)
-        if: github.event_name == 'push'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          while read -r etiqueta commit; do
-            [ -z "$etiqueta" ] && continue
-            if ! git rev-parse -q --verify "refs/tags/$etiqueta" > /dev/null; then
-              git tag -a "$etiqueta" "$commit" -m "$etiqueta"
-              git push origin "$etiqueta"
-            fi
-          done <<'LISTA'
-          v0.1.0 cc259159b6a9459daf3926603a1f0a86f551395f
-          v0.1.1 3ae257f0151cadc45f309fc6fbc765251d0f2280
-          v0.2.0 c98b51d634091812544098d4b306764412bf9ee4
-          v0.3.0 008f40b7c2202f7100d14673963c8fa8b6b42e61
-          v0.4.0 66fea6fa5639772688eeefd7fd0494a94718e179
-          v0.5.0 6ace68bb2927bc0b78f927361d3c0f8c8abc2f4e
-          v0.6.0 0d31e92175456c8e04ec8f84bbc61395ab11769f
-          LISTA
