@@ -723,10 +723,8 @@ function urlApp_(preguntar) {
   var props = PropertiesService.getScriptProperties();
   var url = props.getProperty('URL_APP');
   if (url) return url;
-  try {
-    var auto = ScriptApp.getService().getUrl();
-    if (auto && /\/exec$/.test(auto)) { props.setProperty('URL_APP', auto); return auto; }
-  } catch (e) { /* sin implementar todavía */ }
+  // No se usa ScriptApp.getService().getUrl(): puede devolver la URL de otra
+  // implementación y los enlaces no abrirían. Siempre se pide a la persona.
   return preguntar ? pedirUrl_('') : '';
 }
 

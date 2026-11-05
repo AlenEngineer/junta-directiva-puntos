@@ -60,12 +60,12 @@ Se trabaja en dos lugares. Cada paso dice dónde:
    - **Ejecutar como:** *Yo (su correo)*
    - **Quién tiene acceso:** *Cualquier usuario*
 4. 🛠️ Presione **Implementar**. Si pide permisos otra vez, acéptelos.
-5. 🛠️ Copie la **URL de la aplicación web**, la que termina en `/exec`. Normalmente la hoja la detecta sola, pero téngala a mano por si la pide.
+5. 🛠️ Copie la **URL de la aplicación web**, la que termina en `/exec`. La hoja se la pedirá en el paso 5.
 
 ### Paso 5 · Crear la primera junta (📊 Google Sheets)
 
 1. 📊 Vuelva a la pestaña de la hoja y **recárguela** (F5). Arriba aparece un menú nuevo: **Junta**.
-2. 📊 Vaya a **Junta → Nueva junta…** y escriba la fecha, por ejemplo `14/03/2027`. Si pide la URL, pegue la del paso 4.
+2. 📊 Vaya a **Junta → Nueva junta…** La primera vez pide la URL de la aplicación: pegue la del paso 4. Después escriba la fecha, por ejemplo `14/03/2027`.
 3. 📊 Se abre la pestaña **Enlaces** con el enlace de cada persona. Envíe cada uno **en privado** a su dueño.
 
 ## Uso diario (📊 Google Sheets)
@@ -78,7 +78,7 @@ Todo se hace desde el menú **Junta** de la hoja:
 | **Generar agenda…** | Crear la pestaña *Agenda dd-mm-aaaa* con los puntos ordenados. Se puede generar varias veces: se reemplaza. |
 | **Cambiar el enlace de una persona…** | Si un enlace se filtró. Escriba el nombre, o `GENERAL` para el enlace general. |
 | **Cerrar recepción de puntos** | Dejar de recibir puntos antes del día de la junta. |
-| **Cambiar la URL de la aplicación…** | Solo si creó una implementación nueva en vez de actualizar la existente. |
+| **Cambiar la URL de la aplicación…** | Si los enlaces abren una página de error, o si creó una implementación nueva en vez de actualizar la existente. Muestra la URL guardada y le deja pegar la correcta. |
 
 **Puntos del enlace general:** en la pestaña **Puntos**, cambie su columna *Estado* de *Por revisar* a *Aprobado* (o *Rechazado*) y vuelva a generar la agenda.
 
