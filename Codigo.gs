@@ -685,7 +685,8 @@ function escribirEnlaces_() {
       return;
     }
     var tel = telefonoWa_((contactos[n] || {}).telefono, cp);
-    var wa = linkWhatsApp_(tel, mensajeWhatsApp_(n, junta, e));
+    var correo = (contactos[n] || {}).correo;
+    var wa = linkWhatsApp_(tel, mensajeWhatsApp_(n, junta, e, correoValido_(correo) ? correo : ''));
     var etiqueta = tel ? 'Enviar por WhatsApp' : (tel === null ? 'Teléfono no válido · elegir contacto' : 'Elegir contacto');
     poner([n, cargosTexto(cargos.personas[n]), e, etiqueta, estadoCorreo(n)], '', { texto: etiqueta, url: wa });
   };
@@ -810,11 +811,13 @@ function linkWhatsApp_(tel, mensaje) {
   return 'https://wa.me/' + (tel || '') + '?text=' + encodeURIComponent(mensaje);
 }
 
-function mensajeWhatsApp_(nombre, junta, enlace) {
+function mensajeWhatsApp_(nombre, junta, enlace, correo) {
   return 'Hola, ' + nombre.split(' ')[0] + '. Este es su enlace personal para enviar puntos a la ' +
     'Junta Directiva del ' + junta.dia + ':\n\n' + enlace + '\n\n' +
     'Es solo para usted y deja de funcionar al terminar el día de la junta. Por favor no lo reenvíe. ' +
-    'Si no abre, pruebe desde el celular o en una ventana de incógnito.';
+    'Si no abre, pruebe desde el celular o en una ventana de incógnito.' +
+    (correo ? '\n\nTambién le enviamos un correo a ' + correo + ' con las instrucciones y una guía para usar el ' +
+      'formulario. Por favor revíselo, y si no lo ve, busque en la carpeta de spam o correo no deseado.' : '');
 }
 
 function mensajeGeneral_(junta, enlace) {

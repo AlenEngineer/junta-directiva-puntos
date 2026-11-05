@@ -25,6 +25,10 @@ const junta = { fecha: '26/11/2026', dia: 'jueves 26 de noviembre de 2026' };
 const enlace = 'https://script.google.com/macros/s/ABC/exec?t=' + 'a'.repeat(32);
 const msg = g.mensajeWhatsApp_('Daniel Rivas', junta, enlace);
 check(msg.startsWith('Hola, Daniel.') && msg.includes(enlace) && msg.includes('jueves 26 de noviembre'), 'mensaje personal de WhatsApp');
+check(!msg.includes('correo'), 'sin correo: el WhatsApp no menciona el correo');
+const msgCorreo = g.mensajeWhatsApp_('Daniel Rivas', junta, enlace, 'daniel@gmail.com');
+check(msgCorreo.includes('daniel@gmail.com') && msgCorreo.includes('instrucciones') && msgCorreo.includes('spam'),
+  'con correo: el WhatsApp pide revisar el correo con las instrucciones');
 const wa = g.linkWhatsApp_('50761234567', msg);
 check(wa.startsWith('https://wa.me/50761234567?text=') && decodeURIComponent(wa.split('text=')[1]) === msg, 'enlace wa.me con el mensaje codificado');
 check(g.linkWhatsApp_('', 'hola').startsWith('https://wa.me/?text='), 'sin teléfono: WhatsApp deja elegir el contacto');

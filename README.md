@@ -102,7 +102,7 @@ La pestaña **Enlaces** tiene dos columnas para compartir:
 
 **WhatsApp** (un clic por persona):
 1. 📊 Haga clic en **Enviar por WhatsApp** junto a la persona y abra el enlace que aparece.
-2. Se abre WhatsApp, en el celular o en WhatsApp Web, con el chat de esa persona y el mensaje ya escrito: su nombre, la fecha de la junta y su enlace.
+2. Se abre WhatsApp, en el celular o en WhatsApp Web, con el chat de esa persona y el mensaje ya escrito: su nombre, la fecha de la junta y su enlace. Si la persona tiene correo en *Contactos*, el mensaje también le pide revisar el correo con las instrucciones y la guía. Por eso conviene **enviar los correos primero**.
 3. Presione **Enviar**.
 
 Si la persona no tiene teléfono en *Contactos*, el botón dice **Elegir contacto**: WhatsApp abre el mensaje ya escrito y usted elige a quién enviarlo. El enlace general siempre funciona así, para enviarlo al miembro que lo necesite.
