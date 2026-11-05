@@ -4,7 +4,7 @@ const { validarPunto, firmaValida_, parseFecha_, claveFecha_ } =
   new Function(code + '; return { validarPunto, firmaValida_, parseFecha_, claveFecha_ };')();
 const opc = { general: false, departamentos: ['Escuela Sabática', 'Educación'] };
 const base = { departamento: 'Escuela Sabática', categoria: 'Evangelismo y misión', titulo: 'Campaña',
-  descripcion: 'Votar campaña', tiempo: '10 minutos' };
+  descripcion: 'Votar campaña' };
 let fails = 0;
 function t(nombre, d, o, esperaError) {
   const r = validarPunto(d, o || opc);

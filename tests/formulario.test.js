@@ -2,14 +2,13 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 const html = fs.readFileSync(require('path').join(__dirname, '..', 'Formulario.html'), 'utf8');
 const CATS = ['Evangelismo y misión','Tesorería y finanzas','Departamentos','Feligresía (traslados, recepción de miembros)','Asuntos generales'];
-const TIEMPOS = ['5 minutos','10 minutos','15 minutos','20 minutos','30 minutos o más'];
 function pagina(datos) {
   const stub = `<script>window.__envios=[];window.google={script:{run:(function(){var s,f;var r={withSuccessHandler:function(x){s=x;return r;},withFailureHandler:function(x){f=x;return r;},enviarPunto:function(c,d){window.__envios.push(d);setTimeout(function(){s({ok:true});},30);}};return r;})()}};</script>`;
   return html.replace('<?!= datosJson ?>', JSON.stringify(datos)).replace('<script>', stub + '<script>');
 }
 const daniel = { clave: 'a'.repeat(32), general: false, nombre: 'Daniel Rivas', junta: 'domingo 14 de marzo de 2027',
   departamentos: [{valor:'Escuela Sabática',texto:'Escuela Sabática (Director)'},{valor:'Ancianos',texto:'Ancianos (Anciano)'}],
-  categorias: CATS, tiempos: TIEMPOS, version: '1.0.0' };
+  categorias: CATS, version: '1.1.0' };
 const OUT = require('path').join(__dirname, 'salida') + '/'; fs.mkdirSync(OUT, { recursive: true });
 let fails = 0;
 const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fails++; };
@@ -20,12 +19,13 @@ const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fa
   fs.writeFileSync(OUT + 'p.html', pagina(daniel));
   await page.goto('file://' + OUT + 'p.html');
   await page.screenshot({ path: OUT + '1-inicio.png', fullPage: true });
-  check((await page.textContent('.pie')).includes('· v1.0.0'), 'el pie muestra la versión');
+  check((await page.textContent('.pie')).includes('· v1.1.0'), 'el pie muestra la versión');
   check(await page.isVisible('#q-depto'), 'muestra departamento si tiene varios');
+  check((await page.$('#tiempo')) === null, 'ya no pregunta el tiempo estimado');
   check(!(await page.isVisible('#q-nombre')), 'oculta nombre con enlace personal');
   // validación vacía
   await page.click('#siguiente');
-  check(await page.locator('.pregunta.error').count() === 6, 'marca 6 preguntas obligatorias vacías');
+  check(await page.locator('.pregunta.error').count() === 5, 'marca 5 preguntas obligatorias vacías');
   await page.screenshot({ path: OUT + '2-errores.png', fullPage: true });
   // informativo → enviar
   await page.selectOption('#depto', 'Escuela Sabática');
@@ -33,7 +33,6 @@ const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fa
   await page.fill('#titulo', 'Informe de bautismos');
   await page.fill('#descripcion', 'Se informa que hubo 3 bautismos.');
   await page.check('input[name=tipo][value="Informativo"]');
-  await page.selectOption('#tiempo', '5 minutos');
   check((await page.textContent('#siguiente')) === 'Enviar', 'informativo: el botón dice Enviar');
   check((await page.textContent('#pagina-texto')) === 'Página 1 de 1', 'informativo: Página 1 de 1');
   // Material de apoyo: un .exe se rechaza, un PowerPoint se acepta; enlace mal escrito se rechaza.
@@ -62,7 +61,6 @@ const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fa
   await page.fill('#titulo', 'Retiro de jóvenes');
   await page.fill('#descripcion', 'Votar el retiro de jóvenes.');
   await page.check('input[name=tipo][value="Para votación"]');
-  await page.selectOption('#tiempo', '15 minutos');
   check((await page.textContent('#siguiente')) === 'Siguiente', 'votación: el botón dice Siguiente');
   await page.click('#siguiente');
   check(await page.isVisible('#pag2') && !(await page.isVisible('.actividad')), 'página 2 visible, actividad oculta');

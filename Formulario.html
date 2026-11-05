@@ -202,10 +202,6 @@ Puede que la junta ya se haya realizado, que se haya cerrado la recepción de pu
         <input class="campo" id="materialEnlace" type="url" maxlength="1000" placeholder="https://">
       </div>
 
-      <div class="tarjeta pregunta" data-v="tiempo">
-        <div class="titulo-preg">Tiempo estimado para presentarlo <span class="req">*</span></div>
-        <select class="campo" id="tiempo"></select>
-      </div>
     </div>
 
     <!-- ===== Página 2: Actividad y fondos ===== -->
@@ -368,7 +364,6 @@ var DATOS = <?!= datosJson ?>;
   }
   llenar($('depto'), D.departamentos);
   llenar($('categoria'), D.categorias);
-  llenar($('tiempo'), D.tiempos);
 
   // Ícono y texto de error en cada pregunta, como en Google Forms.
   document.querySelectorAll('.pregunta').forEach(function (q) {
@@ -433,7 +428,6 @@ var DATOS = <?!= datosJson ?>;
     titulo: function () { return val('titulo') ? '' : OBLIG; },
     descripcion: function () { return val('descripcion') ? '' : OBLIG; },
     tipo: function () { return radio('tipo') ? '' : OBLIG; },
-    tiempo: function () { return val('tiempo') ? '' : OBLIG; },
     esActividad: function () { return radio('esActividad') ? '' : OBLIG; },
     actFecha: function () { return val('actFecha') ? '' : OBLIG; },
     actFechaFin: function () {
@@ -557,7 +551,7 @@ var DATOS = <?!= datosJson ?>;
     var d = {
       nombre: val('nombre'), departamento: dep,
       categoria: val('categoria'), titulo: val('titulo'), descripcion: val('descripcion'),
-      tipo: radio('tipo'), tiempo: val('tiempo'),
+      tipo: radio('tipo'),
       material: adjuntos.material || null, materialEnlace: val('materialEnlace')
     };
     if (d.tipo === 'Para votación') {

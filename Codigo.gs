@@ -22,7 +22,7 @@
  */
 
 // Versión de la aplicación. Debe coincidir con package.json y con CHANGELOG.md (lo revisan las pruebas).
-var VERSION = '1.0.0';
+var VERSION = '1.1.0';
 var REPOSITORIO = 'https://github.com/AlenEngineer/junta-directiva-puntos';
 
 var HOJA_CARGOS = 'Cargos';
@@ -42,7 +42,6 @@ var CATEGORIAS = [
   'Asuntos generales'
 ];
 var TIPOS = ['Para votación', 'Informativo'];
-var TIEMPOS = ['5 minutos', '10 minutos', '15 minutos', '20 minutos', '30 minutos o más'];
 
 var MAX_ARCHIVO = 5 * 1024 * 1024;   // cotizaciones: 5 MB
 var MAX_MATERIAL = 10 * 1024 * 1024; // material de apoyo: 10 MB (los videos van por enlace)
@@ -59,7 +58,7 @@ var TIPOS_ARCHIVO = {
 
 var COLS_PUNTOS = [
   'Fecha de envío', 'Junta', 'Presenta', 'Departamento', 'Estado',
-  'Categoría', 'Título', 'Descripción y propuesta', 'Tipo', 'Tiempo estimado',
+  'Categoría', 'Título', 'Descripción y propuesta', 'Tipo',
   'Material de apoyo (archivo)', 'Material de apoyo (enlace)',
   '¿Es actividad?', 'Fecha de la actividad', 'Fecha de término de la actividad', 'Hora de inicio', 'Hora de término',
   'Lugar', 'Responsable', 'Asistencia esperada',
@@ -361,7 +360,7 @@ function enviarPunto(clave, d) {
     'Fecha de envío': new Date(), 'Junta': ctx.junta.fecha, 'Presenta': presenta,
     'Departamento': departamento, 'Estado': ctx.general ? 'Por revisar' : 'Recibido',
     'Categoría': p.categoria, 'Título': p.titulo, 'Descripción y propuesta': p.descripcion,
-    'Tipo': p.tipo, 'Tiempo estimado': p.tiempo,
+    'Tipo': p.tipo,
     'Material de apoyo (archivo)': materialUrl, 'Material de apoyo (enlace)': p.materialEnlace,
     '¿Es actividad?': p.esActividad, 'Fecha de la actividad': p.actFecha,
     'Fecha de término de la actividad': p.actFechaFin,
@@ -414,8 +413,6 @@ function validarPunto(d, opc) {
   if (!p.descripcion) return err('Escriba la descripción y propuesta.');
   p.tipo = txt(d.tipo, 50);
   if (TIPOS.indexOf(p.tipo) < 0) return err('Indique si el punto es para votación o informativo.');
-  p.tiempo = txt(d.tiempo, 50);
-  if (TIEMPOS.indexOf(p.tiempo) < 0) return err('Elija el tiempo estimado.');
 
   // Material de apoyo (opcional, para cualquier tipo de punto): el archivo se revisa al guardarlo.
   p.materialEnlace = txt(d.materialEnlace, 1000);
@@ -582,7 +579,6 @@ function publico_(ctx) {
       return { valor: c.departamento, texto: c.departamento + ' (' + c.cargo + ')' };
     }),
     categorias: CATEGORIAS,
-    tiempos: TIEMPOS,
     version: VERSION
   };
 }
@@ -626,8 +622,8 @@ function generarAgenda() {
   var pendientes = todos.filter(function (f) { return v(f, 'Estado') === 'Por revisar'; });
   var puntos = todos.filter(function (f) { return ['Por revisar', 'Rechazado'].indexOf(v(f, 'Estado')) < 0; });
 
-  var COLS = ['#', 'Punto', 'Presenta', 'Tipo', 'Tiempo', 'Descripción y propuesta', 'Actividad', 'Presupuesto'];
-  var filas = [], estilos = [], n = 0, minutos = 0, solicitado = 0;
+  var COLS = ['#', 'Punto', 'Presenta', 'Tipo', 'Tiempo asignado', 'Descripción y propuesta', 'Actividad', 'Presupuesto'];
+  var filas = [], estilos = [], n = 0, solicitado = 0;
 
   function agregar(fila, estilo) {
     while (fila.length < COLS.length) fila.push('');
@@ -635,7 +631,6 @@ function generarAgenda() {
   }
   function fijo(texto) { agregar([++n, texto], 'fijo'); }
   function filaPunto(f, numerar) {
-    var tiempo = String(v(f, 'Tiempo estimado'));
     var actividad = '';
     if (v(f, '¿Es actividad?') === 'Sí') {
       var ini = textoFecha_(v(f, 'Fecha de la actividad'));
@@ -659,13 +654,12 @@ function generarAgenda() {
       if (v(f, 'Archivo de la cotización')) presupuesto += '\nCotización (archivo): ' + v(f, 'Archivo de la cotización');
       if (numerar) solicitado += Number(v(f, 'Monto solicitado a la iglesia')) || 0;
     }
-    if (numerar) minutos += parseInt(tiempo, 10) || 0;
     var descripcion = String(v(f, 'Descripción y propuesta'));
     if (v(f, 'Material de apoyo (archivo)')) descripcion += '\n\nMaterial (archivo): ' + v(f, 'Material de apoyo (archivo)');
     if (v(f, 'Material de apoyo (enlace)')) descripcion += '\n' + (v(f, 'Material de apoyo (archivo)') ? '' : '\n') +
       'Material (enlace): ' + v(f, 'Material de apoyo (enlace)');
     return [numerar ? ++n : '', v(f, 'Título'), v(f, 'Presenta') + '\n(' + v(f, 'Departamento') + ')',
-      v(f, 'Tipo'), tiempo, descripcion, actividad, presupuesto];
+      v(f, 'Tipo'), '', descripcion, actividad, presupuesto]; // el tiempo lo asigna la junta
   }
   function seccion(cat) {
     agregar(['', cat.toUpperCase()], 'seccion');
@@ -707,10 +701,7 @@ function generarAgenda() {
   });
 
   var pie = 4 + filas.length + 1;
-  h.getRange(pie, 2, 2, 1).setValues([
-    ['Tiempo estimado de los puntos: ' + minutos + ' minutos'],
-    ['Total solicitado a la iglesia: ' + solicitado]
-  ]).setFontWeight('bold');
+  h.getRange(pie, 2).setValue('Total solicitado a la iglesia: ' + solicitado).setFontWeight('bold');
 
   [40, 220, 190, 120, 100, 320, 210, 280].forEach(function (w, i) { h.setColumnWidth(i + 1, w); });
   h.setFrozenRows(3);

@@ -14,6 +14,15 @@ Cada versión explica, en **Qué hacer**, los pasos para una instalación existe
 
 Cambios que ya están en `main` pero todavía no forman parte de una versión.
 
+## [1.1.0] - 2026-11-05
+
+### Cambiado
+- El formulario ya no pregunta el **tiempo estimado**: el tiempo de cada punto lo decide la junta, no quien lo propone.
+- En la agenda, la columna **Tiempo asignado** queda vacía para completarla en la junta, y ya no se muestra el total de minutos.
+
+### Qué hacer
+- Nada. En la pestaña *Puntos*, la columna *Tiempo estimado* queda con los datos anteriores; los puntos nuevos la dejan vacía. Puede borrarla si quiere.
+
 ## [1.0.0] - 2026-11-05
 
 Primera versión pública.
@@ -96,7 +105,8 @@ Primera versión pública.
 - Formulario por secciones: informativo o para votación, actividad, presupuesto con cotización.
 - Agenda automática ordenada según el Manual de la Iglesia (evangelismo primero).
 
-[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.0.0...HEAD
+[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/0d31e92...v1.0.0
 [0.6.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/6ace68b...0d31e92
 [0.5.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/66fea6f...6ace68b
