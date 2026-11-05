@@ -9,6 +9,7 @@ Aplicación web hecha con Google Apps Script para que los oficiales de la iglesi
 - **Compartir los enlaces:** cada persona tiene un botón **Enviar por WhatsApp** que abre el chat con el mensaje ya escrito, y se le puede enviar un **correo automático** con su enlace y una explicación completa.
 - **El formulario se adapta a cada respuesta:**
   - *Informativo*: solo pide los datos del punto y la descripción del informe.
+  - *Material de apoyo* (opcional, en cualquier punto): un archivo de PowerPoint, PDF, Word o imagen de hasta 10 MB, o un enlace para videos y archivos grandes (YouTube, Google Drive). Se guarda en la misma carpeta de Drive que las cotizaciones y aparece en la agenda debajo de la descripción.
   - *Para votación*: pregunta si es una actividad (fechas, horas, lugar, responsable) y si se pide dinero de la iglesia. Las actividades de varios días, como un campamento o una campaña, llevan fecha de inicio y de término.
   - *Presupuesto*: costo total y monto que se pide a la iglesia, que no puede ser mayor. Si no cubre todo, pregunta cómo se conseguirá el resto. El costo se explica con una descripción, un enlace o un archivo (PDF, Word o imagen de hasta 5 MB).
 - **Agenda automática:** **Junta → Generar agenda** arma una pestaña con los puntos ordenados: devocional, evangelismo y misión, acta anterior, tesorería, departamentos, feligresía, asuntos generales y oración de clausura.
@@ -217,6 +218,12 @@ Se configura una sola vez. Necesita una computadora con [Node.js](https://nodejs
 ## Novedades
 
 Qué hacer en una instalación que ya funciona, versión por versión (la más reciente primero):
+
+**Noviembre 2026 · Material de apoyo**
+- En la primera página del formulario hay una tarjeta opcional, **Material de apoyo**, para adjuntar una presentación de PowerPoint, un PDF, un Word o una imagen de hasta 10 MB, o pegar un enlace a un video.
+- Los archivos se guardan en la carpeta *"Cotizaciones – Junta Directiva"* de su Drive, con *"Material"* en el nombre para distinguirlos de las cotizaciones.
+- En la pestaña **Puntos** aparecen solas dos columnas nuevas al final: *Material de apoyo (archivo)* y *Material de apoyo (enlace)*.
+- No pide permisos nuevos. Con la actualización automática no hay que hacer nada. Si actualiza a mano: cambian `Codigo.gs` y `Formulario.html`.
 
 **Noviembre 2026 · Importar contactos de Google**
 - Nuevo: **Junta → Importar teléfonos y correos de mis contactos**.

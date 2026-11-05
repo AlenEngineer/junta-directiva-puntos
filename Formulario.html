@@ -178,6 +178,30 @@ Puede que la junta ya se haya realizado, que se haya cerrado la recepción de pu
         <textarea class="campo" id="descripcion" rows="1" maxlength="5000" placeholder="Tu respuesta"></textarea>
       </div>
 
+      <div class="tarjeta pregunta" data-v="material">
+        <div class="titulo-preg">Material de apoyo</div>
+        <div class="ayuda">Opcional. Si va a presentar con diapositivas, un documento o un video, adjúntelo o pegue el enlace.</div>
+
+        <div class="subtitulo">Archivo</div>
+        <div class="ayuda">PowerPoint, PDF, Word o imagen. Máximo 10 MB.</div>
+        <input type="file" id="material" class="oculto"
+          accept=".pdf,.ppt,.pptx,.doc,.docx,.jpg,.jpeg,.png,.webp,.heic,application/pdf,image/*">
+        <button type="button" class="btn btn-secundario subir" id="material-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
+          Agregar archivo
+        </button>
+        <div class="chip oculto" id="material-chip">
+          <span id="material-nombre"></span>
+          <button type="button" id="material-quitar" aria-label="Quitar archivo">×</button>
+        </div>
+
+        <div class="subtitulo">Enlace</div>
+        <div class="ayuda">Para videos o archivos de más de 10 MB: súbalos a YouTube (como "No listado") o a Google Drive
+          (compartido como "Cualquier persona con el enlace") y pegue aquí el enlace.</div>
+        <input class="campo" id="materialEnlace" type="url" maxlength="1000" placeholder="https://">
+      </div>
+
       <div class="tarjeta pregunta" data-v="tiempo">
         <div class="titulo-preg">Tiempo estimado para presentarlo <span class="req">*</span></div>
         <select class="campo" id="tiempo"></select>
@@ -283,14 +307,14 @@ Puede que la junta ya se haya realizado, que se haya cerrado la recepción de pu
         <div class="ayuda">PDF, Word o imagen. Máximo 5 MB.</div>
         <input type="file" id="archivo" class="oculto"
           accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.heic,application/pdf,image/*">
-        <button type="button" class="btn btn-secundario subir" id="btn-archivo">
+        <button type="button" class="btn btn-secundario subir" id="archivo-btn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
           Agregar archivo
         </button>
-        <div class="chip oculto" id="chip">
-          <span id="chip-nombre"></span>
-          <button type="button" id="quitar" aria-label="Quitar archivo">×</button>
+        <div class="chip oculto" id="archivo-chip">
+          <span id="archivo-nombre"></span>
+          <button type="button" id="archivo-quitar" aria-label="Quitar archivo">×</button>
         </div>
       </div>
     </div>
@@ -319,8 +343,7 @@ var DATOS = <?!= datosJson ?>;
 
   var OBLIG = 'Esta pregunta es obligatoria';
   var EXT = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp', 'heic'];
-  var MAX = 5 * 1024 * 1024;
-  var archivo = null;      // { nombre, base64 }
+  var adjuntos = {};       // 'archivo' (cotización) y 'material': { nombre, base64 }
   var actual = 'pag1';
 
   // ---------- Preparar la página ----------
@@ -439,7 +462,11 @@ var DATOS = <?!= datosJson ?>;
     cotizacion: function () {
       var e = val('enlace');
       if (e && !/^https?:\/\/\S+$/i.test(e)) return 'El enlace debe empezar con https://';
-      return val('descCosto') || e || archivo ? '' : 'Complete al menos una de las tres opciones';
+      return val('descCosto') || e || adjuntos.archivo ? '' : 'Complete al menos una de las tres opciones';
+    },
+    material: function () {
+      var e = val('materialEnlace');
+      return e && !/^https?:\/\/\S+$/i.test(e) ? 'El enlace debe empezar con https://' : '';
     }
   };
 
@@ -460,7 +487,7 @@ var DATOS = <?!= datosJson ?>;
   // (por ejemplo, la hora de término depende de si la actividad dura varios días).
   function limpiarError() {
     document.querySelectorAll('.pregunta.error').forEach(function (q) {
-      if (q.dataset.v === 'cotizacion' && q.querySelector('.msg-error span').textContent.indexOf('archivo') >= 0) return;
+      if (q.dataset.errorArchivo) return; // el aviso del archivo se quita al elegir otro
       var msg = reglas[q.dataset.v]();
       if (!msg) q.classList.remove('error');
       else q.querySelector('.msg-error span').textContent = msg;
@@ -484,36 +511,44 @@ var DATOS = <?!= datosJson ?>;
   });
   $('atras').addEventListener('click', function () { ir(anterior()); });
 
-  // ---------- Archivo ----------
-  $('btn-archivo').addEventListener('click', function () { $('archivo').click(); });
-  $('archivo').addEventListener('change', function () {
-    var f = this.files[0];
-    this.value = '';
-    if (!f) return;
-    var q = this.closest('.pregunta');
-    var ext = f.name.indexOf('.') >= 0 ? f.name.split('.').pop().toLowerCase() : '';
-    var msg = EXT.indexOf(ext) < 0 ? 'Tipo de archivo no permitido. Use PDF, Word o una imagen.' :
-      f.size > MAX ? 'El archivo pesa más de 5 MB.' : '';
-    if (msg) {
-      q.classList.add('error');
-      q.querySelector('.msg-error span').textContent = msg;
-      return;
-    }
-    var lector = new FileReader();
-    lector.onload = function () {
-      archivo = { nombre: f.name, base64: String(lector.result).split(',')[1] };
-      $('chip-nombre').textContent = f.name;
-      $('chip').classList.remove('oculto');
-      $('btn-archivo').classList.add('oculto');
-      q.classList.remove('error');
-    };
-    lector.readAsDataURL(f);
-  });
-  $('quitar').addEventListener('click', function () {
-    archivo = null;
-    $('chip').classList.add('oculto');
-    $('btn-archivo').classList.remove('oculto');
-  });
+  // ---------- Archivos adjuntos (cotización y material de apoyo) ----------
+  function configurarAdjunto(id, exts, maxMB, textoTipos) {
+    $(id + '-btn').addEventListener('click', function () { $(id).click(); });
+    $(id).addEventListener('change', function () {
+      var f = this.files[0];
+      this.value = '';
+      if (!f) return;
+      var q = this.closest('.pregunta');
+      var ext = f.name.indexOf('.') >= 0 ? f.name.split('.').pop().toLowerCase() : '';
+      var msg = exts.indexOf(ext) < 0 ? 'Tipo de archivo no permitido. Use ' + textoTipos + '.' :
+        f.size > maxMB * 1024 * 1024 ? 'El archivo pesa más de ' + maxMB + ' MB.' : '';
+      if (msg) {
+        q.classList.add('error');
+        q.dataset.errorArchivo = '1';
+        q.querySelector('.msg-error span').textContent = msg;
+        return;
+      }
+      var lector = new FileReader();
+      lector.onload = function () {
+        adjuntos[id] = { nombre: f.name, base64: String(lector.result).split(',')[1] };
+        $(id + '-nombre').textContent = f.name;
+        $(id + '-chip').classList.remove('oculto');
+        $(id + '-btn').classList.add('oculto');
+        delete q.dataset.errorArchivo;
+        q.classList.remove('error');
+        limpiarError();
+      };
+      lector.readAsDataURL(f);
+    });
+    $(id + '-quitar').addEventListener('click', function () { quitarAdjunto(id); });
+  }
+  function quitarAdjunto(id) {
+    delete adjuntos[id];
+    $(id + '-chip').classList.add('oculto');
+    $(id + '-btn').classList.remove('oculto');
+  }
+  configurarAdjunto('archivo', EXT, 5, 'PDF, Word o una imagen');
+  configurarAdjunto('material', EXT.concat(['ppt', 'pptx']), 10, 'PowerPoint, PDF, Word o una imagen');
 
   // ---------- Enviar ----------
   function datos() {
@@ -521,7 +556,8 @@ var DATOS = <?!= datosJson ?>;
     var d = {
       nombre: val('nombre'), departamento: dep,
       categoria: val('categoria'), titulo: val('titulo'), descripcion: val('descripcion'),
-      tipo: radio('tipo'), tiempo: val('tiempo')
+      tipo: radio('tipo'), tiempo: val('tiempo'),
+      material: adjuntos.material || null, materialEnlace: val('materialEnlace')
     };
     if (d.tipo === 'Para votación') {
       d.esActividad = radio('esActividad');
@@ -533,7 +569,7 @@ var DATOS = <?!= datosJson ?>;
       d.pideDinero = radio('dinero');
       if (d.pideDinero === 'Sí') {
         d.costo = val('costo'); d.monto = val('monto'); d.estrategia = val('estrategia');
-        d.descCosto = val('descCosto'); d.enlace = val('enlace'); d.archivo = archivo;
+        d.descCosto = val('descCosto'); d.enlace = val('enlace'); d.archivo = adjuntos.archivo || null;
       }
     }
     return d;
@@ -565,10 +601,12 @@ var DATOS = <?!= datosJson ?>;
   // ---------- Borrar y enviar otro ----------
   function reiniciar() {
     $('form').reset();
-    archivo = null;
-    $('chip').classList.add('oculto');
-    $('btn-archivo').classList.remove('oculto');
-    document.querySelectorAll('.pregunta.error').forEach(function (q) { q.classList.remove('error'); });
+    quitarAdjunto('archivo');
+    quitarAdjunto('material');
+    document.querySelectorAll('.pregunta.error').forEach(function (q) {
+      q.classList.remove('error');
+      delete q.dataset.errorArchivo;
+    });
     document.querySelectorAll('textarea').forEach(function (t) { t.style.height = ''; });
     $('siguiente').disabled = false;
     ir('pag1');

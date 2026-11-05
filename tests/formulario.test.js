@@ -35,10 +35,25 @@ const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fa
   await page.selectOption('#tiempo', '5 minutos');
   check((await page.textContent('#siguiente')) === 'Enviar', 'informativo: el botón dice Enviar');
   check((await page.textContent('#pagina-texto')) === 'Página 1 de 1', 'informativo: Página 1 de 1');
+  // Material de apoyo: un .exe se rechaza, un PowerPoint se acepta; enlace mal escrito se rechaza.
+  check(await page.isVisible('[data-v=material]'), 'informativo: muestra material de apoyo');
+  fs.writeFileSync(OUT + 'virus.exe', 'x');
+  await page.setInputFiles('#material', OUT + 'virus.exe');
+  check((await page.textContent('[data-v=material] .msg-error span')).includes('PowerPoint'), 'material: rechaza .exe');
+  fs.writeFileSync(OUT + 'informe.pptx', Buffer.from([0x50, 0x4B, 0x03, 0x04, 1, 2, 3, 4, 5, 6, 7, 8]));
+  await page.setInputFiles('#material', OUT + 'informe.pptx');
+  await page.waitForSelector('#material-chip:not(.oculto)');
+  check(!(await page.isVisible('[data-v=material].error')), 'material: acepta PowerPoint y quita el error');
+  await page.fill('#materialEnlace', 'youtube.com/video');
+  await page.click('#siguiente');
+  check((await page.textContent('[data-v=material] .msg-error span')).includes('https'), 'material: enlace sin https rechazado');
+  await page.fill('#materialEnlace', 'https://youtu.be/abc123');
   await page.click('#siguiente');
   await page.waitForSelector('#hecho:not(.oculto)');
   let env = await page.evaluate(() => window.__envios[0]);
   check(env.tipo === 'Informativo' && env.costo === undefined && env.departamento === 'Escuela Sabática', 'informativo enviado sin presupuesto');
+  check(env.material && env.material.nombre === 'informe.pptx' && env.materialEnlace === 'https://youtu.be/abc123',
+    'informativo enviado con material (archivo y enlace)');
   // votación con actividad y dinero
   await page.click('#otro');
   await page.selectOption('#depto', 'Ancianos');
@@ -91,7 +106,7 @@ const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fa
   check((await page.textContent('[data-v=cotizacion] .msg-error span')).includes('no permitido'), 'rechaza .exe');
   fs.writeFileSync(OUT + 'cotizacion.pdf', '%PDF-1.4 prueba de cotización');
   await page.setInputFiles('#archivo', OUT + 'cotizacion.pdf');
-  await page.waitForSelector('#chip:not(.oculto)');
+  await page.waitForSelector('#archivo-chip:not(.oculto)');
   await page.screenshot({ path: OUT + '4-presupuesto.png', fullPage: true });
   await page.click('#siguiente');
   await page.waitForSelector('#hecho:not(.oculto)');

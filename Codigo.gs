@@ -40,7 +40,8 @@ var CATEGORIAS = [
 var TIPOS = ['Para votación', 'Informativo'];
 var TIEMPOS = ['5 minutos', '10 minutos', '15 minutos', '20 minutos', '30 minutos o más'];
 
-var MAX_ARCHIVO = 5 * 1024 * 1024; // 5 MB
+var MAX_ARCHIVO = 5 * 1024 * 1024;   // cotizaciones: 5 MB
+var MAX_MATERIAL = 10 * 1024 * 1024; // material de apoyo: 10 MB (los videos van por enlace)
 var TIPOS_ARCHIVO = {
   pdf: 'application/pdf',
   doc: 'application/msword',
@@ -55,6 +56,7 @@ var TIPOS_ARCHIVO = {
 var COLS_PUNTOS = [
   'Fecha de envío', 'Junta', 'Presenta', 'Departamento', 'Estado',
   'Categoría', 'Título', 'Descripción y propuesta', 'Tipo', 'Tiempo estimado',
+  'Material de apoyo (archivo)', 'Material de apoyo (enlace)',
   '¿Es actividad?', 'Fecha de la actividad', 'Fecha de término de la actividad', 'Hora de inicio', 'Hora de término',
   'Lugar', 'Responsable', 'Asistencia esperada',
   '¿Solicita dinero?', 'Costo total', 'Monto solicitado a la iglesia',
@@ -333,12 +335,20 @@ function enviarPunto(clave, d) {
   if (p.pideDinero === 'Sí' && d.archivo) {
     archivoUrl = guardarArchivo_(d.archivo, ctx.junta.fecha, presenta);
   }
+  var materialUrl = '';
+  if (d.material) {
+    materialUrl = guardarArchivo_(d.material, ctx.junta.fecha, presenta, {
+      tipos: tiposMaterial_(), max: MAX_MATERIAL,
+      textoTipos: 'PDF, PowerPoint, Word o una imagen', prefijo: 'Material'
+    });
+  }
 
   var valores = {
     'Fecha de envío': new Date(), 'Junta': ctx.junta.fecha, 'Presenta': presenta,
     'Departamento': departamento, 'Estado': ctx.general ? 'Por revisar' : 'Recibido',
     'Categoría': p.categoria, 'Título': p.titulo, 'Descripción y propuesta': p.descripcion,
     'Tipo': p.tipo, 'Tiempo estimado': p.tiempo,
+    'Material de apoyo (archivo)': materialUrl, 'Material de apoyo (enlace)': p.materialEnlace,
     '¿Es actividad?': p.esActividad, 'Fecha de la actividad': p.actFecha,
     'Fecha de término de la actividad': p.actFechaFin,
     'Hora de inicio': p.actInicio, 'Hora de término': p.actFin, 'Lugar': p.lugar,
@@ -371,7 +381,7 @@ function validarPunto(d, opc) {
   var p = {
     nombre: '', departamento: '', esActividad: '', actFecha: '', actFechaFin: '', actInicio: '', actFin: '',
     lugar: '', responsable: '', asistencia: '', pideDinero: '', costo: '', monto: '',
-    estrategia: '', descCosto: '', enlace: ''
+    estrategia: '', descCosto: '', enlace: '', materialEnlace: ''
   };
 
   if (opc.general) {
@@ -392,6 +402,12 @@ function validarPunto(d, opc) {
   if (TIPOS.indexOf(p.tipo) < 0) return err('Indique si el punto es para votación o informativo.');
   p.tiempo = txt(d.tiempo, 50);
   if (TIEMPOS.indexOf(p.tiempo) < 0) return err('Elija el tiempo estimado.');
+
+  // Material de apoyo (opcional, para cualquier tipo de punto): el archivo se revisa al guardarlo.
+  p.materialEnlace = txt(d.materialEnlace, 1000);
+  if (p.materialEnlace && !/^https?:\/\/\S+$/i.test(p.materialEnlace)) {
+    return err('El enlace del material de apoyo debe empezar con https://');
+  }
 
   // Un punto informativo no lleva actividad ni presupuesto.
   if (p.tipo === 'Informativo') return p;
@@ -456,21 +472,36 @@ function monto_(v) {
   return /^\d{1,9}(\.\d{1,2})?$/.test(s) ? Number(s) : NaN;
 }
 
-function guardarArchivo_(a, junta, presenta) {
-  var nombre = String(a.nombre || 'cotizacion').slice(0, 120).replace(/[\\\/:*?"<>|]/g, '_');
+/** Tipos permitidos para el material de apoyo: los de la cotización más PowerPoint. */
+function tiposMaterial_() {
+  var t = {};
+  Object.keys(TIPOS_ARCHIVO).forEach(function (k) { t[k] = TIPOS_ARCHIVO[k]; });
+  t.ppt = 'application/vnd.ms-powerpoint';
+  t.pptx = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  return t;
+}
+
+/**
+ * Guarda un archivo enviado desde el formulario en la carpeta de Drive.
+ * opc: { tipos, max, textoTipos, prefijo }
+ */
+function guardarArchivo_(a, junta, presenta, opc) {
+  opc = opc || { tipos: TIPOS_ARCHIVO, max: MAX_ARCHIVO, textoTipos: 'PDF, Word o una imagen', prefijo: 'Cotización' };
+  var mb = Math.round(opc.max / 1024 / 1024);
+  var nombre = String(a.nombre || 'archivo').slice(0, 120).replace(/[\\\/:*?"<>|]/g, '_');
   var ext = nombre.indexOf('.') >= 0 ? nombre.split('.').pop().toLowerCase() : '';
-  var mime = TIPOS_ARCHIVO[ext];
-  if (!mime) throw new Error('Tipo de archivo no permitido. Use PDF, Word o una imagen.');
+  var mime = opc.tipos[ext];
+  if (!mime) throw new Error('Tipo de archivo no permitido. Use ' + opc.textoTipos + '.');
 
   var base64 = String(a.base64 || '');
-  if (base64.length > Math.ceil(MAX_ARCHIVO / 3) * 4 + 8) throw new Error('El archivo pesa más de 5 MB.');
+  if (base64.length > Math.ceil(opc.max / 3) * 4 + 8) throw new Error('El archivo pesa más de ' + mb + ' MB.');
   var bytes = Utilities.base64Decode(base64);
-  if (bytes.length > MAX_ARCHIVO) throw new Error('El archivo pesa más de 5 MB.');
+  if (bytes.length > opc.max) throw new Error('El archivo pesa más de ' + mb + ' MB.');
   if (!firmaValida_(bytes, ext)) throw new Error('El archivo no parece ser un ' + ext.toUpperCase() + ' válido.');
 
   var carpeta = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('CARPETA'));
-  var archivo = carpeta.createFile(
-    Utilities.newBlob(bytes, mime, junta.replace(/\//g, '-') + ' – ' + presenta + ' – ' + nombre));
+  var archivo = carpeta.createFile(Utilities.newBlob(bytes, mime,
+    junta.replace(/\//g, '-') + ' – ' + opc.prefijo + ' – ' + presenta + ' – ' + nombre));
   return archivo.getUrl();
 }
 
@@ -483,7 +514,8 @@ function firmaValida_(b, ext) {
   switch (ext) {
     case 'pdf': return es([0x25, 0x50, 0x44, 0x46]);
     case 'doc': return es([0xD0, 0xCF, 0x11, 0xE0]);
-    case 'docx': return es([0x50, 0x4B, 0x03, 0x04]);
+    case 'docx': case 'pptx': return es([0x50, 0x4B, 0x03, 0x04]);
+    case 'ppt': return es([0xD0, 0xCF, 0x11, 0xE0]);
     case 'jpg': case 'jpeg': return es([0xFF, 0xD8, 0xFF]);
     case 'png': return es([0x89, 0x50, 0x4E, 0x47]);
     case 'webp': return es([0x52, 0x49, 0x46, 0x46]) && es([0x57, 0x45, 0x42, 0x50], 8);
@@ -613,8 +645,12 @@ function generarAgenda() {
       if (numerar) solicitado += Number(v(f, 'Monto solicitado a la iglesia')) || 0;
     }
     if (numerar) minutos += parseInt(tiempo, 10) || 0;
+    var descripcion = String(v(f, 'Descripción y propuesta'));
+    if (v(f, 'Material de apoyo (archivo)')) descripcion += '\n\nMaterial (archivo): ' + v(f, 'Material de apoyo (archivo)');
+    if (v(f, 'Material de apoyo (enlace)')) descripcion += '\n' + (v(f, 'Material de apoyo (archivo)') ? '' : '\n') +
+      'Material (enlace): ' + v(f, 'Material de apoyo (enlace)');
     return [numerar ? ++n : '', v(f, 'Título'), v(f, 'Presenta') + '\n(' + v(f, 'Departamento') + ')',
-      v(f, 'Tipo'), tiempo, v(f, 'Descripción y propuesta'), actividad, presupuesto];
+      v(f, 'Tipo'), tiempo, descripcion, actividad, presupuesto];
   }
   function seccion(cat) {
     agregar(['', cat.toUpperCase()], 'seccion');
@@ -946,6 +982,7 @@ function correoPartes_(nombre, persona, junta, enlace) {
       'Puede enviar varios puntos: después de cada envío aparece "Enviar otro punto".',
       cargos.length > 1 ? 'Como tiene más de un cargo, el formulario le preguntará por cuál departamento presenta cada punto.' : '',
       'Los puntos deben llegar ya definidos. Si es para votación, escriba la propuesta tal como se votaría.',
+      'Si va a presentar con material de apoyo, puede adjuntar una presentación de PowerPoint, un PDF, un Word o una imagen de hasta 10 MB. Los videos se comparten con un enlace de YouTube o Google Drive.',
       'Si el punto pide dinero de la iglesia, tenga a mano el costo total y la cotización. Puede describirla, pegar un enlace o adjuntar un PDF, Word o imagen de hasta 5 MB.',
       persona.director ? '' : 'Como asociado o miembro, normalmente presenta puntos cuando el director de su departamento no puede hacerlo.'
     ].filter(Boolean),

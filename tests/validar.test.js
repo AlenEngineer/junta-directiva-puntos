@@ -23,6 +23,16 @@ t('votación falta actividad', { ...base, tipo: 'Para votación', pideDinero: 'N
 t('actividad sin lugar', { ...base, tipo: 'Para votación', esActividad: 'Sí', actFecha: '2027-03-20', actInicio: '15:00', responsable: 'Ana', pideDinero: 'No' }, null, 'lugar');
 r = t('actividad completa', { ...base, tipo: 'Para votación', esActividad: 'Sí', actFecha: '2027-03-20', actInicio: '15:00', lugar: 'Templo', responsable: 'Ana', asistencia: '50', pideDinero: 'No' });
 if (r.actFecha !== '20/03/2027') { fails++; console.log('FALLA formato fecha', r.actFecha); }
+// Material de apoyo
+r = t('informativo con enlace de video', { ...base, tipo: 'Informativo', materialEnlace: 'https://youtu.be/abc' });
+if (r.materialEnlace !== 'https://youtu.be/abc') { fails++; console.log('FALLA enlace de material no guardado'); }
+t('enlace de material sin https', { ...base, tipo: 'Informativo', materialEnlace: 'youtu.be/abc' }, null, 'material de apoyo');
+const { tiposMaterial_, firmaValida_: firma } = new Function(code + '; return { tiposMaterial_, firmaValida_ };')();
+const tm = tiposMaterial_();
+console.log(tm.pptx && tm.ppt && tm.pdf && !tm.exe ? 'OK    tipos de material incluyen PowerPoint' : (fails++, 'FALLA tipos de material'));
+const zip = [0x50, 0x4B, 0x03, 0x04, 0, 0, 0, 0, 0, 0, 0, 0], ole = [0xD0, 0xCF, 0x11, 0xE0, 0, 0, 0, 0, 0, 0, 0, 0].map(b => b > 127 ? b - 256 : b);
+console.log(firma(zip, 'pptx') && firma(ole, 'ppt') && !firma(zip, 'ppt') ? 'OK    firmas de PowerPoint' : (fails++, 'FALLA firmas ppt'));
+
 // Actividades de varios días
 const act = { ...base, tipo: 'Para votación', esActividad: 'Sí', actFecha: '2027-03-20', actInicio: '09:00',
   lugar: 'Campamento', responsable: 'Ernesto', pideDinero: 'No' };
