@@ -282,3 +282,7 @@ npm install
 npx playwright install chromium
 npm test
 ```
+
+## Licencia
+
+[MIT](LICENSE): cualquier iglesia u organización puede usar, copiar y adaptar este código libremente, manteniendo el aviso de la licencia.
