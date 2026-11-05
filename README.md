@@ -20,7 +20,10 @@ Aplicación web hecha con Google Apps Script para que los oficiales de la iglesi
 |---|---|
 | `Codigo.gs` | El servidor: menú de la hoja, enlaces, validación, guardado y agenda |
 | `Formulario.html` | La página que ven los hermanos |
+| `appsscript.json` | Configuración del proyecto de Apps Script: zona horaria y permisos de la aplicación web |
 | `tests/` | Pruebas automáticas (no se suben a Google) |
+| `.github/workflows/desplegar.yml` | Actualización automática: prueba y publica cada cambio (ver *Actualización automática*) |
+| `.claspignore` | Indica que solo `Codigo.gs`, `Formulario.html` y `appsscript.json` se suben a Apps Script |
 
 ## Instalación
 
@@ -122,6 +125,8 @@ Si agrega a una persona nueva, aparece sola en **Contactos** la próxima vez que
 
 ## Actualizar el código (🛠️ Apps Script)
 
+> Si configuró la **Actualización automática** (siguiente sección), no necesita hacer esto: cada cambio en GitHub se publica solo. Solo recargue la hoja.
+
 Cuando haya una versión nueva de `Codigo.gs` o `Formulario.html`:
 
 1. 📊 En la hoja, vaya a **Extensiones → Apps Script**.
@@ -133,9 +138,69 @@ Cuando haya una versión nueva de `Codigo.gs` o `Formulario.html`:
 
 **No hace falta ejecutar `configurar` otra vez** al actualizar, salvo que el cambio lo indique. Si lo ejecuta, no pasa nada: no borra ni duplica pestañas ni la carpeta.
 
+## Actualización automática con GitHub Actions (opcional)
+
+Con esto, cada cambio que llega a la rama `main` de GitHub:
+1. corre las pruebas;
+2. si pasan, sube `Codigo.gs`, `Formulario.html` y `appsscript.json` a su proyecto de Apps Script;
+3. publica una **nueva versión en la misma implementación**, así que la URL y los enlaces no cambian.
+
+Se configura una sola vez. Necesita una computadora con [Node.js](https://nodejs.org) instalado (versión LTS) para el paso 3.
+
+### Paso 1 · Activar la API de Apps Script (navegador)
+
+1. Entre a [script.google.com/home/usersettings](https://script.google.com/home/usersettings) con la misma cuenta de Google de la hoja.
+2. Active **API de Google Apps Script**.
+
+### Paso 2 · Copiar los dos ID (🛠️ Apps Script)
+
+1. 📊 En la hoja, vaya a **Extensiones → Apps Script**.
+2. 🛠️ A la izquierda, presione el **engranaje ⚙️ (Configuración del proyecto)**. Copie el **ID de secuencia de comandos**.
+3. 🛠️ Arriba a la derecha, vaya a **Implementar → Gestionar implementaciones**. Elija la aplicación web activa y copie el **ID de implementación** (es largo y empieza con `AKfy…`).
+
+### Paso 3 · Autorizar a clasp (💻 su computadora)
+
+1. Abra una terminal: en Windows, *PowerShell*; en Mac, *Terminal*.
+2. Ejecute:
+   ```bash
+   npx @google/clasp@2.4.2 login
+   ```
+3. Se abre el navegador. Elija su cuenta de Google y presione **Permitir**.
+4. Se crea el archivo **`.clasprc.json`** en su carpeta de usuario: en Windows `C:\Users\SU_USUARIO\.clasprc.json`, en Mac `~/.clasprc.json`. Ábralo con el Bloc de notas o TextEdit y copie **todo** su contenido.
+
+> ⚠️ Ese archivo da acceso a sus proyectos de Apps Script y a archivos de su Drive. No lo comparta ni lo suba al repositorio: va solo como secreto de GitHub (paso 4). Después puede borrarlo de su computadora.
+
+### Paso 4 · Guardar los secretos (🐙 GitHub)
+
+1. En el repositorio, vaya a **Settings → Secrets and variables → Actions → New repository secret**.
+2. Cree estos tres secretos:
+
+| Nombre | Valor |
+|---|---|
+| `CLASPRC_JSON` | Todo el contenido de `.clasprc.json` (paso 3) |
+| `SCRIPT_ID` | El ID de secuencia de comandos (paso 2) |
+| `DEPLOYMENT_ID` | El ID de implementación (paso 2) |
+
+### Paso 5 · Probar (🐙 GitHub)
+
+1. Vaya a la pestaña **Actions → Probar y desplegar → Run workflow**.
+2. Al terminar en verde, en 🛠️ **Implementar → Gestionar implementaciones** debe aparecer una versión nueva con la descripción *GitHub …*.
+
+### Tenga en cuenta
+
+- **No edite el código en el editor de Apps Script.** Cada despliegue reemplaza el código con el de GitHub, y los cambios hechos a mano se pierden.
+- La primera vez, el archivo `Código.gs` del editor pasa a llamarse `Codigo.gs`, igual que en GitHub. Es normal.
+- Mientras falten los secretos, GitHub solo corre las pruebas y avisa que no despliega.
+- Si cambia la contraseña de Google o quita el permiso de clasp, repita los pasos 3 y 4.
+- Mantenga el repositorio **privado**.
+
 ## Novedades
 
-Qué hacer en una instalación que ya funciona, versión por versión:
+Qué hacer en una instalación que ya funciona, versión por versión (la más reciente primero):
+
+**Noviembre 2026 · Actualización automática (opcional)**
+- Se agregó la actualización automática con GitHub Actions (ver la sección anterior). Si no la configura, todo sigue igual: actualice a mano como siempre.
+- El código no cambió, así que no hace falta actualizar nada en Apps Script.
 
 **Noviembre 2026 · Compartir por WhatsApp y correo**
 1. 🛠️ Actualice solo `Código.gs`, como dice *Actualizar el código*, y publique una **nueva versión**. `Formulario.html` no cambió.

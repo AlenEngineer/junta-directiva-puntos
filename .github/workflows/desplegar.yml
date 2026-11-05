@@ -1,0 +1,68 @@
+# Corre las pruebas en cada cambio y, si pasan, actualiza el proyecto de Apps Script
+# y publica una nueva versión en la misma implementación (los enlaces no cambian).
+# Configuración: ver "Actualización automática" en el README.
+name: Probar y desplegar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: desplegar
+  cancel-in-progress: false
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+
+  desplegar:
+    needs: pruebas
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+      SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+      DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+    steps:
+      - name: Revisar que los secretos estén configurados
+        id: revisar
+        run: |
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ] || [ -z "$DEPLOYMENT_ID" ]; then
+            echo "::notice::Faltan los secretos CLASPRC_JSON, SCRIPT_ID o DEPLOYMENT_ID. No se despliega. Ver README."
+            echo "listo=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "listo=si" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.revisar.outputs.listo == 'si'
+      - uses: actions/setup-node@v4
+        if: steps.revisar.outputs.listo == 'si'
+        with:
+          node-version: 20
+      - name: Preparar clasp
+        if: steps.revisar.outputs.listo == 'si'
+        run: |
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
+      - name: Subir el código a Apps Script
+        if: steps.revisar.outputs.listo == 'si'
+        run: npx --yes @google/clasp@2.4.2 push --force
+      - name: Publicar nueva versión (misma URL)
+        if: steps.revisar.outputs.listo == 'si'
+        run: |
+          npx --yes @google/clasp@2.4.2 deploy \
+            --deploymentId "$DEPLOYMENT_ID" \
+            --description "GitHub ${GITHUB_SHA::7}: $(git log -1 --format=%s | cut -c1-80)"
+      - name: Borrar credenciales
+        if: always()
+        run: rm -f ~/.clasprc.json .clasp.json
