@@ -3,7 +3,7 @@
   "private": true,
   "description": "Aplicación web en Google Apps Script para recibir los puntos de la Junta Directiva de la iglesia.",
   "scripts": {
-    "test": "node tests/validar.test.js && node tests/formulario.test.js && node tests/descripcion.test.js"
+    "test": "node tests/validar.test.js && node tests/mensajes.test.js && node tests/formulario.test.js && node tests/descripcion.test.js"
   },
   "devDependencies": {
     "playwright": "^1.47.0"

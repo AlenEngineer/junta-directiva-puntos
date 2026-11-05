@@ -6,6 +6,7 @@ Aplicación web hecha con Google Apps Script para que los oficiales de la iglesi
 
 - **Un enlace por persona y por junta.** En el menú **Junta → Nueva junta** se elige la fecha y se crean enlaces nuevos para cada persona de la pestaña *Cargos*, más un enlace general para miembros. Los enlaces de la junta anterior dejan de funcionar.
 - **Pestaña "Enlaces":** primero aparecen los directores, después los asociados y miembros, y al final el enlace general.
+- **Compartir los enlaces:** cada persona tiene un botón **Enviar por WhatsApp** que abre el chat con el mensaje ya escrito, y se le puede enviar un **correo automático** con su enlace y una explicación completa.
 - **El formulario se adapta a cada respuesta:**
   - *Informativo*: solo pide los datos del punto y la descripción del informe.
   - *Para votación*: pregunta si es una actividad (fecha, hora, lugar, responsable) y si se pide dinero de la iglesia.
@@ -49,7 +50,7 @@ Se trabaja en dos lugares. Cada paso dice dónde:
    - Aparecerá *"Google no ha verificado esta aplicación"*. Es normal en scripts propios: presione **Configuración avanzada → Ir a … (no seguro)**.
    - Presione **Permitir**. El acceso a Drive se usa para guardar las cotizaciones.
 4. 🛠️ Abajo, en el *Registro de ejecución*, debe aparecer **"Configuración lista"** en pocos segundos.
-5. 📊 En la hoja aparecen las pestañas **Cargos**, **Juntas** y **Puntos**. En su Google Drive aparece la carpeta **"Cotizaciones – Junta Directiva"**.
+5. 📊 En la hoja aparecen las pestañas **Cargos**, **Juntas**, **Puntos** y **Contactos**. En su Google Drive aparece la carpeta **"Cotizaciones – Junta Directiva"**.
 
 ### Paso 4 · Publicar la aplicación (🛠️ Apps Script)
 
@@ -60,13 +61,22 @@ Se trabaja en dos lugares. Cada paso dice dónde:
    - **Ejecutar como:** *Yo (su correo)*
    - **Quién tiene acceso:** *Cualquier usuario*
 4. 🛠️ Presione **Implementar**. Si pide permisos otra vez, acéptelos.
-5. 🛠️ Copie la **URL de la aplicación web**, la que termina en `/exec`. La hoja se la pedirá en el paso 5.
+5. 🛠️ Copie la **URL de la aplicación web**, la que termina en `/exec`. La hoja se la pedirá en el paso 6.
 
-### Paso 5 · Crear la primera junta (📊 Google Sheets)
+### Paso 5 · Completar los contactos (📊 Google Sheets)
 
 1. 📊 Vuelva a la pestaña de la hoja y **recárguela** (F5). Arriba aparece un menú nuevo: **Junta**.
-2. 📊 Vaya a **Junta → Nueva junta…** La primera vez pide la URL de la aplicación: pegue la del paso 4. Después escriba la fecha, por ejemplo `14/03/2027`.
-3. 📊 Se abre la pestaña **Enlaces** con el enlace de cada persona. Envíe cada uno **en privado** a su dueño.
+2. 📊 En la pestaña **Contactos** ya están los nombres. Complete el **Teléfono** (celular) y el **Correo** de cada persona. Si no tiene alguno de los dos, déjelo vacío.
+   - Los números de Panamá se escriben normal, por ejemplo `6123-4567`; el código +507 se agrega solo.
+   - Un número de otro país se escribe con `+` y su código, por ejemplo `+1 555 123 4567`.
+
+Los teléfonos y correos quedan **solo en su hoja**: no están en el código ni en GitHub.
+
+### Paso 6 · Crear la primera junta (📊 Google Sheets)
+
+1. 📊 Vaya a **Junta → Nueva junta…** La primera vez pide la URL de la aplicación: pegue la del paso 4. Después escriba la fecha, por ejemplo `14/03/2027`.
+2. 📊 Se abre la pestaña **Enlaces** con el enlace de cada persona, y la hoja pregunta si quiere **enviar los correos** ahora.
+3. 📊 Para WhatsApp, siga la sección *Compartir los enlaces*.
 
 ## Uso diario (📊 Google Sheets)
 
@@ -74,17 +84,40 @@ Todo se hace desde el menú **Junta** de la hoja:
 
 | Opción | Para qué sirve |
 |---|---|
-| **Nueva junta…** | Elegir la fecha de la próxima junta y crear enlaces nuevos. Los anteriores dejan de funcionar. |
+| **Nueva junta…** | Elegir la fecha de la próxima junta y crear enlaces nuevos. Los anteriores dejan de funcionar. Al final ofrece enviar los correos. |
 | **Generar agenda…** | Crear la pestaña *Agenda dd-mm-aaaa* con los puntos ordenados. Se puede generar varias veces: se reemplaza. |
-| **Cambiar el enlace de una persona…** | Si un enlace se filtró. Escriba el nombre, o `GENERAL` para el enlace general. |
+| **Enviar enlaces por correo…** | Enviar el correo a quienes aún no lo recibieron. Si todos ya lo recibieron, ofrece reenviarlo. |
+| **Actualizar la pestaña Enlaces** | Después de editar *Contactos*, para que se actualicen los botones de WhatsApp y el estado del correo. |
+| **Cambiar el enlace de una persona…** | Si un enlace se filtró. Escriba el nombre, o `GENERAL` para el enlace general. Ofrece enviarle el enlace nuevo por correo. |
 | **Cerrar recepción de puntos** | Dejar de recibir puntos antes del día de la junta. |
 | **Cambiar la URL de la aplicación…** | Si los enlaces abren una página de error, o si creó una implementación nueva en vez de actualizar la existente. Muestra la URL guardada y le deja pegar la correcta. |
+| **Cambiar el código de país…** | El código que se agrega a los teléfonos sin `+`. Viene con +507 (Panamá). |
 
 **Puntos del enlace general:** en la pestaña **Puntos**, cambie su columna *Estado* de *Por revisar* a *Aprobado* (o *Rechazado*) y vuelva a generar la agenda.
+
+## Compartir los enlaces (📊 Google Sheets)
+
+La pestaña **Enlaces** tiene dos columnas para compartir:
+
+**WhatsApp** (un clic por persona):
+1. 📊 Haga clic en **Enviar por WhatsApp** junto a la persona y abra el enlace que aparece.
+2. Se abre WhatsApp, en el celular o en WhatsApp Web, con el chat de esa persona y el mensaje ya escrito: su nombre, la fecha de la junta y su enlace.
+3. Presione **Enviar**.
+
+Si la persona no tiene teléfono en *Contactos*, el botón dice **Elegir contacto**: WhatsApp abre el mensaje ya escrito y usted elige a quién enviarlo. El enlace general siempre funciona así, para enviarlo al miembro que lo necesite.
+
+**Correo** (automático):
+- El correo explica con más detalle: los cargos de la persona, cómo usar el formulario, cuándo deja de funcionar el enlace y por qué, cómo cuidarlo y qué hacer si no abre.
+- Sale desde su cuenta de Google, con el nombre *Junta Directiva*. Si alguien responde, la respuesta le llega a usted.
+- La columna **Correo** muestra *Enviado* (con fecha y hora), *Pendiente*, *Sin correo* o *Correo no válido*.
+- La primera vez que envíe correos, Google pide un permiso nuevo para **enviar correo en su nombre**: acéptelo igual que en el paso 3.
+- Google permite unos 100 correos por día en cuentas gratuitas, más que suficiente para la junta.
 
 ## Cambiar los cargos (📊 Google Sheets)
 
 Edite la pestaña **Cargos**: departamento, nombre, cargo y si es director (*Sí* o *No*). Agregue o borre filas según haga falta. Los cambios se aplican en la siguiente **Junta → Nueva junta**.
+
+Si agrega a una persona nueva, aparece sola en **Contactos** la próxima vez que se actualice la pestaña Enlaces. Complete ahí su teléfono y correo. El nombre debe escribirse igual en *Cargos* y en *Contactos*.
 
 ## Actualizar el código (🛠️ Apps Script)
 
@@ -98,6 +131,18 @@ Cuando haya una versión nueva de `Codigo.gs` o `Formulario.html`:
 > ⚠️ **No use "Nueva implementación" para actualizar.** Eso crea un enlace de aplicación distinto y los enlaces que ya envió dejarían de funcionar. Si ya lo hizo, use **Junta → Cambiar la URL de la aplicación…** y luego **Junta → Nueva junta**.
 
 **No hace falta ejecutar `configurar` otra vez** al actualizar, salvo que el cambio lo indique. Si lo ejecuta, no pasa nada: no borra ni duplica pestañas ni la carpeta.
+
+## Novedades
+
+Qué hacer en una instalación que ya funciona, versión por versión:
+
+**Noviembre 2026 · Compartir por WhatsApp y correo**
+1. 🛠️ Actualice solo `Código.gs`, como dice *Actualizar el código*, y publique una **nueva versión**. `Formulario.html` no cambió.
+2. 📊 Recargue la hoja (F5) y use **Junta → Actualizar la pestaña Enlaces**. Se crea la pestaña **Contactos** con los nombres, y en *Enlaces* aparecen las columnas *WhatsApp* y *Correo*. Los enlaces actuales siguen funcionando.
+3. 📊 Complete teléfonos y correos en **Contactos** y vuelva a usar **Junta → Actualizar la pestaña Enlaces**.
+4. 📊 Para enviar los correos: **Junta → Enviar enlaces por correo…**. La primera vez pide un permiso nuevo.
+
+No hace falta ejecutar `configurar` ni crear una junta nueva.
 
 ## Problemas comunes
 

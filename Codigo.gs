@@ -26,7 +26,9 @@ var HOJA_JUNTAS = 'Juntas';
 var HOJA_PUNTOS = 'Puntos';
 var HOJA_ENLACES = 'Enlaces';
 var HOJA_CLAVES = '_Claves';
+var HOJA_CONTACTOS = 'Contactos';
 var GENERAL = 'GENERAL';
+var CODIGO_PAIS_INICIAL = '507'; // Panamá. Se cambia con Junta → Cambiar el código de país…
 
 var CATEGORIAS = [
   'Evangelismo y misión',
@@ -137,11 +139,14 @@ function onOpen() {
     .createMenu('Junta')
     .addItem('Nueva junta…', 'nuevaJunta')
     .addItem('Generar agenda…', 'generarAgenda')
+    .addItem('Enviar enlaces por correo…', 'enviarCorreos')
+    .addItem('Actualizar la pestaña Enlaces', 'actualizarEnlaces')
     .addItem('Cambiar el enlace de una persona…', 'cambiarEnlace')
     .addItem('Cerrar recepción de puntos', 'cerrarRecepcion')
     .addSeparator()
     .addItem('Configuración inicial', 'configurar')
     .addItem('Cambiar la URL de la aplicación…', 'cambiarUrl')
+    .addItem('Cambiar el código de país…', 'cambiarCodigoPais')
     .addToUi();
 }
 
@@ -166,7 +171,8 @@ function configurar() {
   hPuntos.getRange(2, colEstado, 2000, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(ESTADOS, true).build());
 
-  crearHoja_(ss, HOJA_CLAVES, ['Clave', 'Junta', 'Persona'], []).hideSheet();
+  crearHoja_(ss, HOJA_CLAVES, ['Clave', 'Junta', 'Persona', 'Correo enviado'], []).hideSheet();
+  leerContactos_(leerCargos_().orden); // crea la pestaña Contactos con los nombres
 
   // Borrar la pestaña vacía que trae una hoja nueva.
   ss.getSheets().forEach(function (h) {
@@ -214,15 +220,23 @@ function nuevaJunta() {
   // Claves nuevas para cada persona y para el enlace general.
   var cargos = leerCargos_();
   var hc = hoja_(HOJA_CLAVES);
-  if (hc.getLastRow() > 1) hc.getRange(2, 1, hc.getLastRow() - 1, 3).clearContent();
-  var filas = cargos.orden.map(function (n) { return [nuevaClave_(), "'" + f.texto, n]; });
-  filas.push([nuevaClave_(), "'" + f.texto, GENERAL]);
-  hc.getRange(2, 1, filas.length, 3).setValues(filas);
+  if (hc.getLastRow() > 1) hc.getRange(2, 1, hc.getLastRow() - 1, 4).clearContent();
+  var filas = cargos.orden.map(function (n) { return [nuevaClave_(), "'" + f.texto, n, '']; });
+  filas.push([nuevaClave_(), "'" + f.texto, GENERAL, '']);
+  hc.getRange(2, 1, filas.length, 4).setValues(filas);
 
   escribirEnlaces_();
-  aviso_('Junta creada',
-    'Junta del ' + dia + '.\n\nLos enlaces están en la pestaña "Enlaces". ' +
-    'Envíe cada uno en privado a su dueño.');
+  var conCorreo = personasConCorreo_(cargos.orden).length;
+  if (conCorreo && ui.alert('Junta creada',
+    'Junta del ' + dia + '. Los enlaces están en la pestaña "Enlaces".\n\n' +
+    '¿Enviar ahora los enlaces por correo a las ' + conCorreo + ' personas que tienen correo en la pestaña Contactos?',
+    ui.ButtonSet.YES_NO) === ui.Button.YES) {
+    enviarCorreosA_(personasConCorreo_(cargos.orden));
+  } else if (!conCorreo) {
+    aviso_('Junta creada',
+      'Junta del ' + dia + '.\n\nLos enlaces están en la pestaña "Enlaces", con un botón para enviarlos por WhatsApp. ' +
+      'Para enviarlos también por correo, complete la pestaña Contactos y use Junta → Enviar enlaces por correo.');
+  }
 }
 
 function cambiarEnlace() {
@@ -246,14 +260,20 @@ function cambiarEnlace() {
   for (var i = 1; i < datos.length; i++) {
     if (textoFecha_(datos[i][1]) === junta.fecha && datos[i][2] === persona) { fila = i + 1; break; }
   }
-  var nueva = [[nuevaClave_(), "'" + junta.fecha, persona]];
-  if (fila > 0) hc.getRange(fila, 1, 1, 3).setValues(nueva);
-  else hc.getRange(hc.getLastRow() + 1, 1, 1, 3).setValues(nueva);
+  var nueva = [[nuevaClave_(), "'" + junta.fecha, persona, '']];
+  if (fila > 0) hc.getRange(fila, 1, 1, 4).setValues(nueva);
+  else hc.getRange(hc.getLastRow() + 1, 1, 1, 4).setValues(nueva);
 
   escribirEnlaces_();
-  aviso_('Enlace cambiado',
-    'Se creó un enlace nuevo para ' + (persona === GENERAL ? 'el enlace general' : persona) +
-    '. El anterior ya no funciona. Está en la pestaña "Enlaces".');
+  var texto = 'Se creó un enlace nuevo para ' + (persona === GENERAL ? 'el enlace general' : persona) +
+    '. El anterior ya no funciona. Está en la pestaña "Enlaces".';
+  if (persona !== GENERAL && personasConCorreo_([persona]).length) {
+    if (ui.alert('Enlace cambiado', texto + '\n\n¿Enviarle el enlace nuevo por correo?', ui.ButtonSet.YES_NO) === ui.Button.YES) {
+      enviarCorreosA_([persona]);
+    }
+  } else {
+    aviso_('Enlace cambiado', texto);
+  }
 }
 
 function cerrarRecepcion() {
@@ -631,53 +651,329 @@ function escribirEnlaces_() {
   var junta = juntaActual_();
   var url = urlApp_(false);
   var cargos = leerCargos_();
-  var claves = {};
-  hoja_(HOJA_CLAVES).getDataRange().getValues().slice(1).forEach(function (f) {
-    if (textoFecha_(f[1]) === junta.fecha) claves[f[2]] = f[0];
-  });
+  var contactos = leerContactos_(cargos.orden);
+  var cp = codigoPais_();
+  var claves = leerClaves_(junta);
   var enlace = function (persona) {
-    return claves[persona] ? url + '?t=' + claves[persona] : 'Sin enlace: use Junta → Cambiar el enlace de una persona';
+    return claves[persona] ? url + '?t=' + claves[persona].clave : '';
   };
 
   var ss = libro_();
   var h = ss.getSheetByName(HOJA_ENLACES) || ss.insertSheet(HOJA_ENLACES, 0);
   h.clear();
+  h.getRange(1, 1, h.getMaxRows(), h.getMaxColumns()).breakApart();
 
-  var filas = [], estilos = [];
-  var poner = function (fila, estilo) { filas.push(fila); estilos.push(estilo); };
+  var ANCHO = 5;
+  var filas = [], estilos = [], whatsapp = [];
+  var poner = function (fila, estilo, wa) {
+    while (fila.length < ANCHO) fila.push('');
+    filas.push(fila); estilos.push(estilo); whatsapp.push(wa || null);
+  };
   var cargosTexto = function (p) {
     return p.cargos.map(function (c) { return c.cargo + ' – ' + c.departamento; }).join('\n');
   };
+  var estadoCorreo = function (n) {
+    var correo = (contactos[n] || {}).correo;
+    if (!correo) return 'Sin correo';
+    if (!correoValido_(correo)) return 'Correo no válido';
+    return claves[n] && claves[n].enviado ? 'Enviado ' + claves[n].enviado : 'Pendiente';
+  };
+  var filaPersona = function (n) {
+    var e = enlace(n);
+    if (!e) {
+      poner([n, cargosTexto(cargos.personas[n]), 'Sin enlace: use Junta → Cambiar el enlace de una persona'], '');
+      return;
+    }
+    var tel = telefonoWa_((contactos[n] || {}).telefono, cp);
+    var wa = linkWhatsApp_(tel, mensajeWhatsApp_(n, junta, e));
+    var etiqueta = tel ? 'Enviar por WhatsApp' : (tel === null ? 'Teléfono no válido · elegir contacto' : 'Elegir contacto');
+    poner([n, cargosTexto(cargos.personas[n]), e, etiqueta, estadoCorreo(n)], '', { texto: etiqueta, url: wa });
+  };
 
-  poner(['Enlaces para la junta del ' + junta.dia, '', ''], 'titulo');
+  poner(['Enlaces para la junta del ' + junta.dia], 'titulo');
   poner(['Envíe cada enlace en privado a su dueño. Dejan de funcionar al terminar el día de la junta, ' +
-    'al cerrar la recepción o al crear una junta nueva.', '', ''], 'nota');
-  poner(['', '', ''], '');
-  poner(['Nombre', 'Cargos', 'Enlace'], 'encabezado');
+    'al cerrar la recepción o al crear una junta nueva. Los teléfonos y correos se editan en la pestaña Contactos.'], 'nota');
+  poner([''], '');
+  poner(['Nombre', 'Cargos', 'Enlace', 'WhatsApp', 'Correo'], 'encabezado');
 
-  poner(['DIRECTORES', '', ''], 'seccion');
-  cargos.orden.filter(function (n) { return cargos.personas[n].director; }).forEach(function (n) {
-    poner([n, cargosTexto(cargos.personas[n]), enlace(n)], '');
-  });
-  poner(['ASOCIADOS Y MIEMBROS (participan si el director no puede)', '', ''], 'seccion');
-  cargos.orden.filter(function (n) { return !cargos.personas[n].director; }).forEach(function (n) {
-    poner([n, cargosTexto(cargos.personas[n]), enlace(n)], '');
-  });
-  poner(['ENLACE GENERAL', '', ''], 'seccion');
-  poner(['Miembros de la iglesia', 'Sus puntos llegan como "Por revisar"', enlace(GENERAL)], '');
+  poner(['DIRECTORES'], 'seccion');
+  cargos.orden.filter(function (n) { return cargos.personas[n].director; }).forEach(filaPersona);
+  poner(['ASOCIADOS Y MIEMBROS (participan si el director no puede)'], 'seccion');
+  cargos.orden.filter(function (n) { return !cargos.personas[n].director; }).forEach(filaPersona);
+  poner(['ENLACE GENERAL'], 'seccion');
+  var eg = enlace(GENERAL);
+  if (eg) {
+    poner(['Miembros de la iglesia', 'Sus puntos llegan como "Por revisar"', eg, 'Elegir contacto', ''], '',
+      { texto: 'Elegir contacto', url: linkWhatsApp_('', mensajeGeneral_(junta, eg)) });
+  } else {
+    poner(['Miembros de la iglesia', '', 'Sin enlace: use Junta → Cambiar el enlace de una persona (GENERAL)'], '');
+  }
 
-  h.getRange(1, 1, filas.length, 3).setValues(filas).setWrap(true).setVerticalAlignment('top');
+  h.getRange(1, 1, filas.length, ANCHO).setValues(filas).setWrap(true).setVerticalAlignment('top');
+  whatsapp.forEach(function (wa, i) {
+    if (!wa) return;
+    h.getRange(i + 1, 4).setRichTextValue(
+      SpreadsheetApp.newRichTextValue().setText(wa.texto).setLinkUrl(wa.url).build());
+  });
   estilos.forEach(function (e, i) {
-    var r = h.getRange(i + 1, 1, 1, 3);
+    var r = h.getRange(i + 1, 1, 1, ANCHO);
     if (e === 'titulo') r.setFontSize(14).setFontWeight('bold');
-    if (e === 'nota') { h.getRange(i + 1, 1, 1, 3).merge(); r.setFontColor('#5f6368'); }
+    if (e === 'nota') { r.merge(); r.setFontColor('#5f6368'); }
     if (e === 'encabezado') r.setFontWeight('bold').setBackground('#673ab7').setFontColor('#ffffff');
     if (e === 'seccion') r.setFontWeight('bold').setBackground('#ede7f6');
   });
-  h.setColumnWidth(1, 210);
-  h.setColumnWidth(2, 300);
-  h.setColumnWidth(3, 560);
+  [210, 290, 430, 190, 150].forEach(function (w, i) { h.setColumnWidth(i + 1, w); });
   ss.setActiveSheet(h);
+}
+
+// =====================================================================
+// CONTACTOS, WHATSAPP Y CORREO
+// =====================================================================
+
+/** Lee la pestaña Contactos. La crea si falta y agrega a las personas nuevas de Cargos. */
+function leerContactos_(orden) {
+  var ss = libro_();
+  var h = ss.getSheetByName(HOJA_CONTACTOS);
+  if (!h) {
+    h = crearHoja_(ss, HOJA_CONTACTOS, ['Nombre', 'Teléfono', 'Correo'], []);
+    h.getRange('B:B').setNumberFormat('@'); // para que "+507…" no se tome como fórmula
+    [210, 170, 260].forEach(function (w, i) { h.setColumnWidth(i + 1, w); });
+    h.getRange('E1').setValue('Teléfono: el número de celular. Si es de otro país, escríbalo con + y el código, por ejemplo +1 555 123 4567.')
+      .setFontColor('#5f6368');
+  }
+  var datos = h.getDataRange().getDisplayValues();
+  var mapa = {};
+  datos.slice(1).forEach(function (f) {
+    var n = String(f[0]).trim();
+    if (n) mapa[n] = { telefono: String(f[1]).trim(), correo: String(f[2]).trim() };
+  });
+  var faltan = orden.filter(function (n) { return !mapa[n]; });
+  if (faltan.length) {
+    var ultima = Math.max(h.getLastRow(), 1);
+    // Buscar la última fila con nombre para no dejar huecos.
+    var col = h.getRange(1, 1, ultima, 1).getValues();
+    while (ultima > 1 && !col[ultima - 1][0]) ultima--;
+    h.getRange(ultima + 1, 1, faltan.length, 1).setValues(faltan.map(function (n) { return [n]; }));
+    faltan.forEach(function (n) { mapa[n] = { telefono: '', correo: '' }; });
+  }
+  return mapa;
+}
+
+/** Claves de la junta: { persona: { clave, fila, enviado } } */
+function leerClaves_(junta) {
+  var hc = hoja_(HOJA_CLAVES);
+  if (hc.getRange(1, 4).getValue() !== 'Correo enviado') hc.getRange(1, 4).setValue('Correo enviado');
+  var claves = {};
+  hc.getDataRange().getValues().forEach(function (f, i) {
+    if (i === 0 || textoFecha_(f[1]) !== junta.fecha) return;
+    var enviado = f[3] instanceof Date ?
+      Utilities.formatDate(f[3], Session.getScriptTimeZone(), 'dd/MM HH:mm') : String(f[3] || '');
+    claves[f[2]] = { clave: f[0], fila: i + 1, enviado: enviado };
+  });
+  return claves;
+}
+
+function codigoPais_() {
+  return PropertiesService.getScriptProperties().getProperty('CODIGO_PAIS') || CODIGO_PAIS_INICIAL;
+}
+
+function cambiarCodigoPais() {
+  var ui = SpreadsheetApp.getUi();
+  var r = ui.prompt('Código de país',
+    'Código actual: +' + codigoPais_() + '\n\nEscriba el código de país de los teléfonos, solo números (por ejemplo 507):',
+    ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  var cp = r.getResponseText().replace(/\D/g, '');
+  if (!/^\d{1,3}$/.test(cp)) { ui.alert('Código no válido. Use de 1 a 3 números, por ejemplo 507.'); return; }
+  PropertiesService.getScriptProperties().setProperty('CODIGO_PAIS', cp);
+  if (juntaActual_()) escribirEnlaces_();
+  ui.alert('Código de país guardado: +' + cp);
+}
+
+/**
+ * Convierte un teléfono al formato de WhatsApp (solo números con código de país).
+ * Devuelve '' si está vacío y null si no es válido.
+ */
+function telefonoWa_(tel, cp) {
+  var s = String(tel || '').trim();
+  if (!s) return '';
+  var internacional = /^(\+|00)/.test(s);
+  var d = s.replace(/\D/g, '');
+  if (/^00/.test(s)) d = d.slice(2);
+  if (!internacional) d = cp + d.replace(/^0+/, '');
+  return d.length >= 8 && d.length <= 15 ? d : null;
+}
+
+function linkWhatsApp_(tel, mensaje) {
+  return 'https://wa.me/' + (tel || '') + '?text=' + encodeURIComponent(mensaje);
+}
+
+function mensajeWhatsApp_(nombre, junta, enlace) {
+  return 'Hola, ' + nombre.split(' ')[0] + '. Este es su enlace personal para enviar puntos a la ' +
+    'Junta Directiva del ' + junta.dia + ':\n\n' + enlace + '\n\n' +
+    'Es solo para usted y deja de funcionar al terminar el día de la junta. Por favor no lo reenvíe. ' +
+    'Si no abre, pruebe desde el celular o en una ventana de incógnito.';
+}
+
+function mensajeGeneral_(junta, enlace) {
+  return 'Hola. Este es el enlace para que los miembros de la iglesia envíen puntos a la ' +
+    'Junta Directiva del ' + junta.dia + ':\n\n' + enlace + '\n\n' +
+    'Los puntos serán revisados antes de incluirse en la agenda.';
+}
+
+function correoValido_(c) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c || ''));
+}
+
+function personasConCorreo_(nombres) {
+  var contactos = leerContactos_(leerCargos_().orden);
+  return nombres.filter(function (n) { return contactos[n] && correoValido_(contactos[n].correo); });
+}
+
+/** Menú: Junta → Enviar enlaces por correo… */
+function enviarCorreos() {
+  var ui = SpreadsheetApp.getUi();
+  var junta = juntaActual_();
+  if (!junta) { ui.alert('No hay una junta abierta. Use Junta → Nueva junta.'); return; }
+  var claves = leerClaves_(junta);
+  var con = personasConCorreo_(leerCargos_().orden).filter(function (n) { return claves[n]; });
+  if (!con.length) {
+    ui.alert('Nadie tiene correo todavía. Complete la columna Correo en la pestaña Contactos.');
+    return;
+  }
+  var pendientes = con.filter(function (n) { return !claves[n].enviado; });
+  var lista = pendientes;
+  if (pendientes.length) {
+    if (ui.alert('Enviar por correo',
+      'Se enviará el enlace a ' + pendientes.length + ' persona(s) que aún no lo recibieron.\n\n¿Continuar?',
+      ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  } else {
+    if (ui.alert('Enviar por correo',
+      'Las ' + con.length + ' personas con correo ya recibieron su enlace.\n\n¿Reenviarlo a todas?',
+      ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+    lista = con;
+  }
+  enviarCorreosA_(lista);
+}
+
+/** Menú: Junta → Actualizar la pestaña Enlaces (después de editar Contactos). */
+function actualizarEnlaces() {
+  if (!juntaActual_()) { SpreadsheetApp.getUi().alert('No hay una junta abierta.'); return; }
+  escribirEnlaces_();
+}
+
+function enviarCorreosA_(personas) {
+  var ui = SpreadsheetApp.getUi();
+  var junta = juntaActual_();
+  var url = urlApp_(true);
+  if (!junta || !url) return;
+  var cuota = MailApp.getRemainingDailyQuota();
+  if (cuota < personas.length) {
+    ui.alert('Google solo permite enviar ' + cuota + ' correo(s) más hoy. Intente mañana o envíe por WhatsApp.');
+    return;
+  }
+  var cargos = leerCargos_();
+  var contactos = leerContactos_(cargos.orden);
+  var claves = leerClaves_(junta);
+  var hc = hoja_(HOJA_CLAVES);
+  var enviados = 0, errores = [];
+
+  personas.forEach(function (n) {
+    var c = claves[n];
+    if (!c) return;
+    var enlace = url + '?t=' + c.clave;
+    try {
+      MailApp.sendEmail({
+        to: contactos[n].correo,
+        subject: 'Su enlace para enviar puntos – Junta Directiva del ' + junta.dia,
+        body: correoTexto_(n, cargos.personas[n], junta, enlace),
+        htmlBody: correoHtml_(n, cargos.personas[n], junta, enlace),
+        name: 'Junta Directiva'
+      });
+      hc.getRange(c.fila, 4).setValue(new Date());
+      enviados++;
+    } catch (e) {
+      errores.push(n + ': ' + e.message);
+    }
+  });
+
+  escribirEnlaces_();
+  ui.alert('Correos enviados: ' + enviados +
+    (errores.length ? '\n\nNo se pudo enviar a:\n' + errores.join('\n') : ''));
+}
+
+function correoPartes_(nombre, persona, junta, enlace) {
+  var cargos = persona.cargos.map(function (c) { return c.cargo + ' – ' + c.departamento; });
+  var fecha = junta.fecha;
+  return {
+    saludo: 'Hola, ' + nombre + ':',
+    intro: 'Se convocó la Junta Directiva para el ' + junta.dia + '. Este es su enlace personal para enviar los puntos que desee presentar:',
+    cargos: cargos,
+    uso: [
+      'Abra el enlace, complete el formulario y presione "Enviar".',
+      'Puede enviar varios puntos: después de cada envío aparece "Enviar otro punto".',
+      cargos.length > 1 ? 'Como tiene más de un cargo, el formulario le preguntará por cuál departamento presenta cada punto.' : '',
+      'Los puntos deben llegar ya definidos. Si es para votación, escriba la propuesta tal como se votaría.',
+      'Si el punto pide dinero de la iglesia, tenga a mano el costo total y la cotización. Puede describirla, pegar un enlace o adjuntar un PDF, Word o imagen de hasta 5 MB.',
+      persona.director ? '' : 'Como asociado o miembro, normalmente presenta puntos cuando el director de su departamento no puede hacerlo.'
+    ].filter(Boolean),
+    vence: [
+      'al terminar el día de la junta (' + fecha + ');',
+      'si la secretaría cierra la recepción de puntos antes de esa fecha;',
+      'cuando se convoca una junta nueva, porque cada junta tiene enlaces nuevos;',
+      'si se cambia por seguridad, por ejemplo si se compartió por error. En ese caso recibirá uno nuevo.'
+    ],
+    cuidado: 'Es personal: los puntos enviados con él quedan a su nombre. Por favor no lo reenvíe. ' +
+      'Si otra persona necesita presentar un punto, la secretaría puede darle el enlace general para miembros.',
+    problemas: [
+      'Si aparece una página de Google Drive que dice "No se pudo abrir el archivo", ábralo desde el celular o en una ventana de incógnito. Pasa cuando el navegador tiene varias cuentas de Google abiertas.',
+      'Si dice "Este enlace no es válido", la recepción ya cerró o el enlace cambió. Pida uno nuevo a la secretaría.'
+    ],
+    pie: 'Este correo se envió automáticamente desde la hoja de la Junta Directiva. Si tiene dudas, responda a este correo.'
+  };
+}
+
+function correoTexto_(nombre, persona, junta, enlace) {
+  var p = correoPartes_(nombre, persona, junta, enlace);
+  var lista = function (items) { return items.map(function (x) { return '• ' + x; }).join('\n'); };
+  return [
+    p.saludo, '', p.intro, '', enlace, '',
+    'SUS CARGOS', lista(p.cargos), '',
+    'CÓMO USARLO', lista(p.uso), '',
+    'CUÁNDO DEJA DE FUNCIONAR EL ENLACE', 'El enlace es solo para esta junta. Deja de funcionar:', lista(p.vence), '',
+    'CUIDE SU ENLACE', p.cuidado, '',
+    'SI EL ENLACE NO ABRE', lista(p.problemas), '',
+    '—', p.pie
+  ].join('\n');
+}
+
+function correoHtml_(nombre, persona, junta, enlace) {
+  var p = correoPartes_(nombre, persona, junta, enlace);
+  var e = escHtml_;
+  var lista = function (items) {
+    return '<ul style="margin:4px 0 0;padding-left:20px">' +
+      items.map(function (x) { return '<li style="margin:4px 0">' + e(x) + '</li>'; }).join('') + '</ul>';
+  };
+  var titulo = function (t) { return '<h3 style="font-size:16px;font-weight:500;margin:24px 0 4px;color:#673ab7">' + e(t) + '</h3>'; };
+  return '<div style="font-family:Roboto,Arial,sans-serif;font-size:14px;line-height:1.5;color:#202124;max-width:600px">' +
+    '<div style="border-top:8px solid #673ab7;border-radius:4px 4px 0 0;padding-top:16px">' +
+    '<h2 style="font-size:24px;font-weight:400;margin:0 0 16px">Puntos para la Junta Directiva</h2></div>' +
+    '<p>' + e(p.saludo) + '</p><p>' + e(p.intro) + '</p>' +
+    '<p style="margin:20px 0"><a href="' + e(enlace) + '" style="background:#673ab7;color:#ffffff;text-decoration:none;' +
+    'padding:10px 24px;border-radius:4px;display:inline-block;font-weight:500">Enviar un punto</a></p>' +
+    '<p style="font-size:12px;color:#5f6368">Si el botón no funciona, copie este enlace en su navegador:<br>' +
+    '<a href="' + e(enlace) + '" style="color:#673ab7;word-break:break-all">' + e(enlace) + '</a></p>' +
+    titulo('Sus cargos') + lista(p.cargos) +
+    titulo('Cómo usarlo') + lista(p.uso) +
+    titulo('Cuándo deja de funcionar el enlace') + '<p style="margin:4px 0">El enlace es solo para esta junta. Deja de funcionar:</p>' + lista(p.vence) +
+    titulo('Cuide su enlace') + '<p style="margin:4px 0">' + e(p.cuidado) + '</p>' +
+    titulo('Si el enlace no abre') + lista(p.problemas) +
+    '<p style="font-size:12px;color:#5f6368;border-top:1px solid #dadce0;margin-top:24px;padding-top:12px">' + e(p.pie) + '</p>' +
+    '</div>';
+}
+
+function escHtml_(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function leerCargos_() {
