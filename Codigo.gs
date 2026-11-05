@@ -1,21 +1,24 @@
 /**
  * PUNTOS PARA LA JUNTA DIRECTIVA – aplicación web
  *
- * Instalación (una sola vez):
- * 1. Cree una hoja de cálculo nueva en Google Sheets, por ejemplo "Junta Directiva".
- * 2. Menú Extensiones → Apps Script.
- * 3. En el archivo "Código.gs", borre todo y pegue este código.
- * 4. Clic en "+" (Archivos) → HTML, nómbrelo exactamente: Formulario
- *    Borre lo que trae y pegue el contenido de Formulario.html.
- * 5. Guarde. Elija la función "configurar" y presione Ejecutar. Acepte los permisos.
- * 6. Implementar → Nueva implementación → tipo "Aplicación web":
- *      Ejecutar como: Yo
- *      Quién tiene acceso: Cualquier usuario
- *    Presione Implementar y copie la URL (termina en /exec).
- * 7. Vuelva a la hoja y recárguela. Use el menú Junta → Nueva junta.
+ * Las instrucciones completas, paso a paso, están en README.md.
  *
- * Si después cambia este código: Implementar → Gestionar implementaciones →
- * lápiz (editar) → Versión: "Nueva versión" → Implementar. Así el enlace no cambia.
+ * Resumen de la instalación (una sola vez):
+ * 1. [Google Sheets] Cree una hoja de cálculo en blanco, por ejemplo "Junta Directiva".
+ * 2. [Google Sheets] Menú Extensiones → Apps Script. IMPORTANTE: el código debe
+ *    abrirse desde la hoja; no cree el proyecto en script.google.com ni en Drive.
+ * 3. [Apps Script] En "Código.gs", borre todo y pegue este código.
+ * 4. [Apps Script] "+" (Archivos) → HTML, nombre exacto: Formulario
+ *    Borre lo que trae y pegue el contenido de Formulario.html. Guarde (💾).
+ * 5. [Apps Script] Elija la función "configurar" → Ejecutar. Acepte los permisos.
+ * 6. [Apps Script] Botón azul arriba a la derecha: Implementar → Nueva implementación →
+ *    engranaje ⚙️ → Aplicación web. Ejecutar como: Yo · Acceso: Cualquier usuario.
+ * 7. [Google Sheets] Recargue la hoja (F5) y use el menú Junta → Nueva junta.
+ *
+ * Para actualizar este código más adelante:
+ * [Apps Script] pegue la versión nueva, guarde, y vaya a Implementar →
+ * Gestionar implementaciones → lápiz ✏️ → Versión: "Nueva versión" → Implementar.
+ * NO use "Nueva implementación": cambiaría el enlace de la aplicación.
  */
 
 var HOJA_CARGOS = 'Cargos';
