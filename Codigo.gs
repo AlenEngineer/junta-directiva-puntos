@@ -66,7 +66,8 @@ var COLS_PUNTOS = [
 
 var ESTADOS = ['Recibido', 'Por revisar', 'Aprobado', 'Rechazado'];
 
-// Lista inicial de cargos 2027. Después se edita en la pestaña "Cargos".
+// Lista de EJEMPLO con nombres ficticios: solo se usa para crear la pestaña "Cargos" la primera vez.
+// Los nombres reales se escriben en la hoja, nunca aquí, para que no queden en el repositorio.
 var CARGOS_INICIALES = [
   ['Ancianos', 'Luis Rivas', 'Primer anciano', 'Sí'],
   ['Ancianos', 'Mario Arango', 'Segundo anciano', 'No'],

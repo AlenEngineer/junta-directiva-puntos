@@ -258,6 +258,13 @@ No hace falta ejecutar `configurar` ni crear una junta nueva.
 | El enlace dice *"Este enlace no es válido"* | La junta ya pasó, se cerró la recepción o el enlace se cambió. Cree una junta nueva o cambie el enlace de esa persona. |
 | Los cambios en el código no se ven en la página | Falta publicar la versión nueva: **Implementar → Gestionar implementaciones → ✏️ → Nueva versión**. |
 
+## Privacidad
+
+El repositorio no guarda datos de personas reales:
+- Los **nombres, cargos, teléfonos y correos** viven solo en su hoja de cálculo (pestañas *Cargos* y *Contactos*). La lista de cargos de `Codigo.gs` y los nombres de las pruebas son **ficticios**.
+- La **URL de la aplicación**, el **ID del script** y las **credenciales** están en la hoja o en los secretos de GitHub, no en el código.
+- Para la primera instalación, `configurar` crea la pestaña *Cargos* con la lista de ejemplo: reemplácela con los nombres reales en la hoja.
+
 ## Seguridad
 
 - Cada enlace lleva una clave aleatoria. Solo funciona para la junta abierta y vence al terminar el día de la junta.
