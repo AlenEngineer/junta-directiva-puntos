@@ -17,10 +17,10 @@ jobs:
   pruebas:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
       - run: npm install
       - run: npx playwright install --with-deps chromium
       - run: npm test
@@ -43,12 +43,12 @@ jobs:
           else
             echo "listo=si" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: steps.revisar.outputs.listo == 'si'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: steps.revisar.outputs.listo == 'si'
         with:
-          node-version: 20
+          node-version: 24
       - name: Preparar clasp
         if: steps.revisar.outputs.listo == 'si'
         run: |
