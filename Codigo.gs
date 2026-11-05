@@ -269,10 +269,10 @@ function cerrarRecepcion() {
 }
 
 function cambiarUrl() {
-  PropertiesService.getScriptProperties().deleteProperty('URL_APP');
-  if (urlApp_(true)) {
+  var actual = PropertiesService.getScriptProperties().getProperty('URL_APP') || '(ninguna)';
+  if (pedirUrl_('URL guardada ahora:\n' + actual + '\n\n')) {
     if (juntaActual_()) escribirEnlaces_();
-    SpreadsheetApp.getUi().alert('URL guardada.');
+    SpreadsheetApp.getUi().alert('URL guardada. Los enlaces de la pestaña "Enlaces" se actualizaron.');
   }
 }
 
@@ -727,19 +727,23 @@ function urlApp_(preguntar) {
     var auto = ScriptApp.getService().getUrl();
     if (auto && /\/exec$/.test(auto)) { props.setProperty('URL_APP', auto); return auto; }
   } catch (e) { /* sin implementar todavía */ }
-  if (!preguntar) return '';
+  return preguntar ? pedirUrl_('') : '';
+}
 
+/** Siempre muestra el cuadro para pegar la URL. Devuelve la URL guardada o ''. */
+function pedirUrl_(textoAntes) {
   var ui = SpreadsheetApp.getUi();
   var r = ui.prompt('URL de la aplicación',
-    'Pegue la URL de la aplicación web (Implementar → Gestionar implementaciones). Termina en /exec',
+    textoAntes + 'Pegue la URL de la aplicación web. Está en Apps Script → ' +
+    'Implementar → Gestionar implementaciones, y termina en /exec',
     ui.ButtonSet.OK_CANCEL);
   if (r.getSelectedButton() !== ui.Button.OK) return '';
-  url = r.getResponseText().trim();
+  var url = r.getResponseText().trim().replace(/\?.*$/, '');
   if (!/^https:\/\/script\.google\.com\/\S+\/exec$/.test(url)) {
     ui.alert('Esa URL no parece correcta. Debe empezar con https://script.google.com/ y terminar en /exec');
     return '';
   }
-  props.setProperty('URL_APP', url);
+  PropertiesService.getScriptProperties().setProperty('URL_APP', url);
   return url;
 }
 
