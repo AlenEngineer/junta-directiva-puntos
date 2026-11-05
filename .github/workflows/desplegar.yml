@@ -1,16 +1,23 @@
-# Corre las pruebas en cada cambio y, si pasan, actualiza el proyecto de Apps Script
-# y publica una nueva versión en la misma implementación (los enlaces no cambian).
+# Pruebas en cada cambio. Publicación en Apps Script solo al crear una versión.
+#
+# - push a main / pull request: solo corre las pruebas.
+# - etiqueta v1.2.3: pruebas, publica esa versión en Apps Script (misma URL)
+#   y crea la Release en GitHub con las notas del CHANGELOG.
+# - Run workflow (manual) sobre una etiqueta: vuelve a publicar esa versión.
+#   Sirve para volver a una versión anterior.
+#
 # Configuración: ver "Actualización automática" en el README.
 name: Probar y desplegar
 
 on:
   push:
     branches: [main]
+    tags: ['v*.*.*']
   pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: desplegar
+  group: desplegar-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -23,28 +30,35 @@ jobs:
           node-version: 24
       - run: npm install
       - run: npx playwright install --with-deps chromium
+      - name: Revisar que la etiqueta coincida con la versión
+        if: github.ref_type == 'tag'
+        env:
+          VERSION_ETIQUETA: ${{ github.ref_name }}
+        run: node tests/version.test.js
       - run: npm test
 
   desplegar:
     needs: pruebas
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.ref_type == 'tag' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
       SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
       DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+      VERSION: ${{ github.ref_name }}
     steps:
       - name: Revisar que los secretos estén configurados
         id: revisar
         run: |
           if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ] || [ -z "$DEPLOYMENT_ID" ]; then
-            echo "::notice::Faltan los secretos CLASPRC_JSON, SCRIPT_ID o DEPLOYMENT_ID. No se despliega. Ver README."
+            echo "::notice::Faltan los secretos CLASPRC_JSON, SCRIPT_ID o DEPLOYMENT_ID. No se publica en Apps Script. Ver README."
             echo "listo=no" >> "$GITHUB_OUTPUT"
           else
             echo "listo=si" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/checkout@v5
-        if: steps.revisar.outputs.listo == 'si'
       - uses: actions/setup-node@v5
         if: steps.revisar.outputs.listo == 'si'
         with:
@@ -57,12 +71,26 @@ jobs:
       - name: Subir el código a Apps Script
         if: steps.revisar.outputs.listo == 'si'
         run: npx --yes @google/clasp@2.4.2 push --force
-      - name: Publicar nueva versión (misma URL)
+      - name: Publicar la versión (misma URL)
         if: steps.revisar.outputs.listo == 'si'
-        run: |
-          npx --yes @google/clasp@2.4.2 deploy \
-            --deploymentId "$DEPLOYMENT_ID" \
-            --description "GitHub ${GITHUB_SHA::7}: $(git log -1 --format=%s | cut -c1-80)"
+        run: npx --yes @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID" --description "$VERSION"
       - name: Borrar credenciales
         if: always()
         run: rm -f ~/.clasprc.json .clasp.json
+      - name: Crear la Release en GitHub
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Notas: la sección de esta versión en el CHANGELOG.
+          awk -v v="${VERSION#v}" '
+            $0 ~ "^## \\[" v "\\]" { dentro = 1; next }
+            dentro && /^## \[/ { exit }
+            dentro && /^\[.*\]: http/ { exit }
+            dentro { print }
+          ' CHANGELOG.md > notas.md
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            echo "La Release $VERSION ya existe."
+          else
+            gh release create "$VERSION" --title "$VERSION" --notes-file notas.md --verify-tag
+          fi

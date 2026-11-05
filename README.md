@@ -21,9 +21,10 @@ Aplicación web hecha con Google Apps Script para que los oficiales de la iglesi
 |---|---|
 | `Codigo.gs` | El servidor: menú de la hoja, enlaces, validación, guardado y agenda |
 | `Formulario.html` | La página que ven los hermanos |
+| `CHANGELOG.md` | Historial de versiones: qué cambió y qué hacer en cada una |
 | `appsscript.json` | Configuración del proyecto de Apps Script: zona horaria y permisos de la aplicación web |
 | `tests/` | Pruebas automáticas (no se suben a Google) |
-| `.github/workflows/desplegar.yml` | Actualización automática: prueba y publica cada cambio (ver *Actualización automática*) |
+| `.github/workflows/desplegar.yml` | Actualización automática: prueba cada cambio y publica cada versión nueva (ver *Actualización automática*) |
 | `.claspignore` | Indica que solo `Codigo.gs`, `Formulario.html` y `appsscript.json` se suben a Apps Script |
 
 ## Instalación
@@ -146,7 +147,7 @@ Si agrega a una persona nueva, aparece sola en **Contactos** la próxima vez que
 
 ## Actualizar el código (🛠️ Apps Script)
 
-> Si configuró la **Actualización automática** (siguiente sección), no necesita hacer esto: cada cambio en GitHub se publica solo. Solo recargue la hoja.
+> Si configuró la **Actualización automática** (siguiente sección), no necesita hacer esto: cada versión nueva se publica sola. Solo recargue la hoja y revise en el [historial de cambios](CHANGELOG.md) si la versión pide algún paso.
 
 Cuando haya una versión nueva de `Codigo.gs` o `Formulario.html`:
 
@@ -161,10 +162,13 @@ Cuando haya una versión nueva de `Codigo.gs` o `Formulario.html`:
 
 ## Actualización automática con GitHub Actions (opcional)
 
-Con esto, cada cambio que llega a la rama `main` de GitHub:
-1. corre las pruebas;
-2. si pasan, sube `Codigo.gs`, `Formulario.html` y `appsscript.json` a su proyecto de Apps Script;
-3. publica una **nueva versión en la misma implementación**, así que la URL y los enlaces no cambian.
+Con esto:
+- Cada cambio que llega a la rama `main` de GitHub **corre las pruebas**, pero no publica nada.
+- Cada **versión nueva** (una etiqueta como `v1.2.0`, ver *Versiones*):
+  1. corre las pruebas;
+  2. si pasan, sube `Codigo.gs`, `Formulario.html` y `appsscript.json` a su proyecto de Apps Script;
+  3. publica una **nueva versión en la misma implementación**, así que la URL y los enlaces no cambian;
+  4. crea la *Release* en GitHub con las notas del `CHANGELOG.md`.
 
 Se configura una sola vez. Necesita una computadora con [Node.js](https://nodejs.org) instalado (versión LTS) para el paso 3.
 
@@ -205,7 +209,8 @@ Se configura una sola vez. Necesita una computadora con [Node.js](https://nodejs
 ### Paso 5 · Probar (🐙 GitHub)
 
 1. Vaya a la pestaña **Actions → Probar y desplegar → Run workflow**.
-2. Al terminar en verde, en 🛠️ **Implementar → Gestionar implementaciones** debe aparecer una versión nueva con la descripción *GitHub …*.
+2. En **Use workflow from**, elija **Tags** y la versión más reciente, por ejemplo `v1.0.0`. Presione **Run workflow**.
+3. Al terminar en verde, en 🛠️ **Implementar → Gestionar implementaciones** debe aparecer una versión nueva con esa descripción.
 
 ### Tenga en cuenta
 
@@ -215,37 +220,37 @@ Se configura una sola vez. Necesita una computadora con [Node.js](https://nodejs
 - Si cambia la contraseña de Google o quita el permiso de clasp, repita los pasos 3 y 4.
 - Mantenga el repositorio **privado**.
 
-## Novedades
+## Versiones
 
-Qué hacer en una instalación que ya funciona, versión por versión (la más reciente primero):
+La aplicación usa versiones `MAYOR.MENOR.PARCHE`. Qué cambió en cada una, y **qué hacer** en una instalación que ya funciona, está en el [historial de cambios](CHANGELOG.md).
 
-**Noviembre 2026 · Material de apoyo**
-- En la primera página del formulario hay una tarjeta opcional, **Material de apoyo**, para adjuntar una presentación de PowerPoint, un PDF, un Word o una imagen de hasta 10 MB, o pegar un enlace a un video.
-- Los archivos se guardan en la carpeta *"Cotizaciones – Junta Directiva"* de su Drive, con *"Material"* en el nombre para distinguirlos de las cotizaciones.
-- En la pestaña **Puntos** aparecen solas dos columnas nuevas al final: *Material de apoyo (archivo)* y *Material de apoyo (enlace)*.
-- No pide permisos nuevos. Con la actualización automática no hay que hacer nada. Si actualiza a mano: cambian `Codigo.gs` y `Formulario.html`.
+- **PARCHE** (1.0.**1**): correcciones. No requiere nada de su parte.
+- **MENOR** (1.**1**.0): funciones nuevas. Puede pedir un permiso nuevo de Google: la nota de la versión dice qué hacer.
+- **MAYOR** (**2**.0.0): exige pasos manuales en una instalación existente.
 
-**Noviembre 2026 · Importar contactos de Google**
-- Nuevo: **Junta → Importar teléfonos y correos de mis contactos**.
-- ⚠️ **Hay que autorizar un permiso nuevo justo después de que se publique.** Esta versión usa la API de contactos de Google (`appsscript.json`). Hasta que usted acepte el permiso, los enlaces del formulario pueden mostrar un error de autorización. Apenas *Actions* termine en verde: 📊 recargue la hoja → **Junta → Importar teléfonos y correos de mis contactos** → **Continuar** → elija su cuenta → **Permitir**. Después abra un enlace para confirmar que el formulario carga.
-- Si actualiza a mano: cambian `Codigo.gs` y `appsscript.json`. Para ver `appsscript.json` en el editor, active 🛠️ **⚙️ Configuración del proyecto → Mostrar el archivo de manifiesto "appsscript.json"**. Luego publique una nueva versión.
+**Ver qué versión tiene instalada:** 📊 **Junta → Acerca de / versión**, o al pie del formulario (*· v1.0.0*).
 
-**Noviembre 2026 · Actividades de varios días**
-- Las actividades tienen **fecha de inicio** y una **fecha de término** opcional, para campamentos, campañas y otras actividades de varios días. En ese caso, las horas son del primer y del último día. La agenda muestra, por ejemplo, *"Del 20/03/2027 al 22/03/2027 (3 días)"*.
-- En la pestaña **Puntos** aparece sola una columna nueva al final, *Fecha de término de la actividad*, cuando llegue el primer punto. Las filas anteriores no cambian.
-- Con la actualización automática no hay que hacer nada. Si actualiza a mano: cambian `Codigo.gs` y `Formulario.html`, y hay que publicar una nueva versión.
+### Publicar una versión nueva (para quien mantiene el código)
 
-**Noviembre 2026 · Actualización automática (opcional)**
-- Se agregó la actualización automática con GitHub Actions (ver la sección anterior). Si no la configura, todo sigue igual: actualice a mano como siempre.
-- El código no cambió, así que no hace falta actualizar nada en Apps Script.
+1. Actualice el número en `Codigo.gs` (`VERSION`), `package.json` (`version`) y `CHANGELOG.md`: pase lo de *Sin publicar* a una sección nueva con la fecha y agregue su enlace al final. Las pruebas fallan si los tres no coinciden.
+2. Suba el cambio a `main`.
+3. Cree la etiqueta y súbala:
+   ```bash
+   git tag -a v1.1.0 -m "v1.1.0"
+   ```
+   ```bash
+   git push origin v1.1.0
+   ```
+   GitHub Actions prueba, publica en Apps Script y crea la *Release*.
 
-**Noviembre 2026 · Compartir por WhatsApp y correo**
-1. 🛠️ Actualice solo `Código.gs`, como dice *Actualizar el código*, y publique una **nueva versión**. `Formulario.html` no cambió.
-2. 📊 Recargue la hoja (F5) y use **Junta → Actualizar la pestaña Enlaces**. Se crea la pestaña **Contactos** con los nombres, y en *Enlaces* aparecen las columnas *WhatsApp* y *Correo*. Los enlaces actuales siguen funcionando.
-3. 📊 Complete teléfonos y correos en **Contactos** y vuelva a usar **Junta → Actualizar la pestaña Enlaces**.
-4. 📊 Para enviar los correos: **Junta → Enviar enlaces por correo…**. La primera vez pide un permiso nuevo.
+### Volver a una versión anterior (🐙 GitHub)
 
-No hace falta ejecutar `configurar` ni crear una junta nueva.
+Si una versión nueva da problemas:
+1. Vaya a **Actions → Probar y desplegar → Run workflow**.
+2. En **Use workflow from**, elija **Tags** y la versión anterior que funcionaba, por ejemplo `v1.0.0`.
+3. Presione **Run workflow**. Al terminar en verde, Apps Script vuelve a esa versión con la misma URL.
+
+Funciona con la versión 1.0.0 en adelante. Si la versión nueva pidió un permiso o creó columnas, volver atrás no los quita, pero tampoco afecta a la versión anterior.
 
 ## Problemas comunes
 

@@ -330,7 +330,7 @@ Puede que la junta ya se haya realizado, que se haya cerrado la recepción de pu
     </div>
   </form>
 
-  <div class="pie">Iglesia Adventista del Séptimo Día · Junta Directiva</div>
+  <div class="pie">Iglesia Adventista del Séptimo Día · Junta Directiva<span id="version"></span></div>
 </div>
 
 <script>
@@ -340,6 +340,7 @@ var DATOS = <?!= datosJson ?>;
   var D = DATOS;
   var $ = function (id) { return document.getElementById(id); };
   if (!D) { $('invalido').classList.remove('oculto'); return; }
+  if (D.version) $('version').textContent = ' · v' + D.version;
 
   var OBLIG = 'Esta pregunta es obligatoria';
   var EXT = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp', 'heic'];

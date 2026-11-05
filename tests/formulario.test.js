@@ -9,7 +9,7 @@ function pagina(datos) {
 }
 const daniel = { clave: 'a'.repeat(32), general: false, nombre: 'Daniel Rivas', junta: 'domingo 14 de marzo de 2027',
   departamentos: [{valor:'Escuela Sabática',texto:'Escuela Sabática (Director)'},{valor:'Ancianos',texto:'Ancianos (Anciano)'}],
-  categorias: CATS, tiempos: TIEMPOS };
+  categorias: CATS, tiempos: TIEMPOS, version: '1.0.0' };
 const OUT = require('path').join(__dirname, 'salida') + '/'; fs.mkdirSync(OUT, { recursive: true });
 let fails = 0;
 const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fails++; };
@@ -20,6 +20,7 @@ const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fa
   fs.writeFileSync(OUT + 'p.html', pagina(daniel));
   await page.goto('file://' + OUT + 'p.html');
   await page.screenshot({ path: OUT + '1-inicio.png', fullPage: true });
+  check((await page.textContent('.pie')).includes('· v1.0.0'), 'el pie muestra la versión');
   check(await page.isVisible('#q-depto'), 'muestra departamento si tiene varios');
   check(!(await page.isVisible('#q-nombre')), 'oculta nombre con enlace personal');
   // validación vacía

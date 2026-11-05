@@ -21,6 +21,10 @@
  * NO use "Nueva implementación": cambiaría el enlace de la aplicación.
  */
 
+// Versión de la aplicación. Debe coincidir con package.json y con CHANGELOG.md (lo revisan las pruebas).
+var VERSION = '1.0.0';
+var REPOSITORIO = 'https://github.com/AlenEngineer/junta-directiva-puntos';
+
 var HOJA_CARGOS = 'Cargos';
 var HOJA_JUNTAS = 'Juntas';
 var HOJA_PUNTOS = 'Puntos';
@@ -151,6 +155,8 @@ function onOpen() {
     .addItem('Configuración inicial', 'configurar')
     .addItem('Cambiar la URL de la aplicación…', 'cambiarUrl')
     .addItem('Cambiar el código de país…', 'cambiarCodigoPais')
+    .addSeparator()
+    .addItem('Acerca de / versión', 'acercaDe')
     .addToUi();
 }
 
@@ -290,6 +296,13 @@ function cerrarRecepcion() {
   if (ok !== ui.Button.YES) return;
   cerrarTodas_();
   ui.alert('Recepción cerrada. Ya puede generar la agenda.');
+}
+
+function acercaDe() {
+  aviso_('Puntos para la Junta Directiva',
+    'Versión ' + VERSION + '\n\n' +
+    'Qué cambió en cada versión:\n' + REPOSITORIO + '/blob/main/CHANGELOG.md\n\n' +
+    'Código abierto con licencia MIT.');
 }
 
 function cambiarUrl() {
@@ -569,7 +582,8 @@ function publico_(ctx) {
       return { valor: c.departamento, texto: c.departamento + ' (' + c.cargo + ')' };
     }),
     categorias: CATEGORIAS,
-    tiempos: TIEMPOS
+    tiempos: TIEMPOS,
+    version: VERSION
   };
 }
 
