@@ -1,5 +1,5 @@
 const fs = require('fs');
-const code = fs.readFileSync(require('path').join(__dirname, '..', 'Codigo.gs'), 'utf8');
+const code = fs.readFileSync(require('path').join(__dirname, '..', 'dist', 'Codigo.gs'), 'utf8');
 const { validarPunto, firmaValida_, parseFecha_, claveFecha_ } =
   new Function(code + '; return { validarPunto, firmaValida_, parseFecha_, claveFecha_ };')();
 const opc = { general: false, departamentos: ['Escuela Sabática', 'Educación'] };

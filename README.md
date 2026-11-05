@@ -18,15 +18,17 @@ Aplicación web hecha con Google Apps Script para que los oficiales de la iglesi
 
 ## Archivos
 
-| Archivo | Para qué sirve |
+| Archivo o carpeta | Para qué sirve |
 |---|---|
-| `Codigo.gs` | El servidor: menú de la hoja, enlaces, validación, guardado y agenda |
-| `Formulario.html` | La página que ven los hermanos |
-| `CHANGELOG.md` | Historial de versiones: qué cambió y qué hacer en cada una |
-| `appsscript.json` | Configuración del proyecto de Apps Script: zona horaria y permisos de la aplicación web |
+| `src/servidor/` | El código del servidor, un archivo por tema (menú, puntos, agenda, enlaces, correo, datos…) |
+| `src/formulario/` | La página que ven los hermanos: estructura, estilos y lógica |
+| `scripts/empaquetar.js` | Une `src/` en `dist/Codigo.gs` y `dist/Formulario.html`, que es lo que se instala |
 | `tests/` | Pruebas automáticas (no se suben a Google) |
-| `.github/workflows/desplegar.yml` | Actualización automática: prueba cada cambio y publica cada versión nueva (ver *Actualización automática*) |
-| `.claspignore` | Indica que solo `Codigo.gs`, `Formulario.html` y `appsscript.json` se suben a Apps Script |
+| `CHANGELOG.md` | Historial de versiones: qué cambió y qué hacer en cada una |
+| `ARQUITECTURA.md` | Cómo está hecho, por qué, reglas para mantenerlo y cuándo migrar |
+| `.github/workflows/desplegar.yml` | Actualización automática: prueba cada cambio y publica cada versión nueva |
+
+**Los archivos para instalar** (`Codigo.gs`, `Formulario.html` y `appsscript.json`) están ya empaquetados en cada versión, en la página de [la última versión](https://github.com/AlenEngineer/junta-directiva-puntos/releases/latest).
 
 ## Instalación
 
@@ -43,9 +45,10 @@ Se trabaja en dos lugares. Cada paso dice dónde:
 ### Paso 2 · Pegar el código (🛠️ Apps Script)
 
 1. 📊 En la hoja, vaya al menú **Extensiones → Apps Script**. Se abre el editor en otra pestaña.
-2. 🛠️ A la izquierda, en *Archivos*, está `Código.gs`. Ábralo, borre todo lo que tenga y pegue el contenido de **`Codigo.gs`**.
-3. 🛠️ Junto a *Archivos*, haga clic en **+ → HTML**. Escriba el nombre **`Formulario`**, exactamente así, sin `.html`. Borre lo que trae y pegue el contenido de **`Formulario.html`**.
-4. 🛠️ Presione el ícono de **guardar** (💾) arriba.
+2. En [la última versión](https://github.com/AlenEngineer/junta-directiva-puntos/releases/latest), en *Assets*, descargue **`Codigo.gs`** y **`Formulario.html`**. Ábralos con el Bloc de notas o TextEdit para copiar su contenido.
+3. 🛠️ A la izquierda, en *Archivos*, está `Código.gs`. Ábralo, borre todo lo que tenga y pegue el contenido de **`Codigo.gs`**.
+4. 🛠️ Junto a *Archivos*, haga clic en **+ → HTML**. Escriba el nombre **`Formulario`**, exactamente así, sin `.html`. Borre lo que trae y pegue el contenido de **`Formulario.html`**.
+5. 🛠️ Presione el ícono de **guardar** (💾) arriba.
 
 ### Paso 3 · Configurar (🛠️ Apps Script)
 
@@ -150,12 +153,13 @@ Si agrega a una persona nueva, aparece sola en **Contactos** la próxima vez que
 
 > Si configuró la **Actualización automática** (siguiente sección), no necesita hacer esto: cada versión nueva se publica sola. Solo recargue la hoja y revise en el [historial de cambios](CHANGELOG.md) si la versión pide algún paso.
 
-Cuando haya una versión nueva de `Codigo.gs` o `Formulario.html`:
+Cuando haya una versión nueva:
 
-1. 📊 En la hoja, vaya a **Extensiones → Apps Script**.
-2. 🛠️ Abra el archivo que cambió (`Código.gs` o `Formulario`), borre todo, pegue la versión nueva y presione **guardar** (💾).
-3. 🛠️ Vaya a **Implementar → Gestionar implementaciones**.
-4. 🛠️ Presione el **lápiz ✏️** (editar). En **Versión**, elija **Nueva versión** y presione **Implementar**.
+1. Descargue `Codigo.gs` y `Formulario.html` de [la última versión](https://github.com/AlenEngineer/junta-directiva-puntos/releases/latest) (en *Assets*).
+2. 📊 En la hoja, vaya a **Extensiones → Apps Script**.
+3. 🛠️ Abra `Código.gs`, borre todo, pegue el nuevo `Codigo.gs` y guarde (💾). Haga lo mismo con `Formulario`.
+4. 🛠️ Vaya a **Implementar → Gestionar implementaciones**.
+5. 🛠️ Presione el **lápiz ✏️** (editar). En **Versión**, elija **Nueva versión** y presione **Implementar**.
 
 > ⚠️ **No use "Nueva implementación" para actualizar.** Eso crea un enlace de aplicación distinto y los enlaces que ya envió dejarían de funcionar. Si ya lo hizo, use **Junta → Cambiar la URL de la aplicación…** y luego **Junta → Nueva junta**.
 
@@ -233,7 +237,7 @@ La aplicación usa versiones `MAYOR.MENOR.PARCHE`. Qué cambió en cada una, y *
 
 ### Publicar una versión nueva (para quien mantiene el código)
 
-1. Cambie el número en los tres lugares: `Codigo.gs` (`VERSION`), `package.json` (`version`) y `CHANGELOG.md` (pase lo de *Sin publicar* a una sección nueva con la fecha y agregue su enlace al final). Las pruebas fallan si los tres no coinciden.
+1. Cambie el número en los tres lugares: `src/servidor/00-Config.js` (`VERSION`), `package.json` (`version`) y `CHANGELOG.md` (pase lo de *Sin publicar* a una sección nueva con la fecha y agregue su enlace al final). Las pruebas fallan si los tres no coinciden.
 2. Suba el cambio a `main`.
 
 GitHub Actions prueba, publica en Apps Script, y crea la etiqueta y la *Release* por su cuenta. Los cambios que se suben sin cambiar el número solo se prueban: se publican junto con la próxima versión.
@@ -275,11 +279,17 @@ El repositorio no guarda datos de personas reales:
 
 ## Pruebas
 
-Las pruebas revisan las reglas de validación del servidor y el comportamiento de la página en un navegador. No prueban la parte que corre dentro de Google: hoja, Drive y menú.
+`npm test` empaqueta `src/` en `dist/` y prueba eso mismo, que es lo que se publica. Hay pruebas del servidor con una hoja de cálculo simulada y de la página en un navegador real. Lo que solo existe dentro de Google (permisos, cuotas, correo) no se puede probar aquí. Detalle en [ARQUITECTURA.md](ARQUITECTURA.md#pruebas).
 
 ```bash
 npm install
+```
+
+```bash
 npx playwright install chromium
+```
+
+```bash
 npm test
 ```
 

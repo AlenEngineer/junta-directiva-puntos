@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
-const html = fs.readFileSync(path.join(__dirname, '..', 'Formulario.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'dist', 'Formulario.html'), 'utf8');
 const stub = require('./servidor-simulado');
 const OUT = path.join(__dirname, 'salida') + '/';
 fs.mkdirSync(OUT, { recursive: true });

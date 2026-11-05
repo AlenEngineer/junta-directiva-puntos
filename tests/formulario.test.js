@@ -1,6 +1,6 @@
 const fs = require('fs');
 const { chromium } = require('playwright');
-const html = fs.readFileSync(require('path').join(__dirname, '..', 'Formulario.html'), 'utf8');
+const html = fs.readFileSync(require('path').join(__dirname, '..', 'dist', 'Formulario.html'), 'utf8');
 const CATS = ['Evangelismo y misión','Tesorería y finanzas','Departamentos','Feligresía (traslados, recepción de miembros)','Asuntos generales'];
 function pagina(datos) {
   const stub = require('./servidor-simulado');
