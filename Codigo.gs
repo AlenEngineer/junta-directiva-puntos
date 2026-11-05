@@ -144,6 +144,10 @@ function onOpen() {
 
 function configurar() {
   var ss = SpreadsheetApp.getActive();
+  if (!ss) {
+    throw new Error('Este script no está dentro de una hoja de cálculo. ' +
+      'Abra su hoja de Google Sheets, vaya a Extensiones → Apps Script y pegue el código ahí.');
+  }
   var props = PropertiesService.getScriptProperties();
   props.setProperty('HOJA_ID', ss.getId());
 
