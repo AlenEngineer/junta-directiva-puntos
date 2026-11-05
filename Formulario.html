@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --morado: #673ab7;
+    --morado-claro: #ede7f6;
+    --fondo: #f0ebf8;
+    --borde: #dadce0;
+    --texto: #202124;
+    --gris: #5f6368;
+    --rojo: #d93025;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: Roboto, Arial, sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .contenedor { max-width: 640px; margin: 12px auto 40px; padding: 0 16px; }
+  .oculto { display: none !important; }
+
+  .tarjeta {
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 12px;
+  }
+  .encabezado { border-top: 10px solid var(--morado); }
+  .encabezado h1 { font-size: 32px; font-weight: 400; line-height: 40px; margin: 0 0 12px; }
+  .encabezado .desc { line-height: 20px; white-space: pre-line; }
+  .encabezado .linea { border-top: 1px solid var(--borde); margin: 20px -24px 0; }
+  .encabezado .nota-oblig { color: var(--rojo); padding-top: 16px; }
+
+  .seccion { padding: 0; overflow: hidden; }
+  .seccion .barra {
+    background: var(--morado); color: #fff;
+    font-size: 20px; line-height: 28px; padding: 12px 24px;
+  }
+  .seccion .texto { padding: 16px 24px; line-height: 20px; }
+
+  .titulo-preg { font-size: 16px; line-height: 24px; letter-spacing: .1px; }
+  .req { color: var(--rojo); }
+  .ayuda { font-size: 12px; line-height: 18px; margin-top: 4px; color: var(--texto); }
+  .subtitulo { font-size: 14px; font-weight: 500; margin-top: 24px; }
+
+  .campo {
+    display: block; width: 50%;
+    border: none; border-bottom: 1px solid var(--borde);
+    background: transparent; outline: none;
+    font: 14px Roboto, Arial, sans-serif; color: var(--texto);
+    padding: 8px 0 7px; margin-top: 16px;
+    transition: border-color .2s;
+  }
+  .campo:focus { border-bottom: 2px solid var(--morado); padding-bottom: 6px; }
+  .campo::placeholder { color: var(--gris); }
+  textarea.campo { width: 100%; resize: none; overflow: hidden; min-height: 36px; line-height: 20px; }
+  select.campo {
+    width: auto; min-width: 220px; max-width: 100%;
+    border: 1px solid var(--borde); border-radius: 4px;
+    padding: 10px 12px; background: #fff; cursor: pointer;
+  }
+  select.campo:focus { border: 1px solid var(--morado); padding: 10px 12px; }
+  @media (max-width: 600px) {
+    .campo { width: 100%; }
+    .encabezado h1 { font-size: 26px; line-height: 34px; }
+  }
+
+  .opciones { margin-top: 8px; }
+  .opcion { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; cursor: pointer; line-height: 20px; }
+  .opcion input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--morado); cursor: pointer; }
+  .opcion small { display: block; color: var(--gris); font-size: 12px; line-height: 16px; }
+
+  .tarjeta.error { border-color: var(--rojo); }
+  .msg-error { display: none; color: var(--rojo); font-size: 12px; margin-top: 16px; align-items: center; gap: 8px; }
+  .tarjeta.error .msg-error { display: flex; }
+  .msg-error svg { flex: none; }
+
+  .btn {
+    height: 36px; padding: 0 24px; border-radius: 4px;
+    font: 500 14px Roboto, Arial, sans-serif; letter-spacing: .25px;
+    cursor: pointer; border: none;
+  }
+  .btn-primario { background: var(--morado); color: #fff; }
+  .btn-primario:hover { box-shadow: 0 1px 2px rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15); }
+  .btn-primario:disabled { background: #b39ddb; cursor: default; box-shadow: none; }
+  .btn-secundario { background: #fff; color: var(--morado); border: 1px solid var(--borde); }
+  .btn-texto { background: none; color: var(--morado); padding: 0 8px; margin-left: auto; }
+  .btn-texto:hover, .btn-secundario:hover { background: #f6f1fc; }
+
+  .botones { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+  .progreso { display: flex; align-items: center; gap: 8px; color: var(--gris); font-size: 12px; }
+  .progreso .riel { width: 120px; height: 10px; border-radius: 5px; background: #e0d6f2; overflow: hidden; }
+  .progreso .relleno { height: 100%; background: var(--morado); border-radius: 5px; transition: width .3s; }
+
+  .subir { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 12px;
+    border: 1px solid var(--borde); border-radius: 4px; padding: 6px 8px 6px 12px; max-width: 100%;
+  }
+  .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip button { border: none; background: none; cursor: pointer; color: var(--gris); font-size: 18px; line-height: 1; padding: 2px 4px; }
+
+  .error-envio { color: var(--rojo); line-height: 20px; }
+  .pie { text-align: center; color: var(--gris); font-size: 12px; margin-top: 24px; }
+  a { color: var(--morado); }
+</style>
+</head>
+<body>
+<div class="contenedor">
+
+  <!-- Enlace no válido -->
+  <div id="invalido" class="tarjeta encabezado oculto">
+    <h1>Puntos para la Junta Directiva</h1>
+    <div class="desc">Este enlace no es válido o ya no está disponible.
+
+Puede que la junta ya se haya realizado, que se haya cerrado la recepción de puntos o que el enlace se haya cambiado. Pida el enlace actualizado a la secretaría de la iglesia.</div>
+  </div>
+
+  <!-- Enviado -->
+  <div id="hecho" class="tarjeta encabezado oculto">
+    <h1>Puntos para la Junta Directiva</h1>
+    <div class="desc" id="hecho-texto"></div>
+    <div style="margin-top:20px"><a href="#" id="otro">Enviar otro punto</a></div>
+  </div>
+
+  <form id="form" class="oculto" novalidate autocomplete="off">
+    <div class="tarjeta encabezado">
+      <h1>Puntos para la Junta Directiva</h1>
+      <div class="desc" id="desc"></div>
+      <div class="linea"></div>
+      <div class="nota-oblig">* Indica que la pregunta es obligatoria</div>
+    </div>
+
+    <!-- ===== Página 1: Datos del punto ===== -->
+    <div class="pagina" id="pag1">
+      <div class="tarjeta pregunta oculto" data-v="nombre" id="q-nombre">
+        <div class="titulo-preg">Nombre completo <span class="req">*</span></div>
+        <input class="campo" id="nombre" maxlength="100" placeholder="Tu respuesta">
+      </div>
+
+      <div class="tarjeta pregunta oculto" data-v="depto" id="q-depto">
+        <div class="titulo-preg">Departamento por el que presenta el punto <span class="req">*</span></div>
+        <select class="campo" id="depto"></select>
+      </div>
+
+      <div class="tarjeta pregunta" data-v="categoria">
+        <div class="titulo-preg">Categoría del punto <span class="req">*</span></div>
+        <select class="campo" id="categoria"></select>
+      </div>
+
+      <div class="tarjeta pregunta" data-v="titulo">
+        <div class="titulo-preg">Título del punto <span class="req">*</span></div>
+        <input class="campo" id="titulo" maxlength="150" placeholder="Tu respuesta">
+      </div>
+
+      <div class="tarjeta pregunta" data-v="tipo">
+        <div class="titulo-preg">Tipo de punto <span class="req">*</span></div>
+        <div class="opciones">
+          <label class="opcion"><input type="radio" name="tipo" value="Para votación">
+            <span>Para votación<small>La junta debe tomar un acuerdo</small></span></label>
+          <label class="opcion"><input type="radio" name="tipo" value="Informativo">
+            <span>Informativo<small>Solo se comunica a la junta</small></span></label>
+        </div>
+      </div>
+
+      <div class="tarjeta pregunta" data-v="descripcion">
+        <div class="titulo-preg"><span id="desc-titulo">Descripción y propuesta</span> <span class="req">*</span></div>
+        <div class="ayuda" id="desc-ayuda">Explique el punto. Si es para votación, escriba la propuesta tal como se votaría.</div>
+        <textarea class="campo" id="descripcion" rows="1" maxlength="5000" placeholder="Tu respuesta"></textarea>
+      </div>
+
+      <div class="tarjeta pregunta" data-v="tiempo">
+        <div class="titulo-preg">Tiempo estimado para presentarlo <span class="req">*</span></div>
+        <select class="campo" id="tiempo"></select>
+      </div>
+    </div>
+
+    <!-- ===== Página 2: Actividad y fondos ===== -->
+    <div class="pagina oculto" id="pag2">
+      <div class="tarjeta seccion">
+        <div class="barra">Actividad y fondos</div>
+        <div class="texto">Datos para que la junta pueda votar el punto.</div>
+      </div>
+
+      <div class="tarjeta pregunta" data-v="esActividad">
+        <div class="titulo-preg">¿El punto es una actividad (con fecha, lugar y hora)? <span class="req">*</span></div>
+        <div class="opciones">
+          <label class="opcion"><input type="radio" name="esActividad" value="Sí"><span>Sí</span></label>
+          <label class="opcion"><input type="radio" name="esActividad" value="No"><span>No</span></label>
+        </div>
+      </div>
+
+      <div class="actividad oculto">
+        <div class="tarjeta pregunta" data-v="actFecha">
+          <div class="titulo-preg">Fecha de la actividad <span class="req">*</span></div>
+          <input class="campo" type="date" id="actFecha">
+        </div>
+        <div class="tarjeta pregunta" data-v="actInicio">
+          <div class="titulo-preg">Hora de inicio <span class="req">*</span></div>
+          <input class="campo" type="time" id="actInicio">
+        </div>
+        <div class="tarjeta pregunta" data-v="actFin">
+          <div class="titulo-preg">Hora de término</div>
+          <input class="campo" type="time" id="actFin">
+        </div>
+        <div class="tarjeta pregunta" data-v="lugar">
+          <div class="titulo-preg">Lugar <span class="req">*</span></div>
+          <input class="campo" id="lugar" maxlength="200" placeholder="Tu respuesta">
+        </div>
+        <div class="tarjeta pregunta" data-v="responsable">
+          <div class="titulo-preg">Responsable de la actividad <span class="req">*</span></div>
+          <input class="campo" id="responsable" maxlength="100" placeholder="Tu respuesta">
+        </div>
+        <div class="tarjeta pregunta" data-v="asistencia">
+          <div class="titulo-preg">Asistencia esperada</div>
+          <div class="ayuda">Número aproximado de personas.</div>
+          <input class="campo" id="asistencia" inputmode="numeric" maxlength="5" placeholder="Tu respuesta">
+        </div>
+      </div>
+
+      <div class="tarjeta pregunta" data-v="dinero">
+        <div class="titulo-preg">¿Se solicita dinero de la iglesia para este punto? <span class="req">*</span></div>
+        <div class="opciones">
+          <label class="opcion"><input type="radio" name="dinero" value="Sí"><span>Sí</span></label>
+          <label class="opcion"><input type="radio" name="dinero" value="No"><span>No</span></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Página 3: Presupuesto ===== -->
+    <div class="pagina oculto" id="pag3">
+      <div class="tarjeta seccion">
+        <div class="barra">Presupuesto</div>
+        <div class="texto">La junta solo aprueba el dinero que se le pide a la iglesia.</div>
+      </div>
+
+      <div class="tarjeta pregunta" data-v="costo">
+        <div class="titulo-preg">Costo total <span class="req">*</span></div>
+        <div class="ayuda">Solo números, sin símbolo de moneda. Ejemplo: 150 o 150.50</div>
+        <input class="campo" id="costo" inputmode="decimal" maxlength="12" placeholder="Tu respuesta">
+      </div>
+
+      <div class="tarjeta pregunta" data-v="monto">
+        <div class="titulo-preg">Monto que se solicita a la iglesia <span class="req">*</span></div>
+        <div class="ayuda">No puede ser mayor que el costo total.</div>
+        <input class="campo" id="monto" inputmode="decimal" maxlength="12" placeholder="Tu respuesta">
+      </div>
+
+      <div class="tarjeta pregunta oculto" data-v="estrategia" id="q-estrategia">
+        <div class="titulo-preg">¿Cómo se conseguirá el resto del dinero? <span class="req">*</span></div>
+        <div class="ayuda">Lo que se pide a la iglesia no cubre todo el costo. Describa su estrategia para reunir el resto.</div>
+        <textarea class="campo" id="estrategia" rows="1" maxlength="2000" placeholder="Tu respuesta"></textarea>
+      </div>
+
+      <div class="tarjeta pregunta" data-v="cotizacion">
+        <div class="titulo-preg">Explicación del costo <span class="req">*</span></div>
+        <div class="ayuda">Complete al menos una de estas tres opciones.</div>
+
+        <div class="subtitulo">Descripción</div>
+        <textarea class="campo" id="descCosto" rows="1" maxlength="2000"
+          placeholder="Ejemplo: refrigerios para 50 personas y transporte"></textarea>
+
+        <div class="subtitulo">Enlace a la cotización</div>
+        <input class="campo" id="enlace" type="url" maxlength="1000" placeholder="https://">
+
+        <div class="subtitulo">Adjuntar cotización</div>
+        <div class="ayuda">PDF, Word o imagen. Máximo 5 MB.</div>
+        <input type="file" id="archivo" class="oculto"
+          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.heic,application/pdf,image/*">
+        <button type="button" class="btn btn-secundario subir" id="btn-archivo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
+          Agregar archivo
+        </button>
+        <div class="chip oculto" id="chip">
+          <span id="chip-nombre"></span>
+          <button type="button" id="quitar" aria-label="Quitar archivo">×</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tarjeta oculto" id="error-envio"><div class="error-envio" id="error-envio-texto"></div></div>
+
+    <div class="botones">
+      <button type="button" class="btn btn-secundario oculto" id="atras">Atrás</button>
+      <button type="button" class="btn btn-primario" id="siguiente">Siguiente</button>
+      <div class="progreso"><div class="riel"><div class="relleno" id="relleno"></div></div>
+        <span id="pagina-texto"></span></div>
+      <button type="button" class="btn btn-texto" id="borrar">Borrar formulario</button>
+    </div>
+  </form>
+
+  <div class="pie">Iglesia Adventista del Séptimo Día · Junta Directiva</div>
+</div>
+
+<script>
+var DATOS = <?!= datosJson ?>;
+
+(function () {
+  var D = DATOS;
+  var $ = function (id) { return document.getElementById(id); };
+  if (!D) { $('invalido').classList.remove('oculto'); return; }
+
+  var OBLIG = 'Esta pregunta es obligatoria';
+  var EXT = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp', 'heic'];
+  var MAX = 5 * 1024 * 1024;
+  var archivo = null;      // { nombre, base64 }
+  var actual = 'pag1';
+
+  // ---------- Preparar la página ----------
+  var desc = 'Junta del ' + D.junta + '\n';
+  if (D.general) {
+    desc += 'Para miembros de la iglesia. Su punto será revisado antes de incluirse en la agenda.';
+    $('q-nombre').classList.remove('oculto');
+  } else {
+    desc += 'Hola, ' + D.nombre + '.';
+    if (D.departamentos.length === 1) desc += '\nDepartamento: ' + D.departamentos[0].texto;
+    else $('q-depto').classList.remove('oculto');
+  }
+  $('desc').textContent = desc;
+
+  function llenar(sel, items) {
+    sel.appendChild(new Option('Elegir', ''));
+    items.forEach(function (it) {
+      if (typeof it === 'string') sel.appendChild(new Option(it, it));
+      else sel.appendChild(new Option(it.texto, it.valor));
+    });
+  }
+  llenar($('depto'), D.departamentos);
+  llenar($('categoria'), D.categorias);
+  llenar($('tiempo'), D.tiempos);
+
+  // Ícono y texto de error en cada pregunta, como en Google Forms.
+  document.querySelectorAll('.pregunta').forEach(function (q) {
+    var m = document.createElement('div');
+    m.className = 'msg-error';
+    m.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+      '<path d="M11 15h2v2h-2zm0-8h2v6h-2zm1-5C6.47 2 2 6.5 2 12a10 10 0 1 0 10-10zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/></svg><span></span>';
+    q.appendChild(m);
+  });
+  $('form').classList.remove('oculto');
+
+  // ---------- Utilidades ----------
+  function val(id) { return $(id).value.trim(); }
+  function radio(nombre) {
+    var r = document.querySelector('input[name="' + nombre + '"]:checked');
+    return r ? r.value : '';
+  }
+  function numero(s) {
+    s = String(s).replace(/\s/g, '').replace(',', '.');
+    return /^\d{1,9}(\.\d{1,2})?$/.test(s) ? Number(s) : NaN;
+  }
+  function visible(el) { return !el.closest('.oculto'); }
+
+  // ---------- Mostrar u ocultar según las respuestas ----------
+  function actualizar() {
+    document.querySelector('.actividad').classList.toggle('oculto', radio('esActividad') !== 'Sí');
+    var c = numero(val('costo')), m = numero(val('monto'));
+    $('q-estrategia').classList.toggle('oculto', !(c > 0 && m > 0 && m < c));
+
+    var tipo = radio('tipo'), dinero = radio('dinero');
+    $('desc-titulo').textContent = tipo === 'Informativo' ? 'Descripción del informe' :
+      tipo === 'Para votación' ? 'Descripción y propuesta de voto' : 'Descripción y propuesta';
+    $('desc-ayuda').textContent = tipo === 'Informativo' ? 'Explique lo que se va a informar a la junta.' :
+      tipo === 'Para votación' ? 'Explique el punto y escriba la propuesta tal como se votaría.' :
+      'Explique el punto. Si es para votación, escriba la propuesta tal como se votaría.';
+    var total = 1 + (tipo !== 'Informativo' ? 1 : 0) + (tipo !== 'Informativo' && dinero !== 'No' ? 1 : 0);
+    var num = Number(actual.slice(3));
+    $('siguiente').textContent = hayMas() ? 'Siguiente' : 'Enviar';
+    $('atras').classList.toggle('oculto', actual === 'pag1');
+    $('relleno').style.width = Math.round(num / total * 100) + '%';
+    $('pagina-texto').textContent = 'Página ' + num + ' de ' + total;
+  }
+  function hayMas() {
+    if (actual === 'pag1') return radio('tipo') !== 'Informativo';
+    if (actual === 'pag2') return radio('dinero') !== 'No';
+    return false;
+  }
+  function anterior() {
+    if (actual === 'pag3') return 'pag2';
+    return 'pag1';
+  }
+
+  // ---------- Validación ----------
+  var reglas = {
+    nombre: function () { return val('nombre').length >= 3 ? '' : OBLIG; },
+    depto: function () { return val('depto') ? '' : OBLIG; },
+    categoria: function () { return val('categoria') ? '' : OBLIG; },
+    titulo: function () { return val('titulo') ? '' : OBLIG; },
+    descripcion: function () { return val('descripcion') ? '' : OBLIG; },
+    tipo: function () { return radio('tipo') ? '' : OBLIG; },
+    tiempo: function () { return val('tiempo') ? '' : OBLIG; },
+    esActividad: function () { return radio('esActividad') ? '' : OBLIG; },
+    actFecha: function () { return val('actFecha') ? '' : OBLIG; },
+    actInicio: function () { return val('actInicio') ? '' : OBLIG; },
+    actFin: function () { return ''; },
+    lugar: function () { return val('lugar') ? '' : OBLIG; },
+    responsable: function () { return val('responsable') ? '' : OBLIG; },
+    asistencia: function () { return !val('asistencia') || /^\d{1,5}$/.test(val('asistencia')) ? '' : 'Escriba solo un número'; },
+    dinero: function () { return radio('dinero') ? '' : OBLIG; },
+    costo: function () {
+      if (!val('costo')) return OBLIG;
+      return numero(val('costo')) > 0 ? '' : 'Escriba solo números. Ejemplo: 150 o 150.50';
+    },
+    monto: function () {
+      if (!val('monto')) return OBLIG;
+      var m = numero(val('monto'));
+      if (!(m > 0)) return 'Escriba solo números. Ejemplo: 150 o 150.50';
+      return m > numero(val('costo')) ? 'No puede ser mayor que el costo total' : '';
+    },
+    estrategia: function () { return val('estrategia') ? '' : OBLIG; },
+    cotizacion: function () {
+      var e = val('enlace');
+      if (e && !/^https?:\/\/\S+$/i.test(e)) return 'El enlace debe empezar con https://';
+      return val('descCosto') || e || archivo ? '' : 'Complete al menos una de las tres opciones';
+    }
+  };
+
+  function validar(pagina) {
+    var primera = null;
+    $(pagina).querySelectorAll('.pregunta').forEach(function (q) {
+      if (!visible(q)) return;
+      var msg = reglas[q.dataset.v]();
+      q.classList.toggle('error', !!msg);
+      q.querySelector('.msg-error span').textContent = msg;
+      if (msg && !primera) primera = q;
+    });
+    if (primera) primera.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return !primera;
+  }
+
+  function limpiarError(e) {
+    var q = e.target.closest('.pregunta');
+    if (q && q.classList.contains('error') && !reglas[q.dataset.v]()) q.classList.remove('error');
+  }
+
+  // ---------- Navegación ----------
+  function ir(pagina) {
+    $(actual).classList.add('oculto');
+    actual = pagina;
+    $(actual).classList.remove('oculto');
+    $('error-envio').classList.add('oculto');
+    actualizar();
+    window.scrollTo(0, 0);
+  }
+
+  $('siguiente').addEventListener('click', function () {
+    if (!validar(actual)) return;
+    if (hayMas()) ir(actual === 'pag1' ? 'pag2' : 'pag3');
+    else enviar();
+  });
+  $('atras').addEventListener('click', function () { ir(anterior()); });
+
+  // ---------- Archivo ----------
+  $('btn-archivo').addEventListener('click', function () { $('archivo').click(); });
+  $('archivo').addEventListener('change', function () {
+    var f = this.files[0];
+    this.value = '';
+    if (!f) return;
+    var q = this.closest('.pregunta');
+    var ext = f.name.indexOf('.') >= 0 ? f.name.split('.').pop().toLowerCase() : '';
+    var msg = EXT.indexOf(ext) < 0 ? 'Tipo de archivo no permitido. Use PDF, Word o una imagen.' :
+      f.size > MAX ? 'El archivo pesa más de 5 MB.' : '';
+    if (msg) {
+      q.classList.add('error');
+      q.querySelector('.msg-error span').textContent = msg;
+      return;
+    }
+    var lector = new FileReader();
+    lector.onload = function () {
+      archivo = { nombre: f.name, base64: String(lector.result).split(',')[1] };
+      $('chip-nombre').textContent = f.name;
+      $('chip').classList.remove('oculto');
+      $('btn-archivo').classList.add('oculto');
+      q.classList.remove('error');
+    };
+    lector.readAsDataURL(f);
+  });
+  $('quitar').addEventListener('click', function () {
+    archivo = null;
+    $('chip').classList.add('oculto');
+    $('btn-archivo').classList.remove('oculto');
+  });
+
+  // ---------- Enviar ----------
+  function datos() {
+    var dep = D.general ? '' : (D.departamentos.length === 1 ? D.departamentos[0].valor : val('depto'));
+    var d = {
+      nombre: val('nombre'), departamento: dep,
+      categoria: val('categoria'), titulo: val('titulo'), descripcion: val('descripcion'),
+      tipo: radio('tipo'), tiempo: val('tiempo')
+    };
+    if (d.tipo === 'Para votación') {
+      d.esActividad = radio('esActividad');
+      if (d.esActividad === 'Sí') {
+        d.actFecha = val('actFecha'); d.actInicio = val('actInicio'); d.actFin = val('actFin');
+        d.lugar = val('lugar'); d.responsable = val('responsable'); d.asistencia = val('asistencia');
+      }
+      d.pideDinero = radio('dinero');
+      if (d.pideDinero === 'Sí') {
+        d.costo = val('costo'); d.monto = val('monto'); d.estrategia = val('estrategia');
+        d.descCosto = val('descCosto'); d.enlace = val('enlace'); d.archivo = archivo;
+      }
+    }
+    return d;
+  }
+
+  function enviar() {
+    var b = $('siguiente');
+    b.disabled = true;
+    b.textContent = 'Enviando…';
+    $('error-envio').classList.add('oculto');
+    google.script.run
+      .withSuccessHandler(function () {
+        $('form').classList.add('oculto');
+        $('hecho-texto').textContent = 'Su punto fue recibido. Gracias.' +
+          (D.general ? '\nSerá revisado antes de incluirse en la agenda.' : '');
+        $('hecho').classList.remove('oculto');
+        window.scrollTo(0, 0);
+      })
+      .withFailureHandler(function (e) {
+        b.disabled = false;
+        actualizar();
+        var msg = String((e && e.message) || e).replace(/^(Exception|Error):\s*/, '');
+        $('error-envio-texto').textContent = 'No se pudo enviar: ' + msg;
+        $('error-envio').classList.remove('oculto');
+      })
+      .enviarPunto(D.clave, datos());
+  }
+
+  // ---------- Borrar y enviar otro ----------
+  function reiniciar() {
+    $('form').reset();
+    archivo = null;
+    $('chip').classList.add('oculto');
+    $('btn-archivo').classList.remove('oculto');
+    document.querySelectorAll('.pregunta.error').forEach(function (q) { q.classList.remove('error'); });
+    document.querySelectorAll('textarea').forEach(function (t) { t.style.height = ''; });
+    $('siguiente').disabled = false;
+    ir('pag1');
+  }
+  $('borrar').addEventListener('click', function () {
+    if (confirm('¿Borrar todas las respuestas del formulario?')) reiniciar();
+  });
+  $('otro').addEventListener('click', function (e) {
+    e.preventDefault();
+    $('hecho').classList.add('oculto');
+    $('form').classList.remove('oculto');
+    reiniciar();
+  });
+
+  // ---------- Eventos ----------
+  $('form').addEventListener('input', function (e) {
+    if (e.target.tagName === 'TEXTAREA') {
+      e.target.style.height = 'auto';
+      e.target.style.height = e.target.scrollHeight + 'px';
+    }
+    actualizar();
+    limpiarError(e);
+  });
+  $('form').addEventListener('change', function (e) { actualizar(); limpiarError(e); });
+  actualizar();
+})();
+</script>
+</body>
+</html>
