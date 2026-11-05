@@ -106,6 +106,7 @@ Cuando haya una versión nueva de `Codigo.gs` o `Formulario.html`:
 | *Este script no está dentro de una hoja de cálculo* o *Cannot read properties of null (reading 'getId')* | El proyecto se creó en script.google.com o en Drive. Créelo desde la hoja: **Extensiones → Apps Script** (paso 2). |
 | *Excedió el tiempo máximo de ejecución* al ejecutar `configurar` | Pasaba con una versión anterior que esperaba un clic en la hoja. Actualice `Código.gs` y ejecute `configurar` de nuevo. |
 | No aparece el menú **Junta** | Recargue la hoja (F5). Si sigue sin aparecer, revise que el código esté pegado en el editor que se abre desde **Extensiones → Apps Script**. |
+| Al abrir un enlace sale una página de Google Drive: *"No se pudo abrir el archivo en este momento"* | Casi siempre es porque el navegador tiene **varias cuentas de Google abiertas**. Abra el enlace en una ventana de incógnito o en el celular. Si tampoco funciona: 🛠️ en **Implementar → Gestionar implementaciones**, copie la URL de la aplicación web (termina en `/exec`), compárela con la parte del enlace antes de `?t=` en la pestaña *Enlaces* y, si es distinta, use 📊 **Junta → Cambiar la URL de la aplicación…**. Revise también que *Quién tiene acceso* diga *Cualquier usuario*. |
 | El enlace dice *"Este enlace no es válido"* | La junta ya pasó, se cerró la recepción o el enlace se cambió. Cree una junta nueva o cambie el enlace de esa persona. |
 | Los cambios en el código no se ven en la página | Falta publicar la versión nueva: **Implementar → Gestionar implementaciones → ✏️ → Nueva versión**. |
 
