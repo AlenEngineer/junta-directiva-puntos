@@ -176,10 +176,14 @@ function configurar() {
     props.setProperty('CARPETA', DriveApp.createFolder('Cotizaciones – Junta Directiva').getId());
   }
 
-  aviso_('Configuración lista',
-    'Se crearon las pestañas Cargos, Juntas y Puntos, y la carpeta "Cotizaciones – Junta Directiva" en su Drive.\n\n' +
+  // Se ejecuta desde el editor: un mensaje con botón "Aceptar" dejaría el script
+  // esperando en la hoja. Por eso solo se escribe en el registro y en un aviso breve.
+  var listo = 'Configuración lista. Se crearon las pestañas Cargos, Juntas y Puntos, ' +
+    'y la carpeta "Cotizaciones – Junta Directiva" en su Drive. ' +
     'Siguiente paso: Implementar → Nueva implementación → Aplicación web ' +
-    '(Ejecutar como: Yo · Acceso: Cualquier usuario). Luego use Junta → Nueva junta.');
+    '(Ejecutar como: Yo · Acceso: Cualquier usuario). Luego use Junta → Nueva junta.';
+  Logger.log(listo);
+  ss.toast('Siguiente paso: Implementar → Nueva implementación → Aplicación web.', 'Configuración lista', 15);
 }
 
 function nuevaJunta() {
