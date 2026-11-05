@@ -69,7 +69,8 @@ Se trabaja en dos lugares. Cada paso dice dónde:
 ### Paso 5 · Completar los contactos (📊 Google Sheets)
 
 1. 📊 Vuelva a la pestaña de la hoja y **recárguela** (F5). Arriba aparece un menú nuevo: **Junta**.
-2. 📊 En la pestaña **Contactos** ya están los nombres. Complete el **Teléfono** (celular) y el **Correo** de cada persona. Si no tiene alguno de los dos, déjelo vacío.
+2. 📊 **Rápido:** si sus contactos del celular están en su cuenta de Google (revíselo en [contacts.google.com](https://contacts.google.com)), use **Junta → Importar teléfonos y correos de mis contactos**. Ver *Importar desde sus contactos de Google*.
+3. 📊 En la pestaña **Contactos** ya están los nombres. Complete o corrija a mano el **Teléfono** (celular) y el **Correo** que falten. Si alguien no tiene alguno de los dos, déjelo vacío.
    - Los números de Panamá se escriben normal, por ejemplo `6123-4567`; el código +507 se agrega solo. Da igual si usa guiones, espacios o nada (`61234567`), y si ya escribió `+507` o `507` delante tampoco se repite.
    - Un número de otro país se escribe con `+` y su código, por ejemplo `+1 555 123 4567`.
    - Si el número no es válido, la pestaña *Enlaces* lo indica con *Teléfono no válido · elegir contacto*.
@@ -90,6 +91,7 @@ Todo se hace desde el menú **Junta** de la hoja:
 |---|---|
 | **Nueva junta…** | Elegir la fecha de la próxima junta y crear enlaces nuevos. Los anteriores dejan de funcionar. Al final ofrece enviar los correos. |
 | **Generar agenda…** | Crear la pestaña *Agenda dd-mm-aaaa* con los puntos ordenados. Se puede generar varias veces: se reemplaza. |
+| **Importar teléfonos y correos de mis contactos** | Llenar la pestaña *Contactos* desde sus contactos de Google. Solo llena celdas vacías. |
 | **Enviar enlaces por correo…** | Enviar el correo a quienes aún no lo recibieron. Si todos ya lo recibieron, ofrece reenviarlo. |
 | **Actualizar la pestaña Enlaces** | Después de editar *Contactos*, para que se actualicen los botones de WhatsApp y el estado del correo. |
 | **Cambiar el enlace de una persona…** | Si un enlace se filtró. Escriba el nombre, o `GENERAL` para el enlace general. Ofrece enviarle el enlace nuevo por correo. |
@@ -116,6 +118,24 @@ Si la persona no tiene teléfono en *Contactos*, el botón dice **Elegir contact
 - La columna **Correo** muestra *Enviado* (con fecha y hora), *Pendiente*, *Sin correo* o *Correo no válido*.
 - La primera vez que envíe correos, Google pide un permiso nuevo para **enviar correo en su nombre**: acéptelo igual que en el paso 3.
 - Google permite unos 100 correos por día en cuentas gratuitas, más que suficiente para la junta.
+
+## Importar desde sus contactos de Google (📊 Google Sheets)
+
+**Junta → Importar teléfonos y correos de mis contactos** busca a cada persona de la pestaña *Contactos* entre:
+- sus **contactos de Google**, los mismos del celular Android si están sincronizados;
+- sus **"Otros contactos"**, personas a las que les escribió por Gmail. Ahí suelen estar correos que no guardó.
+
+Cómo decide:
+- No importan las tildes, las mayúsculas ni palabras como *Hno.*, *Hna.*, *Pr.* o *de*. *"Hna. Irene Arango"* coincide con *Irene de Arango*.
+- **Seguro:** el contacto tiene el nombre y el apellido. Se llena.
+- **Para verificar:** el contacto está guardado solo con el primer nombre, por ejemplo *"Daniel"*. Se llena, pero queda **en amarillo** con una nota. Revise que sea la persona correcta y luego quite el color.
+- **Varios contactos posibles:** no se llena nada. Complételo a mano.
+- Prefiere el número **móvil** y el correo **principal** del contacto.
+- **Nunca cambia** lo que ya está escrito: solo llena celdas vacías. Se puede usar varias veces.
+
+Cada celda importada tiene una **nota** que dice de qué contacto vino: pase el mouse por encima para verla. Al terminar aparece un resumen.
+
+La primera vez, Google pide permiso para **ver sus contactos**. El script solo los lee: no los cambia ni los envía a ningún lado.
 
 ## Cambiar los cargos (📊 Google Sheets)
 
@@ -197,6 +217,11 @@ Se configura una sola vez. Necesita una computadora con [Node.js](https://nodejs
 ## Novedades
 
 Qué hacer en una instalación que ya funciona, versión por versión (la más reciente primero):
+
+**Noviembre 2026 · Importar contactos de Google**
+- Nuevo: **Junta → Importar teléfonos y correos de mis contactos**.
+- ⚠️ **Hay que autorizar un permiso nuevo justo después de que se publique.** Esta versión usa la API de contactos de Google (`appsscript.json`). Hasta que usted acepte el permiso, los enlaces del formulario pueden mostrar un error de autorización. Apenas *Actions* termine en verde: 📊 recargue la hoja → **Junta → Importar teléfonos y correos de mis contactos** → **Continuar** → elija su cuenta → **Permitir**. Después abra un enlace para confirmar que el formulario carga.
+- Si actualiza a mano: cambian `Codigo.gs` y `appsscript.json`. Para ver `appsscript.json` en el editor, active 🛠️ **⚙️ Configuración del proyecto → Mostrar el archivo de manifiesto "appsscript.json"**. Luego publique una nueva versión.
 
 **Noviembre 2026 · Actividades de varios días**
 - Las actividades tienen **fecha de inicio** y una **fecha de término** opcional, para campamentos, campañas y otras actividades de varios días. En ese caso, las horas son del primer y del último día. La agenda muestra, por ejemplo, *"Del 20/03/2027 al 22/03/2027 (3 días)"*.
