@@ -25,7 +25,7 @@ Primera versión pública.
 - Sección *Privacidad* en el README: los nombres, cargos, teléfonos y correos viven solo en la hoja.
 
 ### Cambiado
-- La actualización automática publica en Apps Script **solo cuando se crea una versión** (una etiqueta `v…`), no con cada cambio. Permite volver a una versión anterior (ver *Volver a una versión anterior* en el README).
+- La actualización automática publica en Apps Script **solo cuando cambia el número de versión**, no con cada cambio. GitHub crea sola la etiqueta y la *Release* de cada versión. Permite volver a una versión anterior (ver *Volver a una versión anterior* en el README).
 - La lista de cargos de `Codigo.gs` es de ejemplo, con nombres ficticios.
 
 ### Qué hacer

@@ -164,11 +164,11 @@ Cuando haya una versión nueva de `Codigo.gs` o `Formulario.html`:
 
 Con esto:
 - Cada cambio que llega a la rama `main` de GitHub **corre las pruebas**, pero no publica nada.
-- Cada **versión nueva** (una etiqueta como `v1.2.0`, ver *Versiones*):
+- Cuando cambia el **número de versión** (ver *Versiones*):
   1. corre las pruebas;
   2. si pasan, sube `Codigo.gs`, `Formulario.html` y `appsscript.json` a su proyecto de Apps Script;
   3. publica una **nueva versión en la misma implementación**, así que la URL y los enlaces no cambian;
-  4. crea la *Release* en GitHub con las notas del `CHANGELOG.md`.
+  4. crea la etiqueta (por ejemplo `v1.2.0`) y la *Release* en GitHub con las notas del `CHANGELOG.md`.
 
 Se configura una sola vez. Necesita una computadora con [Node.js](https://nodejs.org) instalado (versión LTS) para el paso 3.
 
@@ -232,16 +232,10 @@ La aplicación usa versiones `MAYOR.MENOR.PARCHE`. Qué cambió en cada una, y *
 
 ### Publicar una versión nueva (para quien mantiene el código)
 
-1. Actualice el número en `Codigo.gs` (`VERSION`), `package.json` (`version`) y `CHANGELOG.md`: pase lo de *Sin publicar* a una sección nueva con la fecha y agregue su enlace al final. Las pruebas fallan si los tres no coinciden.
+1. Cambie el número en los tres lugares: `Codigo.gs` (`VERSION`), `package.json` (`version`) y `CHANGELOG.md` (pase lo de *Sin publicar* a una sección nueva con la fecha y agregue su enlace al final). Las pruebas fallan si los tres no coinciden.
 2. Suba el cambio a `main`.
-3. Cree la etiqueta y súbala:
-   ```bash
-   git tag -a v1.1.0 -m "v1.1.0"
-   ```
-   ```bash
-   git push origin v1.1.0
-   ```
-   GitHub Actions prueba, publica en Apps Script y crea la *Release*.
+
+GitHub Actions prueba, publica en Apps Script, y crea la etiqueta y la *Release* por su cuenta. Los cambios que se suben sin cambiar el número solo se prueban: se publican junto con la próxima versión.
 
 ### Volver a una versión anterior (🐙 GitHub)
 

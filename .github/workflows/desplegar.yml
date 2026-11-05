@@ -1,8 +1,10 @@
-# Pruebas en cada cambio. Publicación en Apps Script solo al crear una versión.
+# Pruebas en cada cambio. Publicación cuando cambia el número de versión.
 #
-# - push a main / pull request: solo corre las pruebas.
-# - etiqueta v1.2.3: pruebas, publica esa versión en Apps Script (misma URL)
-#   y crea la Release en GitHub con las notas del CHANGELOG.
+# - pull request: solo corre las pruebas.
+# - push a main: corre las pruebas. Si la versión de package.json todavía no
+#   tiene etiqueta (por ejemplo v1.2.0), es una versión nueva: la publica en
+#   Apps Script (misma URL), crea la etiqueta y la Release con las notas del
+#   CHANGELOG.
 # - Run workflow (manual) sobre una etiqueta: vuelve a publicar esa versión.
 #   Sirve para volver a una versión anterior.
 #
@@ -12,12 +14,11 @@ name: Probar y desplegar
 on:
   push:
     branches: [main]
-    tags: ['v*.*.*']
   pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: desplegar-${{ github.ref }}
+  group: desplegar
   cancel-in-progress: false
 
 jobs:
@@ -30,16 +31,13 @@ jobs:
           node-version: 24
       - run: npm install
       - run: npx playwright install --with-deps chromium
-      - name: Revisar que la etiqueta coincida con la versión
-        if: github.ref_type == 'tag'
-        env:
-          VERSION_ETIQUETA: ${{ github.ref_name }}
-        run: node tests/version.test.js
       - run: npm test
 
-  desplegar:
+  publicar:
     needs: pruebas
-    if: github.ref_type == 'tag' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.ref_type == 'tag')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -47,10 +45,40 @@ jobs:
       CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
       SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
       DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
-      VERSION: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
     steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Ver si hay una versión nueva
+        id: version
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Volver a publicar $GITHUB_REF_NAME."
+            echo "etiqueta=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "publicar=si" >> "$GITHUB_OUTPUT"
+            echo "nueva=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ETIQUETA="v$(node -p "require('./package.json').version")"
+          echo "etiqueta=$ETIQUETA" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/$ETIQUETA" > /dev/null; then
+            echo "$ETIQUETA ya existe: no hay versión nueva que publicar."
+            echo "publicar=no" >> "$GITHUB_OUTPUT"
+            echo "nueva=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "Versión nueva: $ETIQUETA"
+            echo "publicar=si" >> "$GITHUB_OUTPUT"
+            echo "nueva=si" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Revisar que los secretos estén configurados
-        id: revisar
+        id: secretos
+        if: steps.version.outputs.publicar == 'si'
         run: |
           if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ] || [ -z "$DEPLOYMENT_ID" ]; then
             echo "::notice::Faltan los secretos CLASPRC_JSON, SCRIPT_ID o DEPLOYMENT_ID. No se publica en Apps Script. Ver README."
@@ -58,39 +86,56 @@ jobs:
           else
             echo "listo=si" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        if: steps.revisar.outputs.listo == 'si'
-        with:
-          node-version: 24
-      - name: Preparar clasp
-        if: steps.revisar.outputs.listo == 'si'
+
+      - name: Publicar en Apps Script (misma URL)
+        if: steps.secretos.outputs.listo == 'si'
+        env:
+          ETIQUETA: ${{ steps.version.outputs.etiqueta }}
         run: |
           printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
           printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
-      - name: Subir el código a Apps Script
-        if: steps.revisar.outputs.listo == 'si'
-        run: npx --yes @google/clasp@2.4.2 push --force
-      - name: Publicar la versión (misma URL)
-        if: steps.revisar.outputs.listo == 'si'
-        run: npx --yes @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID" --description "$VERSION"
+          npx --yes @google/clasp@2.4.2 push --force
+          npx --yes @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID" --description "$ETIQUETA"
+
       - name: Borrar credenciales
         if: always()
         run: rm -f ~/.clasprc.json .clasp.json
-      - name: Crear la Release en GitHub
-        if: github.event_name == 'push'
+
+      - name: Crear la etiqueta y la Release
+        if: steps.version.outputs.nueva == 'si'
         env:
-          GH_TOKEN: ${{ github.token }}
+          ETIQUETA: ${{ steps.version.outputs.etiqueta }}
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$ETIQUETA" -m "$ETIQUETA"
+          git push origin "$ETIQUETA"
           # Notas: la sección de esta versión en el CHANGELOG.
-          awk -v v="${VERSION#v}" '
+          awk -v v="${ETIQUETA#v}" '
             $0 ~ "^## \\[" v "\\]" { dentro = 1; next }
             dentro && /^## \[/ { exit }
             dentro && /^\[.*\]: http/ { exit }
             dentro { print }
           ' CHANGELOG.md > notas.md
-          if gh release view "$VERSION" > /dev/null 2>&1; then
-            echo "La Release $VERSION ya existe."
-          else
-            gh release create "$VERSION" --title "$VERSION" --notes-file notas.md --verify-tag
-          fi
+          gh release create "$ETIQUETA" --title "$ETIQUETA" --notes-file notas.md --verify-tag --latest
+
+      - name: Etiquetar las versiones anteriores a 1.0.0 (solo la primera vez)
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          while read -r etiqueta commit; do
+            [ -z "$etiqueta" ] && continue
+            if ! git rev-parse -q --verify "refs/tags/$etiqueta" > /dev/null; then
+              git tag -a "$etiqueta" "$commit" -m "$etiqueta"
+              git push origin "$etiqueta"
+            fi
+          done <<'LISTA'
+          v0.1.0 cc259159b6a9459daf3926603a1f0a86f551395f
+          v0.1.1 3ae257f0151cadc45f309fc6fbc765251d0f2280
+          v0.2.0 c98b51d634091812544098d4b306764412bf9ee4
+          v0.3.0 008f40b7c2202f7100d14673963c8fa8b6b42e61
+          v0.4.0 66fea6fa5639772688eeefd7fd0494a94718e179
+          v0.5.0 6ace68bb2927bc0b78f927361d3c0f8c8abc2f4e
+          v0.6.0 0d31e92175456c8e04ec8f84bbc61395ab11769f
+          LISTA
