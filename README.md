@@ -9,7 +9,7 @@ Aplicación web hecha con Google Apps Script para que los oficiales de la iglesi
 - **Compartir los enlaces:** cada persona tiene un botón **Enviar por WhatsApp** que abre el chat con el mensaje ya escrito, y se le puede enviar un **correo automático** con su enlace y una explicación completa.
 - **El formulario se adapta a cada respuesta:**
   - *Informativo*: solo pide los datos del punto y la descripción del informe.
-  - *Para votación*: pregunta si es una actividad (fecha, hora, lugar, responsable) y si se pide dinero de la iglesia.
+  - *Para votación*: pregunta si es una actividad (fechas, horas, lugar, responsable) y si se pide dinero de la iglesia. Las actividades de varios días, como un campamento o una campaña, llevan fecha de inicio y de término.
   - *Presupuesto*: costo total y monto que se pide a la iglesia, que no puede ser mayor. Si no cubre todo, pregunta cómo se conseguirá el resto. El costo se explica con una descripción, un enlace o un archivo (PDF, Word o imagen de hasta 5 MB).
 - **Agenda automática:** **Junta → Generar agenda** arma una pestaña con los puntos ordenados: devocional, evangelismo y misión, acta anterior, tesorería, departamentos, feligresía, asuntos generales y oración de clausura.
 - **Puntos del enlace general:** llegan como *Por revisar* y entran en la agenda cuando su Estado se cambia a *Aprobado*.
@@ -197,6 +197,11 @@ Se configura una sola vez. Necesita una computadora con [Node.js](https://nodejs
 ## Novedades
 
 Qué hacer en una instalación que ya funciona, versión por versión (la más reciente primero):
+
+**Noviembre 2026 · Actividades de varios días**
+- Las actividades tienen **fecha de inicio** y una **fecha de término** opcional, para campamentos, campañas y otras actividades de varios días. En ese caso, las horas son del primer y del último día. La agenda muestra, por ejemplo, *"Del 20/03/2027 al 22/03/2027 (3 días)"*.
+- En la pestaña **Puntos** aparece sola una columna nueva al final, *Fecha de término de la actividad*, cuando llegue el primer punto. Las filas anteriores no cambian.
+- Con la actualización automática no hay que hacer nada. Si actualiza a mano: cambian `Codigo.gs` y `Formulario.html`, y hay que publicar una nueva versión.
 
 **Noviembre 2026 · Actualización automática (opcional)**
 - Se agregó la actualización automática con GitHub Actions (ver la sección anterior). Si no la configura, todo sigue igual: actualice a mano como siempre.

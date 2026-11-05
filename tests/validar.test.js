@@ -23,6 +23,32 @@ t('votación falta actividad', { ...base, tipo: 'Para votación', pideDinero: 'N
 t('actividad sin lugar', { ...base, tipo: 'Para votación', esActividad: 'Sí', actFecha: '2027-03-20', actInicio: '15:00', responsable: 'Ana', pideDinero: 'No' }, null, 'lugar');
 r = t('actividad completa', { ...base, tipo: 'Para votación', esActividad: 'Sí', actFecha: '2027-03-20', actInicio: '15:00', lugar: 'Templo', responsable: 'Ana', asistencia: '50', pideDinero: 'No' });
 if (r.actFecha !== '20/03/2027') { fails++; console.log('FALLA formato fecha', r.actFecha); }
+// Actividades de varios días
+const act = { ...base, tipo: 'Para votación', esActividad: 'Sí', actFecha: '2027-03-20', actInicio: '09:00',
+  lugar: 'Campamento', responsable: 'Ernesto', pideDinero: 'No' };
+r = t('campamento de 3 días', { ...act, actFechaFin: '2027-03-22', actFin: '12:00' });
+if (r.actFechaFin !== '22/03/2027') { fails++; console.log('FALLA fecha de término', r.actFechaFin); }
+t('término antes del inicio', { ...act, actFechaFin: '2027-03-19' }, null, 'antes de la fecha de inicio');
+r = t('término igual al inicio cuenta como un día', { ...act, actFechaFin: '2027-03-20', actFin: '12:00' });
+if (r.actFechaFin !== '') { fails++; console.log('FALLA un día guardó fecha de término'); }
+t('un día: hora de término antes del inicio', { ...act, actFin: '08:00' }, null, 'después de la hora de inicio');
+t('varios días: hora de término menor está bien', { ...act, actFechaFin: '2027-03-22', actFin: '08:00' });
+t('fecha de término inválida', { ...act, actFechaFin: '22/03/2027' }, null, 'no es válida');
+const { diasEntre_, asegurarColumnas_ } =
+  new Function(code + '; return { diasEntre_, asegurarColumnas_ };')();
+console.log(diasEntre_('20/03/2027', '22/03/2027') === 3 && diasEntre_('28/02/2027', '01/03/2027') === 2 ?
+  'OK    días entre fechas' : (fails++, 'FALLA días entre fechas'));
+// Columnas: una hoja vieja sin la columna nueva la recibe al final, sin mover las demás.
+const hoja = { enc: ['Fecha de envío', 'Junta', 'Hora de inicio'],
+  getLastColumn() { return this.enc.length; },
+  getRange(f, c, nf, nc) { const h = this; return {
+    getValues: () => [h.enc.slice(c - 1, c - 1 + nc)],
+    setValues(v) { v[0].forEach((x, i) => { h.enc[c - 1 + i] = x; }); return this; },
+    setFontWeight() { return this; }, setBackground() { return this; } }; } };
+const enc = asegurarColumnas_(hoja, ['Fecha de envío', 'Junta', 'Fecha de término de la actividad', 'Hora de inicio']);
+console.log(JSON.stringify(enc) === JSON.stringify(['Fecha de envío', 'Junta', 'Hora de inicio', 'Fecha de término de la actividad']) ?
+  'OK    columna nueva se agrega al final' : (fails++, 'FALLA columnas ' + JSON.stringify(enc)));
+
 const dinero = { ...base, tipo: 'Para votación', esActividad: 'No', pideDinero: 'Sí' };
 t('monto mayor que costo', { ...dinero, costo: '100', monto: '150', descCosto: 'x' }, null, 'mayor');
 t('falta estrategia', { ...dinero, costo: '100', monto: '60', descCosto: 'x' }, null, 'resto');

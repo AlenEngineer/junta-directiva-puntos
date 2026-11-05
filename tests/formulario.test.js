@@ -53,6 +53,22 @@ const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fa
   await page.check('input[name=esActividad][value="Sí"]');
   check(await page.isVisible('.actividad'), 'al marcar Sí aparecen los datos de la actividad');
   await page.fill('#actFecha', '2027-03-20');
+  // Varios días: término antes del inicio se rechaza; luego un campamento de 3 días.
+  await page.fill('#actFechaFin', '2027-03-18');
+  await page.fill('#actInicio', '09:00');
+  await page.fill('#actFin', '08:00');
+  await page.fill('#lugar', 'Campamento');
+  await page.fill('#responsable', 'Ernesto Molina');
+  await page.check('input[name=dinero][value="Sí"]');
+  await page.click('#siguiente');
+  check((await page.textContent('[data-v=actFechaFin] .msg-error span')).includes('antes'), 'fecha de término antes del inicio rechazada');
+  await page.fill('#actFechaFin', '2027-03-22');
+  check(await page.isVisible('#ayuda-inicio') && await page.isVisible('#ayuda-fin'), 'varios días: aclara primer y último día');
+  await page.fill('#actFechaFin', '');
+  await page.click('#siguiente');
+  check((await page.textContent('[data-v=actFin] .msg-error span')).includes('después'), 'un día: hora de término antes del inicio rechazada');
+  await page.fill('#actFechaFin', '2027-03-22');
+  check(!(await page.isVisible('[data-v=actFin].error')), 'al poner varios días se quita el error de la hora de término');
   await page.fill('#actInicio', '09:00');
   await page.fill('#lugar', 'Campamento');
   await page.fill('#responsable', 'Ernesto Molina');
@@ -82,6 +98,7 @@ const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fa
   env = await page.evaluate(() => window.__envios[1]);
   check(env.archivo && env.archivo.nombre === 'cotizacion.pdf' && Buffer.from(env.archivo.base64, 'base64').toString().startsWith('%PDF'), 'archivo enviado en base64');
   check(env.monto === '200' && env.estrategia && env.actFecha === '2027-03-20', 'datos de presupuesto y actividad enviados');
+  check(env.actFechaFin === '2027-03-22' && env.actFin === '08:00', 'fecha de término enviada');
   await page.screenshot({ path: OUT + '5-enviado.png', fullPage: true });
   // atrás desde página 3 vuelve a 2
   // enlace general en móvil

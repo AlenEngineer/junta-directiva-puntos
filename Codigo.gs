@@ -55,7 +55,7 @@ var TIPOS_ARCHIVO = {
 var COLS_PUNTOS = [
   'Fecha de envío', 'Junta', 'Presenta', 'Departamento', 'Estado',
   'Categoría', 'Título', 'Descripción y propuesta', 'Tipo', 'Tiempo estimado',
-  '¿Es actividad?', 'Fecha de la actividad', 'Hora de inicio', 'Hora de término',
+  '¿Es actividad?', 'Fecha de la actividad', 'Fecha de término de la actividad', 'Hora de inicio', 'Hora de término',
   'Lugar', 'Responsable', 'Asistencia esperada',
   '¿Solicita dinero?', 'Costo total', 'Monto solicitado a la iglesia',
   'Estrategia para el resto', 'Descripción del costo', 'Enlace a la cotización',
@@ -333,17 +333,27 @@ function enviarPunto(clave, d) {
     archivoUrl = guardarArchivo_(d.archivo, ctx.junta.fecha, presenta);
   }
 
-  var fila = [
-    new Date(), ctx.junta.fecha, presenta, departamento, ctx.general ? 'Por revisar' : 'Recibido',
-    p.categoria, p.titulo, p.descripcion, p.tipo, p.tiempo,
-    p.esActividad, p.actFecha, p.actInicio, p.actFin, p.lugar, p.responsable, p.asistencia,
-    p.pideDinero, p.costo, p.monto, p.estrategia, p.descCosto, p.enlace, archivoUrl
-  ].map(celdaSegura_);
+  var valores = {
+    'Fecha de envío': new Date(), 'Junta': ctx.junta.fecha, 'Presenta': presenta,
+    'Departamento': departamento, 'Estado': ctx.general ? 'Por revisar' : 'Recibido',
+    'Categoría': p.categoria, 'Título': p.titulo, 'Descripción y propuesta': p.descripcion,
+    'Tipo': p.tipo, 'Tiempo estimado': p.tiempo,
+    '¿Es actividad?': p.esActividad, 'Fecha de la actividad': p.actFecha,
+    'Fecha de término de la actividad': p.actFechaFin,
+    'Hora de inicio': p.actInicio, 'Hora de término': p.actFin, 'Lugar': p.lugar,
+    'Responsable': p.responsable, 'Asistencia esperada': p.asistencia,
+    '¿Solicita dinero?': p.pideDinero, 'Costo total': p.costo, 'Monto solicitado a la iglesia': p.monto,
+    'Estrategia para el resto': p.estrategia, 'Descripción del costo': p.descCosto,
+    'Enlace a la cotización': p.enlace, 'Archivo de la cotización': archivoUrl
+  };
 
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    hoja_(HOJA_PUNTOS).appendRow(fila);
+    var h = hoja_(HOJA_PUNTOS);
+    // Se escribe por nombre de columna: si falta alguna columna nueva, se agrega al final.
+    var enc = asegurarColumnas_(h, COLS_PUNTOS);
+    h.appendRow(enc.map(function (col) { return col in valores ? celdaSegura_(valores[col]) : ''; }));
   } finally {
     lock.releaseLock();
   }
@@ -358,7 +368,7 @@ function validarPunto(d, opc) {
   var txt = function (v, max) { return String(v == null ? '' : v).trim().slice(0, max); };
   var err = function (m) { return { error: m }; };
   var p = {
-    nombre: '', departamento: '', esActividad: '', actFecha: '', actInicio: '', actFin: '',
+    nombre: '', departamento: '', esActividad: '', actFecha: '', actFechaFin: '', actInicio: '', actFin: '',
     lugar: '', responsable: '', asistencia: '', pideDinero: '', costo: '', monto: '',
     estrategia: '', descCosto: '', enlace: ''
   };
@@ -389,13 +399,24 @@ function validarPunto(d, opc) {
   if (['Sí', 'No'].indexOf(p.esActividad) < 0) return err('Indique si el punto es una actividad.');
   if (p.esActividad === 'Sí') {
     var f = /^(\d{4})-(\d{2})-(\d{2})$/.exec(txt(d.actFecha, 10));
-    if (!f) return err('Indique la fecha de la actividad.');
+    if (!f) return err('Indique la fecha de inicio de la actividad.');
     p.actFecha = f[3] + '/' + f[2] + '/' + f[1];
+    // Fecha de término: solo para actividades de varios días (campamentos, campañas…).
+    var ff = txt(d.actFechaFin, 10);
+    if (ff) {
+      var g = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ff);
+      if (!g) return err('La fecha de término no es válida.');
+      if (ff < f[0]) return err('La fecha de término no puede ser antes de la fecha de inicio.');
+      if (ff !== f[0]) p.actFechaFin = g[3] + '/' + g[2] + '/' + g[1];
+    }
     var hora = /^([01]\d|2[0-3]):[0-5]\d$/;
     p.actInicio = txt(d.actInicio, 5);
     if (!hora.test(p.actInicio)) return err('Indique la hora de inicio de la actividad.');
     p.actFin = txt(d.actFin, 5);
     if (p.actFin && !hora.test(p.actFin)) return err('La hora de término no es válida.');
+    if (!p.actFechaFin && p.actFin && p.actFin <= p.actInicio) {
+      return err('La hora de término debe ser después de la hora de inicio.');
+    }
     p.lugar = txt(d.lugar, 200);
     if (!p.lugar) return err('Indique el lugar de la actividad.');
     p.responsable = txt(d.responsable, 100);
@@ -569,9 +590,14 @@ function generarAgenda() {
     var tiempo = String(v(f, 'Tiempo estimado'));
     var actividad = '';
     if (v(f, '¿Es actividad?') === 'Sí') {
-      actividad = 'Fecha: ' + textoFecha_(v(f, 'Fecha de la actividad')) +
-        '\nHora: ' + v(f, 'Hora de inicio') + (v(f, 'Hora de término') ? ' – ' + v(f, 'Hora de término') : '') +
-        '\nLugar: ' + v(f, 'Lugar') +
+      var ini = textoFecha_(v(f, 'Fecha de la actividad'));
+      var finA = textoFecha_(v(f, 'Fecha de término de la actividad'));
+      var hi = v(f, 'Hora de inicio'), ht = v(f, 'Hora de término');
+      actividad = finA ?
+        'Fechas: del ' + ini + ' al ' + finA + ' (' + diasEntre_(ini, finA) + ' días)' +
+          '\nInicio: ' + hi + ' (primer día)' + (ht ? '\nTérmino: ' + ht + ' (último día)' : '') :
+        'Fecha: ' + ini + '\nHora: ' + hi + (ht ? ' – ' + ht : '');
+      actividad += '\nLugar: ' + v(f, 'Lugar') +
         '\nResponsable: ' + v(f, 'Responsable') +
         (v(f, 'Asistencia esperada') !== '' ? '\nAsistencia: ' + v(f, 'Asistencia esperada') : '');
     }
@@ -1089,6 +1115,27 @@ function parseFecha_(texto) {
 function textoFecha_(v) {
   if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd/MM/yyyy');
   return String(v).trim();
+}
+
+/** Días de una actividad, contando el primero y el último. */
+function diasEntre_(desde, hasta) {
+  var a = String(desde).split('/'), b = String(hasta).split('/');
+  if (a.length !== 3 || b.length !== 3) return '';
+  return Math.round((Date.UTC(b[2], b[1] - 1, b[0]) - Date.UTC(a[2], a[1] - 1, a[0])) / 86400000) + 1;
+}
+
+/** Agrega al final de la hoja las columnas que falten. Devuelve el encabezado completo. */
+function asegurarColumnas_(h, columnas) {
+  var enc = h.getRange(1, 1, 1, Math.max(h.getLastColumn(), 1)).getValues()[0]
+    .map(function (c) { return String(c); });
+  var faltan = columnas.filter(function (c) { return enc.indexOf(c) < 0; });
+  if (faltan.length) {
+    var desde = enc.filter(String).length ? enc.length + 1 : 1;
+    h.getRange(1, desde, 1, faltan.length).setValues([faltan])
+      .setFontWeight('bold').setBackground('#ede7f6');
+    enc = (desde === 1 ? [] : enc).concat(faltan);
+  }
+  return enc;
 }
 
 function claveFecha_(ddmmaaaa) {

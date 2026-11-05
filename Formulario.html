@@ -201,15 +201,22 @@ Puede que la junta ya se haya realizado, que se haya cerrado la recepción de pu
 
       <div class="actividad oculto">
         <div class="tarjeta pregunta" data-v="actFecha">
-          <div class="titulo-preg">Fecha de la actividad <span class="req">*</span></div>
+          <div class="titulo-preg">Fecha de inicio <span class="req">*</span></div>
           <input class="campo" type="date" id="actFecha">
+        </div>
+        <div class="tarjeta pregunta" data-v="actFechaFin">
+          <div class="titulo-preg">Fecha de término</div>
+          <div class="ayuda">Solo si la actividad dura más de un día, como un campamento o una campaña.</div>
+          <input class="campo" type="date" id="actFechaFin">
         </div>
         <div class="tarjeta pregunta" data-v="actInicio">
           <div class="titulo-preg">Hora de inicio <span class="req">*</span></div>
+          <div class="ayuda oculto" id="ayuda-inicio">Del primer día.</div>
           <input class="campo" type="time" id="actInicio">
         </div>
         <div class="tarjeta pregunta" data-v="actFin">
           <div class="titulo-preg">Hora de término</div>
+          <div class="ayuda oculto" id="ayuda-fin">Del último día.</div>
           <input class="campo" type="time" id="actFin">
         </div>
         <div class="tarjeta pregunta" data-v="lugar">
@@ -360,10 +367,14 @@ var DATOS = <?!= datosJson ?>;
     return /^\d{1,9}(\.\d{1,2})?$/.test(s) ? Number(s) : NaN;
   }
   function visible(el) { return !el.closest('.oculto'); }
+  function variosDias() { return !!val('actFechaFin') && val('actFechaFin') !== val('actFecha'); }
 
   // ---------- Mostrar u ocultar según las respuestas ----------
   function actualizar() {
     document.querySelector('.actividad').classList.toggle('oculto', radio('esActividad') !== 'Sí');
+    $('ayuda-inicio').classList.toggle('oculto', !variosDias());
+    $('ayuda-fin').classList.toggle('oculto', !variosDias());
+    if (val('actFecha')) $('actFechaFin').min = val('actFecha');
     var c = numero(val('costo')), m = numero(val('monto'));
     $('q-estrategia').classList.toggle('oculto', !(c > 0 && m > 0 && m < c));
 
@@ -401,8 +412,15 @@ var DATOS = <?!= datosJson ?>;
     tiempo: function () { return val('tiempo') ? '' : OBLIG; },
     esActividad: function () { return radio('esActividad') ? '' : OBLIG; },
     actFecha: function () { return val('actFecha') ? '' : OBLIG; },
+    actFechaFin: function () {
+      return val('actFechaFin') && val('actFecha') && val('actFechaFin') < val('actFecha') ?
+        'No puede ser antes de la fecha de inicio' : '';
+    },
     actInicio: function () { return val('actInicio') ? '' : OBLIG; },
-    actFin: function () { return ''; },
+    actFin: function () {
+      return !variosDias() && val('actFin') && val('actInicio') && val('actFin') <= val('actInicio') ?
+        'Debe ser después de la hora de inicio' : '';
+    },
     lugar: function () { return val('lugar') ? '' : OBLIG; },
     responsable: function () { return val('responsable') ? '' : OBLIG; },
     asistencia: function () { return !val('asistencia') || /^\d{1,5}$/.test(val('asistencia')) ? '' : 'Escriba solo un número'; },
@@ -438,9 +456,15 @@ var DATOS = <?!= datosJson ?>;
     return !primera;
   }
 
-  function limpiarError(e) {
-    var q = e.target.closest('.pregunta');
-    if (q && q.classList.contains('error') && !reglas[q.dataset.v]()) q.classList.remove('error');
+  // Vuelve a revisar todas las preguntas marcadas en rojo: algunas dependen de otras
+  // (por ejemplo, la hora de término depende de si la actividad dura varios días).
+  function limpiarError() {
+    document.querySelectorAll('.pregunta.error').forEach(function (q) {
+      if (q.dataset.v === 'cotizacion' && q.querySelector('.msg-error span').textContent.indexOf('archivo') >= 0) return;
+      var msg = reglas[q.dataset.v]();
+      if (!msg) q.classList.remove('error');
+      else q.querySelector('.msg-error span').textContent = msg;
+    });
   }
 
   // ---------- Navegación ----------
@@ -502,7 +526,8 @@ var DATOS = <?!= datosJson ?>;
     if (d.tipo === 'Para votación') {
       d.esActividad = radio('esActividad');
       if (d.esActividad === 'Sí') {
-        d.actFecha = val('actFecha'); d.actInicio = val('actInicio'); d.actFin = val('actFin');
+        d.actFecha = val('actFecha'); d.actFechaFin = val('actFechaFin');
+        d.actInicio = val('actInicio'); d.actFin = val('actFin');
         d.lugar = val('lugar'); d.responsable = val('responsable'); d.asistencia = val('asistencia');
       }
       d.pideDinero = radio('dinero');
