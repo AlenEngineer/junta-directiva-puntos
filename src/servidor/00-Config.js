@@ -1,5 +1,5 @@
 // Versión de la aplicación. Debe coincidir con package.json y con CHANGELOG.md (lo revisan las pruebas).
-var VERSION = '1.8.0';
+var VERSION = '1.9.0';
 
 var REPOSITORIO = 'https://github.com/AlenEngineer/junta-directiva-puntos';
 

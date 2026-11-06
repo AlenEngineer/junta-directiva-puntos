@@ -40,10 +40,18 @@ function enviarCorreosA_(personas) {
   var junta = juntaActual_();
   var url = urlApp_(true);
   if (!junta || !url) return;
+  var r;
+  try { r = enviarCorreosNucleo_(junta, url, personas); } catch (e) { ui.alert(e.message); return; }
+  escribirEnlaces_();
+  ui.alert('Correos enviados: ' + r.enviados +
+    (r.errores.length ? '\n\nNo se pudo enviar a:\n' + r.errores.join('\n') : ''));
+}
+
+/** Envía los correos sin mostrar cuadros (lo usan el menú y el panel). Devuelve { enviados, errores }. */
+function enviarCorreosNucleo_(junta, url, personas) {
   var cuota = MailApp.getRemainingDailyQuota();
   if (cuota < personas.length) {
-    ui.alert('Google solo permite enviar ' + cuota + ' correo(s) más hoy. Intente mañana o envíe por WhatsApp.');
-    return;
+    throw new Error('Google solo permite enviar ' + cuota + ' correo(s) más hoy. Intente mañana o envíe por WhatsApp.');
   }
   var cargos = leerCargos_();
   var contactos = leerContactos_(cargos.orden);
@@ -68,10 +76,7 @@ function enviarCorreosA_(personas) {
       errores.push(n + ': ' + e.message);
     }
   });
-
-  escribirEnlaces_();
-  ui.alert('Correos enviados: ' + enviados +
-    (errores.length ? '\n\nNo se pudo enviar a:\n' + errores.join('\n') : ''));
+  return { enviados: enviados, errores: errores };
 }
 
 function correoPartes_(nombre, persona, junta, enlace) {

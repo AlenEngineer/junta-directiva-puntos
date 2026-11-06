@@ -75,7 +75,7 @@ function escribirEnlaces_() {
     if (e === 'seccion') r.setFontWeight('bold').setBackground('#ede7f6');
   });
   [210, 290, 430, 190, 150].forEach(function (w, i) { h.setColumnWidth(i + 1, w); });
-  ss.setActiveSheet(h);
+  try { ss.setActiveSheet(h); } catch (e) {} // desde el panel no hay hoja abierta
 }
 
 function codigoPais_() {

@@ -33,11 +33,11 @@
     <nav class="pestanas" aria-label="Secciones">
       <button type="button" class="pestana activa" data-vista="puntos" aria-current="page">Puntos</button>
       <button type="button" class="pestana" data-vista="agenda">Agenda</button>
-      <span class="pestana proxima" title="Próximamente">Enlaces</span>
+      <button type="button" class="pestana" data-vista="enlaces">Enlaces</button>
     </nav>
 
     <section class="tarjeta controles">
-      <label class="campo-grupo">
+      <label class="campo-grupo" id="junta-grupo">
         <span>Junta</span>
         <select id="junta"></select>
       </label>
@@ -55,12 +55,29 @@
           <button type="button" class="btn btn-aprobar" id="agenda-imprimir">Imprimir / PDF</button>
         </div>
       </div>
+      <div class="enlaces-barra oculto" id="enlaces-barra">
+        <div id="enlaces-junta" class="enlaces-junta"></div>
+        <div class="resumen" id="enlaces-resumen"></div>
+        <div class="filtros">
+          <label class="campo-grupo"><span>Mostrar</span>
+            <select id="e-filtro">
+              <option value="">Todos</option>
+              <option value="sin-puntos">Aún no envían puntos</option>
+              <option value="correo">Correo pendiente</option>
+              <option value="sin-contacto">Sin teléfono ni correo</option>
+            </select>
+          </label>
+          <label class="campo-grupo buscar"><span>Buscar</span><input id="e-texto" type="search" placeholder="Nombre o departamento…"></label>
+        </div>
+        <div class="acciones"><button type="button" class="btn btn-aprobar" id="enlaces-correos">Enviar correos pendientes</button></div>
+      </div>
     </section>
 
     <div class="aviso oculto" id="aviso" role="status"></div>
     <div id="cargando" class="cargando">Cargando…</div>
     <div id="lista"></div>
     <div id="agenda" class="oculto"></div>
+    <div id="enlaces" class="oculto"></div>
   </div>
 
   <!-- Versión para imprimir (solo se ve al imprimir) -->
