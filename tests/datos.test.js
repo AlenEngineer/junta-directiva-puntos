@@ -70,6 +70,8 @@ check(api.contexto_(k) === null, 'quien sale de Cargos pierde el acceso');
 check(hojas.Saldos && hojas.Saldos.celdas.length === 1, 'la migración ya creó la pestaña Saldos, vacía');
 check(api.saldosLeer_().fondos.length === 0, 'con la pestaña vacía no hay saldos (y no falla)');
 const filasSaldos = [
+  // Encabezados repetidos, como quedan al importar un archivo debajo de los existentes: deben ignorarse.
+  api.COLS_SALDOS.slice(),
   ['FONDO DE PRUEBA A', 'B/.10.00', 'B/.1.50', 'B/.0.50', 'B/.2.00', '0.00', '0.00', 'B/.10.00', 'Escuela Sabática', 'octubre 2026'],
   ['FONDO DE PRUEBA B', 'B/.1,000.25', 'B/.0.00', 'B/.0.00', 'B/.0.00', '30.00', '10.00', 'B/.1,020.25', 'Ancianos, Comunicación', ''],
   ['OTRO GASTO', 'B/.5.00', 'B/.0.00', 'B/.0.00', 'B/.0.00', '0.00', '0.00', 'B/.5.00', '', ''],
@@ -77,7 +79,11 @@ const filasSaldos = [
 ];
 hojas.Saldos.getRange(2, 1, filasSaldos.length, 10).setValues(filasSaldos);
 const s = api.saldosLeer_();
-check(s.periodo === 'octubre 2026' && s.fondos.length === 3, 'lee el periodo y los fondos, sin la fila de totales');
+check(s.periodo === 'octubre 2026' && s.fondos.length === 3, 'lee el periodo y los fondos, sin totales ni encabezados repetidos');
+// Sheets convierte "octubre 2026" en fecha: debe mostrarse igual
+hojas.Saldos.getRange(3, 10).setValue(new Date(2026, 9, 1));
+check(api.saldosLeer_().periodo === 'octubre 2026', 'un periodo convertido en fecha se muestra como "octubre 2026"');
+hojas.Saldos.getRange(3, 10).setValue('octubre 2026');
 const b = s.fondos[1];
 check(b.saldoAnterior === 1000.25 && b.saldo === 1020.25 && b.transferencias === 20 && b.departamentos.join('|') === 'Ancianos|Comunicación',
   'entiende "B/." y comas, y una fila con dos departamentos');
