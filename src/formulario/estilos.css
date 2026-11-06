@@ -112,3 +112,9 @@ select.campo:focus { border: 1px solid var(--morado); padding: 10px 12px; }
 .acciones-hecho { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
 .pie { text-align: center; color: var(--gris); font-size: 12px; margin-top: 24px; }
 a { color: var(--morado); }
+
+/* Saldo de tesorería del departamento */
+.saldo { margin-top: 16px; }
+.saldo .fondo { font-weight: 500; }
+.saldo .monto { font-size: 24px; line-height: 32px; color: var(--morado); margin-top: 2px; }
+.saldo .detalle { font-size: 12px; color: var(--gris); margin-top: 2px; }

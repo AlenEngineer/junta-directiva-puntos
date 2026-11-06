@@ -34,12 +34,14 @@ class Hoja {
         return this;
       },
       setFontWeight() { return this; }, setBackground() { return this; },
+      setNumberFormat() { return this; }, setFontColor() { return this; }, setNote() { return this; },
       protect() { h.protecciones.push('columna ' + col); return proteccion; }
     };
   }
   getMaxRows() { return 1000; }
   protect() { this.protecciones.push('hoja'); return proteccion; }
   hideSheet() {}
+  setColumnWidth() {}
   setFrozenRows() {}
 }
 const proteccion = { setDescription() { return this; }, setWarningOnly() { return this; } };

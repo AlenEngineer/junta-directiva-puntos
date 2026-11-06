@@ -105,6 +105,7 @@ delete propiedades.ESQUEMA;
 api.asegurarEsquema_();
 check(propiedades.ESQUEMA === String(api.ESQUEMA_ACTUAL), 'migraciones: el esquema queda en la versión ' + api.ESQUEMA_ACTUAL);
 check(hojas._Claves.celdas[0].includes('Correo enviado'), 'migraciones: agrega la columna que faltaba en _Claves');
+check(hojas.Saldos && hojas.Saldos.celdas[0][0] === 'Departamento (tesorería)', 'migraciones: crea la pestaña Saldos');
 check(p0.protecciones.length === 3 && hojas._Claves.protecciones.length === 1, 'migraciones: protege las columnas internas y las claves');
 const filasAntes = JSON.stringify(p0.celdas);
 api.asegurarEsquema_();

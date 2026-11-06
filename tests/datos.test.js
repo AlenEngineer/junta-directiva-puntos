@@ -2,7 +2,8 @@
 const { cargarServidor } = require('./hoja-simulada');
 const { api, hojas, libro } = cargarServidor(
   ['crearHoja_', 'juntasLeer_', 'juntaActual_', 'juntaAgregar_', 'cerrarTodas_', 'clavesReemplazarTodas_',
-   'claveBuscar_', 'claveCambiar_', 'leerClaves_', 'claveMarcarCorreo_', 'contexto_', 'tablaLeer_', 'GENERAL', 'COLS_CLAVES'],
+   'claveBuscar_', 'claveCambiar_', 'leerClaves_', 'claveMarcarCorreo_', 'contexto_', 'tablaLeer_', 'GENERAL', 'COLS_CLAVES',
+   'saldosLeer_', 'publico_', 'COLS_SALDOS'],
   // La "fecha de hoy" queda fija para que las juntas de prueba no venzan.
   "hoyClave_ = function () { return '20261101'; };");
 
@@ -64,6 +65,36 @@ check(api.contexto_(claves['Luis Rivas'].clave) === null, 'los enlaces de la jun
 const k = api.leerClaves_(api.juntaActual_())['Daniel Rivas'].clave;
 hojas.Cargos.celdas = hojas.Cargos.celdas.filter(f => f[1] !== 'Daniel Rivas');
 check(api.contexto_(k) === null, 'quien sale de Cargos pierde el acceso');
+
+// Saldos de tesorería (montos inventados)
+check(hojas.Saldos && hojas.Saldos.celdas.length === 1, 'la migración ya creó la pestaña Saldos, vacía');
+check(api.saldosLeer_().fondos.length === 0, 'con la pestaña vacía no hay saldos (y no falla)');
+const filasSaldos = [
+  ['FONDO DE PRUEBA A', 'B/.10.00', 'B/.1.50', 'B/.0.50', 'B/.2.00', '0.00', '0.00', 'B/.10.00', 'Escuela Sabática', 'octubre 2026'],
+  ['FONDO DE PRUEBA B', 'B/.1,000.25', 'B/.0.00', 'B/.0.00', 'B/.0.00', '30.00', '10.00', 'B/.1,020.25', 'Ancianos, Comunicación', ''],
+  ['OTRO GASTO', 'B/.5.00', 'B/.0.00', 'B/.0.00', 'B/.0.00', '0.00', '0.00', 'B/.5.00', '', ''],
+  ['TOTALES:', 'B/.1,015.25', '', '', '', '', '', 'B/.1,035.25', '', '']
+];
+hojas.Saldos.getRange(2, 1, filasSaldos.length, 10).setValues(filasSaldos);
+const s = api.saldosLeer_();
+check(s.periodo === 'octubre 2026' && s.fondos.length === 3, 'lee el periodo y los fondos, sin la fila de totales');
+const b = s.fondos[1];
+check(b.saldoAnterior === 1000.25 && b.saldo === 1020.25 && b.transferencias === 20 && b.departamentos.join('|') === 'Ancianos|Comunicación',
+  'entiende "B/." y comas, y una fila con dos departamentos');
+check(s.fondos[0].ingresos === 2, 'suma ingresos por ofrenda y directos');
+// Lo que recibe cada persona en la página
+const cargosDaniel = [{ departamento: 'Escuela Sabática', cargo: 'Director' }, { departamento: 'Ancianos', cargo: 'Anciano' }];
+const pub = api.publico_({ clave: 'x', junta: { dia: '…' }, general: false, nombre: 'Daniel Rivas', cargos: cargosDaniel });
+check(pub.saldos && pub.saldos.moneda === 'B/.' && Object.keys(pub.saldos.porDepartamento).sort().join('|') === 'Ancianos|Escuela Sabática',
+  'una persona recibe los saldos de sus departamentos');
+check(!JSON.stringify(pub.saldos).includes('OTRO GASTO') && !('departamentos' in pub.saldos.porDepartamento['Ancianos'][0]),
+  'no recibe fondos de otros departamentos ni datos internos');
+const pubLuis = api.publico_({ clave: 'x', junta: { dia: '…' }, general: false, nombre: 'Luis Rivas',
+  cargos: [{ departamento: 'Comunicación', cargo: 'Director' }] });
+check(pubLuis.saldos.porDepartamento['Comunicación'][0].fondo === 'FONDO DE PRUEBA B', 'una fila compartida aparece en ambos departamentos');
+check(api.publico_({ clave: 'x', junta: { dia: '…' }, general: true, nombre: '', cargos: [] }).saldos === null, 'el enlace general no recibe saldos');
+check(api.publico_({ clave: 'x', junta: { dia: '…' }, general: false, nombre: 'Ana', cargos: [{ departamento: 'Secretaría', cargo: 'Secretaria' }] }).saldos === null,
+  'un departamento sin fondo no recibe nada');
 
 console.log(fails ? fails + ' FALLAS' : 'TODO OK');
 process.exitCode = fails ? 1 : 0;

@@ -1,5 +1,5 @@
 // Versión de la aplicación. Debe coincidir con package.json y con CHANGELOG.md (lo revisan las pruebas).
-var VERSION = '1.3.0';
+var VERSION = '1.4.0';
 
 var REPOSITORIO = 'https://github.com/AlenEngineer/junta-directiva-puntos';
 
@@ -16,6 +16,14 @@ var HOJA_CLAVES = '_Claves';
 var HOJA_CONTACTOS = 'Contactos';
 
 var HOJA_HISTORIAL = 'Historial';
+var HOJA_SALDOS = 'Saldos';
+
+// Pestaña Saldos: las columnas A–H son las del reporte de tesorería, en el mismo orden,
+// para poder pegarlo tal cual. Las dos últimas las completa quien administra.
+var COLS_SALDOS = ['Departamento (tesorería)', 'Saldo anterior', 'Ingresos por ofrenda', 'Ingresos directos',
+  'Egresos', 'Transferencias entrantes', 'Transferencias salientes', 'Saldo a la fecha',
+  'Departamento en Cargos', 'Periodo del reporte'];
+var MONEDA = 'B/.'; // Balboa (Panamá). Solo se usa para mostrar los saldos.
 
 var GENERAL = 'GENERAL';
 

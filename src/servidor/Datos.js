@@ -300,3 +300,46 @@ function contactoPoner_(fila, campo, valor, nota, verificar) {
   celda.setNumberFormat('@').setValue("'" + valor).setNote(nota);
   if (verificar) celda.setBackground('#fff4ce');
 }
+
+// ---------------------------------------------------------------------
+// Saldos de tesorería
+// ---------------------------------------------------------------------
+
+/** Convierte un monto del reporte ("B/.1,234.56", "0.00" o un número) en número. */
+function montoTesoreria_(v) {
+  if (typeof v === 'number') return v;
+  var s = String(v == null ? '' : v).replace(/B\/\.?/gi, '').replace(/,/g, '').replace(/[^0-9.\-]/g, '');
+  var n = Number(s);
+  return s && !isNaN(n) ? n : 0;
+}
+
+/**
+ * Lee la pestaña Saldos: { periodo, fondos: [{ fondo, departamentos: [...], saldoAnterior,
+ * ingresos, egresos, transferencias, saldo }] }. Sin la pestaña, devuelve una lista vacía.
+ */
+function saldosLeer_() {
+  if (!libro_().getSheetByName(HOJA_SALDOS)) return { periodo: '', fondos: [] };
+  var filas = tablaLeer_(HOJA_SALDOS);
+  var periodo = '';
+  filas.forEach(function (f) {
+    var p = f['Periodo del reporte'];
+    if (!periodo && p) periodo = p instanceof Date ? textoFecha_(p) : String(p).trim();
+  });
+  var fondos = filas.filter(function (f) {
+    var nombre = String(f['Departamento (tesorería)'] || '').trim();
+    return nombre && !/^totales?:?$/i.test(nombre);
+  }).map(function (f) {
+    var m = function (col) { return montoTesoreria_(f[col]); };
+    return {
+      fondo: String(f['Departamento (tesorería)']).trim(),
+      departamentos: String(f['Departamento en Cargos'] || '').split(/[,;]/)
+        .map(function (d) { return d.trim(); }).filter(Boolean),
+      saldoAnterior: m('Saldo anterior'),
+      ingresos: m('Ingresos por ofrenda') + m('Ingresos directos'),
+      egresos: m('Egresos'),
+      transferencias: m('Transferencias entrantes') - m('Transferencias salientes'),
+      saldo: m('Saldo a la fecha')
+    };
+  });
+  return { periodo: periodo, fondos: fondos };
+}

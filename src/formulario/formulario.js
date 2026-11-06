@@ -61,6 +61,7 @@
   // ---------- Mostrar u ocultar según las respuestas ----------
   function actualizar() {
     document.querySelector('.actividad').classList.toggle('oculto', radio('esActividad') !== 'Sí');
+    mostrarSaldo();
     $('ayuda-inicio').classList.toggle('oculto', !variosDias());
     $('ayuda-fin').classList.toggle('oculto', !variosDias());
     if (val('actFecha')) $('actFechaFin').min = val('actFecha');
@@ -80,6 +81,39 @@
     $('relleno').style.width = Math.round(num / total * 100) + '%';
     $('pagina-texto').textContent = 'Página ' + num + ' de ' + total;
   }
+  // ---------- Saldo de tesorería del departamento ----------
+  function departamentoElegido() {
+    if (D.general) return '';
+    return D.departamentos.length === 1 ? D.departamentos[0].valor : val('depto');
+  }
+  function dinero(n) {
+    return D.saldos.moneda + ' ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function mostrarSaldo() {
+    var dep = departamentoElegido();
+    var fondos = D.saldos && D.saldos.porDepartamento && D.saldos.porDepartamento[dep];
+    $('saldo-depto').classList.toggle('oculto', !fondos);
+    if (!fondos) return;
+    $('saldo-periodo').textContent = 'Según el reporte de tesorería' + (D.saldos.periodo ? ' de ' + D.saldos.periodo : '') + '.';
+    var lista = $('saldo-lista');
+    lista.innerHTML = '';
+    fondos.forEach(function (f) {
+      var caja = document.createElement('div');
+      caja.className = 'saldo';
+      var linea = function (clase, texto) {
+        var e = document.createElement('div');
+        e.className = clase;
+        e.textContent = texto;
+        caja.appendChild(e);
+      };
+      linea('fondo', f.fondo);
+      linea('monto', 'Saldo: ' + dinero(f.saldo));
+      linea('detalle', 'Saldo anterior ' + dinero(f.saldoAnterior) + ' · Ingresos ' + dinero(f.ingresos) +
+        ' · Egresos ' + dinero(f.egresos) + (f.transferencias ? ' · Transferencias ' + dinero(f.transferencias) : ''));
+      lista.appendChild(caja);
+    });
+  }
+
   function hayMas() {
     if (actual === 'pag1') return radio('tipo') !== 'Informativo';
     if (actual === 'pag2') return radio('dinero') !== 'No';
