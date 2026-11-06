@@ -1,9 +1,9 @@
 // Pruebas de la capa de datos: juntas, claves (enlaces) y validación de enlaces, con la hoja simulada.
 const { cargarServidor } = require('./hoja-simulada');
-const { api, hojas, libro } = cargarServidor(
+const { api, hojas, libro, propiedades } = cargarServidor(
   ['crearHoja_', 'juntasLeer_', 'juntaActual_', 'juntaAgregar_', 'cerrarTodas_', 'clavesReemplazarTodas_',
    'claveBuscar_', 'claveCambiar_', 'leerClaves_', 'claveMarcarCorreo_', 'contexto_', 'tablaLeer_', 'GENERAL', 'COLS_CLAVES',
-   'saldosLeer_', 'publico_', 'COLS_SALDOS'],
+   'saldosLeer_', 'publico_', 'COLS_SALDOS', 'contactoAyuda_', 'hojaContactos_'],
   // La "fecha de hoy" queda fija para que las juntas de prueba no venzan.
   "hoyClave_ = function () { return '20261101'; };");
 
@@ -106,6 +106,22 @@ check(pubLuis.saldos.porDepartamento['Comunicación'][0].fondo === 'FONDO DE PRU
 check(api.publico_({ clave: 'x', junta: { dia: '…' }, general: true, nombre: '', cargos: [] }).saldos === null, 'el enlace general no recibe saldos');
 check(api.publico_({ clave: 'x', junta: { dia: '…' }, general: false, nombre: 'Ana', cargos: [{ departamento: 'Secretaría', cargo: 'Secretaria' }] }).saldos === null,
   'un departamento sin fondo no recibe nada');
+
+// Contacto de ayuda (teléfonos inventados)
+hojas.Cargos.celdas.push(['Secretaría', 'Olga Nieto', 'Secretaria', 'Sí'], ['Secretaría', 'Ana Cedeño', 'Asociada', 'No']);
+api.hojaContactos_();
+hojas.Contactos.celdas.push(['Olga Nieto', '6000-1111', ''], ['Luis Rivas', '6000-2222', ''], ['Ana Cedeño', '', '']);
+let ay = api.contactoAyuda_();
+check(ay && ay.nombre === 'Olga' && ay.url.startsWith('https://wa.me/50760001111?text=') &&
+  decodeURIComponent(ay.url.split('text=')[1]).includes('Necesito ayuda'), 'por defecto, la ayuda le llega a quien dirige Secretaría');
+propiedades.CONTACTO_AYUDA = 'Luis Rivas';
+ay = api.contactoAyuda_();
+check(ay && ay.nombre === 'Luis' && ay.url.includes('50760002222'), 'se puede elegir otra persona como contacto de ayuda');
+propiedades.CONTACTO_AYUDA = 'Ana Cedeño';
+check(api.contactoAyuda_() === null, 'sin teléfono, no hay botón de ayuda');
+propiedades.CONTACTO_AYUDA = 'Alguien que ya no está';
+check(api.contactoAyuda_().nombre === 'Olga', 'si la persona elegida ya no está en Cargos, vuelve a Secretaría');
+delete propiedades.CONTACTO_AYUDA;
 
 console.log(fails ? fails + ' FALLAS' : 'TODO OK');
 process.exitCode = fails ? 1 : 0;

@@ -13,6 +13,7 @@ Aplicación web hecha con Google Apps Script para que los oficiales de la iglesi
   - *Para votación*: pregunta si es una actividad (fechas, horas, lugar, responsable) y si se pide dinero de la iglesia. Las actividades de varios días, como un campamento o una campaña, llevan fecha de inicio y de término.
   - *Presupuesto*: costo total y monto que se pide a la iglesia, que no puede ser mayor. Si no cubre todo, pregunta cómo se conseguirá el resto. El costo se explica con una descripción, un enlace o un archivo (PDF, Word o imagen de hasta 5 MB).
 - **Agenda automática:** **Junta → Generar agenda** arma una pestaña con los puntos ordenados: devocional, evangelismo y misión, acta anterior, tesorería y finanzas, feligresía, planes y actividades de los departamentos, otros asuntos y oración de clausura.
+- **Fácil de usar:** letra grande y botón *A+*, botones grandes, preguntas simples, resumen de errores, borrador automático y botón *¿Necesita ayuda?* por WhatsApp.
 - **Categorías según el departamento:** cada persona ve solo las categorías que le corresponden. *Tesorería y finanzas* solo la ve Tesorería; *Feligresía*, Secretaría y Ancianos; con el enlace general, solo *Evangelismo y misión* y *Otros asuntos*.
 - **Puntos del enlace general:** llegan como *Por revisar* y entran en la agenda cuando su Estado se cambia a *Aprobado*.
 - **Editar puntos enviados:** cada persona puede corregir sus puntos mientras la recepción esté abierta. La versión anterior queda en la pestaña *Historial*.
@@ -104,6 +105,7 @@ Todo se hace desde el menú **Junta** de la hoja:
 | **Cambiar el enlace de una persona…** | Si un enlace se filtró. Escriba el nombre, o `GENERAL` para el enlace general. Ofrece enviarle el enlace nuevo por correo. |
 | **Cerrar recepción de puntos** | Dejar de recibir puntos antes del día de la junta. |
 | **Cambiar la URL de la aplicación…** | Si los enlaces abren una página de error, o si creó una implementación nueva en vez de actualizar la existente. Muestra la URL guardada y le deja pegar la correcta. |
+| **Cambiar el contacto de ayuda…** | Quién recibe por WhatsApp los mensajes de *¿Necesita ayuda?* del formulario. Vacío: quien dirige Secretaría. |
 | **Cambiar el código de país…** | El código que se agrega a los teléfonos sin `+`. Viene con +507 (Panamá). |
 
 **Puntos del enlace general:** en la pestaña **Puntos**, cambie su columna *Estado* de *Por revisar* a *Aprobado* (o *Rechazado*) y vuelva a generar la agenda.

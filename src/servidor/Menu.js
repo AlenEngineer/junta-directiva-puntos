@@ -12,6 +12,7 @@ function onOpen() {
     .addItem('Configuración inicial', 'configurar')
     .addItem('Cambiar la URL de la aplicación…', 'cambiarUrl')
     .addItem('Cambiar el código de país…', 'cambiarCodigoPais')
+    .addItem('Cambiar el contacto de ayuda…', 'cambiarContactoAyuda')
     .addSeparator()
     .addItem('Acerca de / versión', 'acercaDe')
     .addToUi();
@@ -145,6 +146,30 @@ function cerrarRecepcion() {
   if (ok !== ui.Button.YES) return;
   cerrarTodas_();
   ui.alert('Recepción cerrada. Ya puede generar la agenda.');
+}
+
+/** Menú: quién recibe los mensajes de "¿Necesita ayuda?" del formulario. */
+function cambiarContactoAyuda() {
+  var ui = SpreadsheetApp.getUi();
+  var props = PropertiesService.getScriptProperties();
+  var actual = props.getProperty('CONTACTO_AYUDA');
+  var r = ui.prompt('Contacto de ayuda',
+    'Quien recibe por WhatsApp los mensajes de "¿Necesita ayuda?" del formulario.\n' +
+    'Ahora: ' + (actual || 'quien dirige Secretaría') + '\n\n' +
+    'Escriba el nombre como aparece en la pestaña Cargos.\n' +
+    'Déjelo vacío para que sea quien dirige Secretaría.', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  var buscado = normalizar_(r.getResponseText());
+  if (!buscado) {
+    props.deleteProperty('CONTACTO_AYUDA');
+  } else {
+    var nombre = leerCargos_().orden.filter(function (n) { return normalizar_(n) === buscado; })[0];
+    if (!nombre) { ui.alert('No encontré a "' + r.getResponseText() + '" en la pestaña Cargos.'); return; }
+    props.setProperty('CONTACTO_AYUDA', nombre);
+  }
+  var c = contactoAyuda_();
+  ui.alert(c ? 'Listo. Los mensajes de ayuda le llegarán a ' + c.nombre + ' por WhatsApp.'
+    : 'Guardado, pero esa persona no tiene un teléfono válido en la pestaña Contactos: el botón de ayuda no se mostrará hasta que lo tenga.');
 }
 
 function acercaDe() {

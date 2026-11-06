@@ -14,6 +14,28 @@ Cada versión explica, en **Qué hacer**, los pasos para una instalación existe
 
 Cambios que ya están en `main` pero todavía no forman parte de una versión.
 
+## [1.6.0] - 2026-11-06
+
+Más fácil de usar para todos, especialmente para los hermanos mayores.
+
+### Cambiado
+- **Letra más grande y más contraste:** el texto pasa de 14 a 18 px, las preguntas a 20 px y las ayudas a 16 px; los grises son más oscuros.
+- **Botones y opciones más grandes:** los botones tienen 52 px de alto y los círculos de selección 28 px, con más espacio entre opciones.
+- **Campos en caja:** se ve claramente dónde escribir.
+- **Preguntas en lenguaje más simple**, por ejemplo *"¿Cuánto le pide a la iglesia?"* o *"¿En qué se usará el dinero?"*.
+
+### Agregado
+- **Botón "A+ Letra más grande"**, que se recuerda en ese celular o computadora.
+- **Resumen de errores arriba** (*"Faltan 2 respuestas por revisar"*), con un enlace a cada pregunta.
+- **Pantalla final más clara:** un ✓ grande y un resumen de lo que se envió.
+- **Borrador automático:** lo escrito se guarda en el celular o computadora. Si se cierra la página, al volver a abrir el enlace aparece *"Seguir donde lo dejé"*. Los archivos adjuntos no se guardan.
+- **Consejo para dictar** con el micrófono del teclado, en la descripción.
+- **Botón "¿Necesita ayuda?"**, que abre WhatsApp con un mensaje ya escrito. Por defecto le escribe a quien dirige Secretaría; se cambia en **Junta → Cambiar el contacto de ayuda…**.
+
+### Qué hacer
+- 📊 Para que el botón de ayuda le llegue a otra persona que no sea la secretaria: **Junta → Cambiar el contacto de ayuda…** y escriba su nombre como aparece en *Cargos*. Necesita tener teléfono en *Contactos*.
+- Si actualiza a mano: cambian `Codigo.gs` y `Formulario.html`.
+
 ## [1.5.0] - 2026-11-06
 
 ### Cambiado
@@ -193,7 +215,8 @@ Primera versión pública.
 - Formulario por secciones: informativo o para votación, actividad, presupuesto con cotización.
 - Agenda automática ordenada según el Manual de la Iglesia (evangelismo primero).
 
-[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.5.0...HEAD
+[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.3.0...v1.4.0
