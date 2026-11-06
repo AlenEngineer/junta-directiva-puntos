@@ -33,7 +33,7 @@
     });
   }
   llenar($('depto'), D.departamentos);
-  llenar($('categoria'), D.categorias);
+  llenarCategorias();
 
   // Ícono y texto de error en cada pregunta, como en Google Forms.
   document.querySelectorAll('.pregunta').forEach(function (q) {
@@ -60,6 +60,7 @@
 
   // ---------- Mostrar u ocultar según las respuestas ----------
   function actualizar() {
+    llenarCategorias();
     document.querySelector('.actividad').classList.toggle('oculto', radio('esActividad') !== 'Sí');
     mostrarSaldo();
     $('ayuda-inicio').classList.toggle('oculto', !variosDias());
@@ -81,6 +82,20 @@
     $('relleno').style.width = Math.round(num / total * 100) + '%';
     $('pagina-texto').textContent = 'Página ' + num + ' de ' + total;
   }
+  // ---------- Categorías según el departamento ----------
+  // Tesorería y finanzas solo la ve Tesorería; Feligresía, Secretaría y Ancianos.
+  function llenarCategorias() {
+    var sel = $('categoria');
+    var dep = departamentoElegido();
+    var lista = (dep && D.categoriasPorDepartamento && D.categoriasPorDepartamento[dep]) || D.categorias;
+    if (sel.dataset.lista === lista.join('|')) return;
+    var actual = sel.value;
+    sel.dataset.lista = lista.join('|');
+    sel.innerHTML = '';
+    llenar(sel, lista);
+    if (lista.indexOf(actual) >= 0) sel.value = actual;
+  }
+
   // ---------- Saldo de tesorería del departamento ----------
   function departamentoElegido() {
     if (D.general) return '';
@@ -331,6 +346,7 @@
   function cargar(p) {
     if (D.general) $('nombre').value = p.nombre || '';
     if (!D.general && D.departamentos.length > 1) $('depto').value = p.departamento || '';
+    llenarCategorias(); // las categorías dependen del departamento
     ['categoria', 'titulo', 'descripcion', 'materialEnlace', 'actFecha', 'actFechaFin', 'actInicio', 'actFin',
       'lugar', 'responsable', 'asistencia', 'costo', 'monto', 'estrategia', 'descCosto', 'enlace']
       .forEach(function (k) { $(k).value = p[k] || ''; });

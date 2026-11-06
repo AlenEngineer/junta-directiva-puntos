@@ -113,7 +113,8 @@ function validarPunto(d, opc) {
   }
 
   p.categoria = txt(d.categoria, 100);
-  if (CATEGORIAS.indexOf(p.categoria) < 0) return err('Elija la categoría del punto.');
+  var permitidas = opc.categorias || categoriasPara_(p.departamento, opc.general);
+  if (permitidas.indexOf(p.categoria) < 0) return err('Elija una categoría válida para su departamento.');
   p.titulo = txt(d.titulo, 150);
   if (!p.titulo) return err('Escriba el título del punto.');
   p.descripcion = txt(d.descripcion, 5000);
@@ -188,4 +189,23 @@ function validarPunto(d, opc) {
 function monto_(v) {
   var s = String(v == null ? '' : v).trim().replace(/\s/g, '').replace(',', '.');
   return /^\d{1,9}(\.\d{1,2})?$/.test(s) ? Number(s) : NaN;
+}
+
+/** Categorías que puede usar un departamento (o el enlace general). */
+function categoriasPara_(departamento, general) {
+  if (general) return CATEGORIAS_GENERAL.slice();
+  return CATEGORIAS.filter(function (c) {
+    var permitidos = CATEGORIAS_RESTRINGIDAS[c];
+    return !permitidos || permitidos.some(function (d) { return normalizar_(d) === normalizar_(departamento); });
+  });
+}
+
+/**
+ * Categoría actual de un punto: traduce las de versiones anteriores y manda
+ * a "Otros asuntos" cualquier categoría desconocida, para que ningún punto se pierda.
+ */
+function categoriaVigente_(categoria) {
+  var c = String(categoria || '');
+  if (CATEGORIAS_ANTERIORES[c]) return CATEGORIAS_ANTERIORES[c];
+  return CATEGORIAS.indexOf(c) >= 0 ? c : 'Otros asuntos';
 }

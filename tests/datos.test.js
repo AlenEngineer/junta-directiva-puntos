@@ -91,6 +91,11 @@ check(s.fondos[0].ingresos === 2, 'suma ingresos por ofrenda y directos');
 // Lo que recibe cada persona en la página
 const cargosDaniel = [{ departamento: 'Escuela Sabática', cargo: 'Director' }, { departamento: 'Ancianos', cargo: 'Anciano' }];
 const pub = api.publico_({ clave: 'x', junta: { dia: '…' }, general: false, nombre: 'Daniel Rivas', cargos: cargosDaniel });
+check(JSON.stringify(pub.categorias) === JSON.stringify(['Evangelismo y misión', 'Planes y actividades del departamento', 'Otros asuntos']),
+  'categorías comunes para la página');
+check(pub.categoriasPorDepartamento['Ancianos'].includes('Feligresía (traslados, recepción de miembros)') &&
+  !pub.categoriasPorDepartamento['Escuela Sabática'].includes('Feligresía (traslados, recepción de miembros)') &&
+  !pub.categoriasPorDepartamento['Ancianos'].includes('Tesorería y finanzas'), 'categorías por departamento');
 check(pub.saldos && pub.saldos.moneda === 'B/.' && Object.keys(pub.saldos.porDepartamento).sort().join('|') === 'Ancianos|Escuela Sabática',
   'una persona recibe los saldos de sus departamentos');
 check(!JSON.stringify(pub.saldos).includes('OTRO GASTO') && !('departamentos' in pub.saldos.porDepartamento['Ancianos'][0]),

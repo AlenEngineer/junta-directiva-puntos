@@ -1,5 +1,5 @@
 // Versión de la aplicación. Debe coincidir con package.json y con CHANGELOG.md (lo revisan las pruebas).
-var VERSION = '1.4.1';
+var VERSION = '1.5.0';
 
 var REPOSITORIO = 'https://github.com/AlenEngineer/junta-directiva-puntos';
 
@@ -29,13 +29,29 @@ var GENERAL = 'GENERAL';
 
 var CODIGO_PAIS_INICIAL = '507'; // Panamá. Se cambia con Junta → Cambiar el código de país…
 
+// Categorías de los puntos, en el orden en que aparecen en la agenda (evangelismo primero).
 var CATEGORIAS = [
   'Evangelismo y misión',
   'Tesorería y finanzas',
-  'Departamentos',
   'Feligresía (traslados, recepción de miembros)',
-  'Asuntos generales'
+  'Planes y actividades del departamento',
+  'Otros asuntos'
 ];
+
+// Categorías que solo pueden usar ciertos departamentos (nombres como en la pestaña Cargos).
+var CATEGORIAS_RESTRINGIDAS = {
+  'Tesorería y finanzas': ['Tesorería'],
+  'Feligresía (traslados, recepción de miembros)': ['Secretaría', 'Ancianos']
+};
+
+// Con el enlace general (miembros sin cargo) solo estas.
+var CATEGORIAS_GENERAL = ['Evangelismo y misión', 'Otros asuntos'];
+
+// Categorías de versiones anteriores a la 1.5.0 y su equivalente actual.
+var CATEGORIAS_ANTERIORES = {
+  'Departamentos': 'Planes y actividades del departamento',
+  'Asuntos generales': 'Otros asuntos'
+};
 
 var TIPOS = ['Para votación', 'Informativo'];
 
