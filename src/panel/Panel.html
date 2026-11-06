@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+<style>
+@@INCLUIR panel.css@@
+</style>
+</head>
+<body>
+<header class="barra">
+  <div class="barra-contenido">
+    <div>
+      <div class="barra-titulo">Panel · Junta Directiva</div>
+      <div class="barra-usuario" id="usuario"></div>
+    </div>
+    <div class="barra-version" id="version"></div>
+  </div>
+</header>
+
+<main class="contenedor">
+  <!-- Sin permiso -->
+  <section class="tarjeta oculto" id="sin-acceso">
+    <h1>No tiene acceso al panel</h1>
+    <p>Solo pueden entrar quienes pueden <b>editar</b> la hoja de la Junta Directiva.</p>
+    <p>Revise que inició sesión con la cuenta correcta de Google y que usa el enlace del <b>panel</b>
+      (no el del formulario). Si necesita acceso, pídale a quien administra que le comparta la hoja como editor.</p>
+  </section>
+
+  <div id="panel" class="oculto">
+    <nav class="pestanas" aria-label="Secciones">
+      <button type="button" class="pestana activa" aria-current="page">Puntos</button>
+      <span class="pestana proxima" title="Próximamente">Agenda</span>
+      <span class="pestana proxima" title="Próximamente">Enlaces</span>
+    </nav>
+
+    <section class="tarjeta controles">
+      <label class="campo-grupo">
+        <span>Junta</span>
+        <select id="junta"></select>
+      </label>
+      <div class="filtros">
+        <label class="campo-grupo"><span>Estado</span><select id="f-estado"><option value="">Todos</option></select></label>
+        <label class="campo-grupo"><span>Categoría</span><select id="f-categoria"><option value="">Todas</option></select></label>
+        <label class="campo-grupo"><span>Departamento</span><select id="f-depto"><option value="">Todos</option></select></label>
+        <label class="campo-grupo buscar"><span>Buscar</span><input id="f-texto" type="search" placeholder="Título, persona, descripción…"></label>
+      </div>
+      <div class="resumen" id="resumen"></div>
+    </section>
+
+    <div class="aviso oculto" id="aviso" role="status"></div>
+    <div id="cargando" class="cargando">Cargando…</div>
+    <div id="lista"></div>
+  </div>
+</main>
+
+<script>
+var DATOS = <?!= datosJson ?>;
+</script>
+<script>
+@@INCLUIR panel.js@@
+</script>
+</body>
+</html>

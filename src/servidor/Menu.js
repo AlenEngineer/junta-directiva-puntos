@@ -1,6 +1,7 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Junta')
+    .addItem('Abrir el panel', 'abrirPanel')
     .addItem('Nueva junta…', 'nuevaJunta')
     .addItem('Generar agenda…', 'generarAgenda')
     .addItem('Enviar enlaces por correo…', 'enviarCorreos')
@@ -11,6 +12,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Configuración inicial', 'configurar')
     .addItem('Cambiar la URL de la aplicación…', 'cambiarUrl')
+    .addItem('Cambiar la URL del panel…', 'cambiarUrlPanel')
     .addItem('Cambiar el código de país…', 'cambiarCodigoPais')
     .addItem('Cambiar el contacto de ayuda…', 'cambiarContactoAyuda')
     .addSeparator()
@@ -19,6 +21,7 @@ function onOpen() {
 }
 
 function configurar() {
+  exigirAdmin_();
   var ss = SpreadsheetApp.getActive();
   if (!ss) {
     throw new Error('Este script no está dentro de una hoja de cálculo. ' +
@@ -65,6 +68,7 @@ function configurar() {
 }
 
 function nuevaJunta() {
+  exigirAdmin_();
   asegurarEsquema_();
   var ui = SpreadsheetApp.getUi();
   if (!urlApp_(true)) return;
@@ -106,6 +110,7 @@ function nuevaJunta() {
 }
 
 function cambiarEnlace() {
+  exigirAdmin_();
   asegurarEsquema_();
   var ui = SpreadsheetApp.getUi();
   var junta = juntaActual_();
@@ -136,6 +141,7 @@ function cambiarEnlace() {
 }
 
 function cerrarRecepcion() {
+  exigirAdmin_();
   asegurarEsquema_();
   var ui = SpreadsheetApp.getUi();
   var junta = juntaActual_();
@@ -148,8 +154,45 @@ function cerrarRecepcion() {
   ui.alert('Recepción cerrada. Ya puede generar la agenda.');
 }
 
+/** Menú: Junta → Abrir el panel. La primera vez pide la URL de la implementación del panel. */
+function abrirPanel() {
+  exigirAdmin_();
+  var ui = SpreadsheetApp.getUi();
+  var props = PropertiesService.getScriptProperties();
+  var url = props.getProperty('URL_PANEL');
+  if (!url) {
+    var r = ui.prompt('URL del panel',
+      'Pegue la URL de la implementación del PANEL (Implementar → Gestionar implementaciones). Termina en /exec.\n' +
+      'Ver "Panel de administración" en el README.', ui.ButtonSet.OK_CANCEL);
+    if (r.getSelectedButton() !== ui.Button.OK) return;
+    url = r.getResponseText().trim().replace(/\?.*$/, '');
+    if (!/^https:\/\/script\.google\.com\/\S+\/exec$/.test(url)) {
+      ui.alert('Esa URL no parece correcta. Debe empezar con https://script.google.com/ y terminar en /exec');
+      return;
+    }
+    props.setProperty('URL_PANEL', url);
+  }
+  var enlace = url + '?vista=panel';
+  var html = HtmlService.createHtmlOutput(
+    '<div style="font:16px Roboto,Arial,sans-serif;padding:8px">' +
+    '<p>El panel se abre en una pestaña nueva. Guárdelo en favoritos o en la pantalla de inicio del celular.</p>' +
+    '<p><a href="' + escHtml_(enlace) + '" target="_blank" style="display:inline-block;background:#673ab7;color:#fff;' +
+    'padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:500">Abrir el panel</a></p>' +
+    '<p style="font-size:13px;color:#5f6368;word-break:break-all">' + escHtml_(enlace) + '</p></div>'
+  ).setWidth(460).setHeight(220);
+  ui.showModalDialog(html, 'Panel de la Junta Directiva');
+}
+
+/** Menú: borra la URL del panel guardada y la vuelve a pedir. */
+function cambiarUrlPanel() {
+  exigirAdmin_();
+  PropertiesService.getScriptProperties().deleteProperty('URL_PANEL');
+  abrirPanel();
+}
+
 /** Menú: quién recibe los mensajes de "¿Necesita ayuda?" del formulario. */
 function cambiarContactoAyuda() {
+  exigirAdmin_();
   var ui = SpreadsheetApp.getUi();
   var props = PropertiesService.getScriptProperties();
   var actual = props.getProperty('CONTACTO_AYUDA');
@@ -173,6 +216,7 @@ function cambiarContactoAyuda() {
 }
 
 function acercaDe() {
+  exigirAdmin_();
   aviso_('Puntos para la Junta Directiva',
     'Versión ' + VERSION + '\n\n' +
     'Qué cambió en cada versión:\n' + REPOSITORIO + '/blob/main/CHANGELOG.md\n\n' +
@@ -180,6 +224,7 @@ function acercaDe() {
 }
 
 function cambiarUrl() {
+  exigirAdmin_();
   var actual = PropertiesService.getScriptProperties().getProperty('URL_APP') || '(ninguna)';
   if (pedirUrl_('URL guardada ahora:\n' + actual + '\n\n')) {
     if (juntaActual_()) escribirEnlaces_();
@@ -188,6 +233,7 @@ function cambiarUrl() {
 }
 
 function cambiarCodigoPais() {
+  exigirAdmin_();
   var ui = SpreadsheetApp.getUi();
   var r = ui.prompt('Código de país',
     'Código actual: +' + codigoPais_() + '\n\nEscriba el código de país de los teléfonos, solo números (por ejemplo 507):',
@@ -202,6 +248,7 @@ function cambiarCodigoPais() {
 
 /** Menú: Junta → Actualizar la pestaña Enlaces (después de editar Contactos). */
 function actualizarEnlaces() {
+  exigirAdmin_();
   asegurarEsquema_();
   if (!juntaActual_()) { SpreadsheetApp.getUi().alert('No hay una junta abierta.'); return; }
   escribirEnlaces_();

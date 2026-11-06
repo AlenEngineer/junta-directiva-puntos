@@ -50,6 +50,7 @@ jobs:
       CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
       SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
       DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+      DEPLOYMENT_ID_PANEL: ${{ secrets.DEPLOYMENT_ID_PANEL }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v5
@@ -103,6 +104,12 @@ jobs:
           printf '{"scriptId":"%s","rootDir":"dist"}' "$SCRIPT_ID" > .clasp.json
           npx --yes @google/clasp@2.4.2 push --force
           npx --yes @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID" --description "$ETIQUETA"
+          # Segunda implementación: el panel de administración (opcional).
+          if [ -n "$DEPLOYMENT_ID_PANEL" ]; then
+            npx --yes @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID_PANEL" --description "$ETIQUETA (panel)"
+          else
+            echo "::notice::Sin el secreto DEPLOYMENT_ID_PANEL: el panel no se actualizó. Ver README."
+          fi
 
       - name: Borrar credenciales
         if: always()
@@ -124,6 +131,6 @@ jobs:
             dentro && /^\[.*\]: http/ { exit }
             dentro { print }
           ' CHANGELOG.md > notas.md
-          printf '\n---\n**Instalación o actualización manual:** descargue `Codigo.gs`, `Formulario.html` y `appsscript.json` de esta página (ver README).\n' >> notas.md
+          printf '\n---\n**Instalación o actualización manual:** descargue `Codigo.gs`, `Formulario.html`, `Panel.html` y `appsscript.json` de esta página (ver README).\n' >> notas.md
           gh release create "$ETIQUETA" --title "$ETIQUETA" --notes-file notas.md --verify-tag --latest \
-            dist/Codigo.gs dist/Formulario.html dist/appsscript.json
+            dist/Codigo.gs dist/Formulario.html dist/Panel.html dist/appsscript.json

@@ -60,21 +60,27 @@ const guardar = (x) => (typeof x === 'string' && x[0] === "'" ? x.slice(1) : x);
 function cargarServidor(exportar, reemplazos = '') {
   const hojas = {};
   const propiedades = {};
-  const libro = { getSheetByName: (n) => hojas[n] || null, insertSheet: (n) => (hojas[n] = new Hoja(n)) };
-  const entorno = { __libro: libro, __propiedades: propiedades, __require: require };
+  // Usuarios: quien usa la aplicación (sesion.usuario) y quienes pueden editar la hoja.
+  const sesion = { usuario: 'admin@ejemplo.org', editores: ['admin@ejemplo.org', 'secretaria@ejemplo.org'], duena: 'admin@ejemplo.org' };
+  const libro = {
+    getSheetByName: (n) => hojas[n] || null, insertSheet: (n) => (hojas[n] = new Hoja(n)),
+    getEditors: () => sesion.editores.map((e) => ({ getEmail: () => e })),
+    getOwner: () => ({ getEmail: () => sesion.duena })
+  };
+  const entorno = { __libro: libro, __propiedades: propiedades, __require: require, __sesion: sesion };
   const api = new Function(...Object.keys(entorno), code + `;
   libro_ = function () { return __libro; };
   PropertiesService = { getScriptProperties: () => ({
     getProperty: (k) => __propiedades[k] ?? null, setProperty: (k, v) => { __propiedades[k] = v; } }) };
   limitar_ = function () {};
   LockService = { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) };
-  Session = { getScriptTimeZone: () => 'America/Panama' };
+  Session = { getScriptTimeZone: () => 'America/Panama', getActiveUser: () => ({ getEmail: () => __sesion.usuario }) };
   Utilities = { getUuid: () => __require('crypto').randomUUID(),
                 formatDate: (d) => d.toISOString().slice(0, 10) };
   guardarArchivo_ = function (a) { return 'https://drive.google.com/archivo/' + a.nombre; };
   ${reemplazos}
   return { ${exportar.join(', ')} };`)(...Object.values(entorno));
-  return { api, hojas, libro, propiedades };
+  return { api, hojas, libro, propiedades, sesion };
 }
 
 module.exports = { cargarServidor };

@@ -9,6 +9,7 @@ function personasConCorreo_(nombres) {
 
 /** Menú: Junta → Enviar enlaces por correo… */
 function enviarCorreos() {
+  exigirAdmin_();
   asegurarEsquema_();
   var ui = SpreadsheetApp.getUi();
   var junta = juntaActual_();

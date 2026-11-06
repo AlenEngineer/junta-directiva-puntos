@@ -1,4 +1,5 @@
 function doGet(e) {
+  if (e && e.parameter && e.parameter.vista === 'panel') return panelPagina_();
   var clave = e && e.parameter ? String(e.parameter.t || '') : '';
   var ctx = null;
   try { ctx = contexto_(clave); } catch (err) { ctx = null; }

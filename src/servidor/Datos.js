@@ -138,6 +138,15 @@ function puntoReemplazar_(id, obj) {
   });
 }
 
+/** Cambia solo el estado de un punto (lo usa el panel para aprobar o rechazar). */
+function puntoCambiarEstado_(id, estado) {
+  conBloqueo_(function () {
+    var p = puntoPorId_(id);
+    if (!p) throw new Error('No se encontró el punto.');
+    tablaCelda_(HOJA_PUNTOS, columnasPuntos_(), p._fila, 'Estado', estado);
+  });
+}
+
 /** Copia una versión de un punto a la pestaña Historial. */
 function historialAgregar_(punto) {
   var ss = libro_();

@@ -1,4 +1,5 @@
 function generarAgenda() {
+  exigirAdmin_();
   asegurarEsquema_();
   var ui = SpreadsheetApp.getUi();
   var ss = libro_();
