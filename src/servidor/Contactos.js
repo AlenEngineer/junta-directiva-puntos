@@ -5,6 +5,7 @@ var PALABRAS_IGNORADAS = ['hno', 'hna', 'hermano', 'hermana', 'pr', 'pastor', 'p
 
 /** Menú: Junta → Importar teléfonos y correos de mis contactos */
 function importarContactos() {
+  exigirAdmin_();
   asegurarEsquema_();
   var ui = SpreadsheetApp.getUi();
   var cargos = leerCargos_();

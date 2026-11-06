@@ -14,6 +14,24 @@ Cada versión explica, en **Qué hacer**, los pasos para una instalación existe
 
 Cambios que ya están en `main` pero todavía no forman parte de una versión.
 
+## [1.7.0] - 2026-11-06
+
+### Agregado
+- **Panel de administración**, sección **Puntos**: una página aparte, que también se puede usar desde el celular, para ver los puntos de cada junta.
+  - Filtros por estado, categoría, departamento o texto.
+  - El detalle completo, con la actividad, el presupuesto y los archivos.
+  - **Aprobar o rechazar** con un clic. Los *Por revisar* aparecen primero.
+- **Junta → Abrir el panel** y **Junta → Cambiar la URL del panel…** en el menú.
+
+### Seguridad
+- Todas las funciones de administración (las del menú y las del panel) verifican quién las llama: solo pueden ejecutarlas quienes pueden **editar la hoja**. Antes, en teoría, algunas se podían invocar desde la página pública. No había un daño real conocido, pero ahora está cerrado.
+- Una prueba automática revisa que toda función pública nueva tenga esta verificación.
+
+### Qué hacer
+- 🛠️ **Crear la implementación del panel** (una sola vez): ver *Panel de administración* en el README. Luego guarde su ID como secreto `DEPLOYMENT_ID_PANEL` en GitHub, para que la actualización automática también la publique.
+- 📊 La primera vez, **Junta → Abrir el panel** pide la URL del panel.
+- Si actualiza a mano: cambia `Codigo.gs`, y hay un archivo nuevo, `Panel.html` (archivo HTML llamado `Panel`).
+
 ## [1.6.0] - 2026-11-06
 
 Más fácil de usar para todos, especialmente para los hermanos mayores.
@@ -215,7 +233,8 @@ Primera versión pública.
 - Formulario por secciones: informativo o para votación, actividad, presupuesto con cotización.
 - Agenda automática ordenada según el Manual de la Iglesia (evangelismo primero).
 
-[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.6.0...HEAD
+[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.0...v1.4.1

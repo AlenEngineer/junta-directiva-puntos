@@ -24,6 +24,7 @@ Aplicación web hecha con Google Apps Script para que los oficiales de la iglesi
 |---|---|
 | `src/servidor/` | El código del servidor, un archivo por tema (menú, puntos, agenda, enlaces, correo, datos…) |
 | `src/formulario/` | La página que ven los hermanos: estructura, estilos y lógica |
+| `src/panel/` | El panel de administración: estructura, estilos y lógica |
 | `scripts/empaquetar.js` | Une `src/` en `dist/Codigo.gs` y `dist/Formulario.html`, que es lo que se instala |
 | `tests/` | Pruebas automáticas (no se suben a Google) |
 | `CHANGELOG.md` | Historial de versiones: qué cambió y qué hacer en cada una |
@@ -47,9 +48,9 @@ Se trabaja en dos lugares. Cada paso dice dónde:
 ### Paso 2 · Pegar el código (🛠️ Apps Script)
 
 1. 📊 En la hoja, vaya al menú **Extensiones → Apps Script**. Se abre el editor en otra pestaña.
-2. En [la última versión](https://github.com/AlenEngineer/junta-directiva-puntos/releases/latest), en *Assets*, descargue **`Codigo.gs`** y **`Formulario.html`**. Ábralos con el Bloc de notas o TextEdit para copiar su contenido.
+2. En [la última versión](https://github.com/AlenEngineer/junta-directiva-puntos/releases/latest), en *Assets*, descargue **`Codigo.gs`**, **`Formulario.html`** y **`Panel.html`**. Ábralos con el Bloc de notas o TextEdit para copiar su contenido.
 3. 🛠️ A la izquierda, en *Archivos*, está `Código.gs`. Ábralo, borre todo lo que tenga y pegue el contenido de **`Codigo.gs`**.
-4. 🛠️ Junto a *Archivos*, haga clic en **+ → HTML**. Escriba el nombre **`Formulario`**, exactamente así, sin `.html`. Borre lo que trae y pegue el contenido de **`Formulario.html`**.
+4. 🛠️ Junto a *Archivos*, haga clic en **+ → HTML**. Escriba el nombre **`Formulario`**, exactamente así, sin `.html`. Borre lo que trae y pegue el contenido de **`Formulario.html`**. Repita con un archivo HTML llamado **`Panel`** y el contenido de **`Panel.html`**.
 5. 🛠️ Presione el ícono de **guardar** (💾) arriba.
 
 ### Paso 3 · Configurar (🛠️ Apps Script)
@@ -105,6 +106,7 @@ Todo se hace desde el menú **Junta** de la hoja:
 | **Cambiar el enlace de una persona…** | Si un enlace se filtró. Escriba el nombre, o `GENERAL` para el enlace general. Ofrece enviarle el enlace nuevo por correo. |
 | **Cerrar recepción de puntos** | Dejar de recibir puntos antes del día de la junta. |
 | **Cambiar la URL de la aplicación…** | Si los enlaces abren una página de error, o si creó una implementación nueva en vez de actualizar la existente. Muestra la URL guardada y le deja pegar la correcta. |
+| **Abrir el panel** | Abre el panel de administración (ver *Panel de administración*). La primera vez pide su URL. |
 | **Cambiar el contacto de ayuda…** | Quién recibe por WhatsApp los mensajes de *¿Necesita ayuda?* del formulario. Vacío: quien dirige Secretaría. |
 | **Cambiar el código de país…** | El código que se agrega a los teléfonos sin `+`. Viene con +507 (Panamá). |
 
@@ -145,6 +147,34 @@ Cómo decide:
 Cada celda importada tiene una **nota** que dice de qué contacto vino: pase el mouse por encima para verla. Al terminar aparece un resumen.
 
 La primera vez, Google pide permiso para **ver sus contactos**. El script solo los lee: no los cambia ni los envía a ningún lado.
+
+## Panel de administración
+
+Una página aparte para administrar, que también se puede usar desde el celular. Por ahora tiene la sección **Puntos**:
+- ver los puntos de cada junta;
+- filtrar por estado, categoría, departamento o texto;
+- ver el detalle con los archivos;
+- **aprobar o rechazar** con un clic.
+
+**Quién puede entrar:** quienes pueden **editar la hoja** de la Junta Directiva. Para darle acceso a la secretaria, comparta la hoja con ella como editora. Google pide iniciar sesión, y el panel verifica el permiso en cada acción.
+
+### Crear el panel (una sola vez, 🛠️ Apps Script)
+
+1. 📊 En la hoja, vaya a **Extensiones → Apps Script**.
+2. 🛠️ **Implementar → Nueva implementación** → engranaje ⚙️ → **Aplicación web**:
+   - **Descripción:** *Panel*
+   - **Ejecutar como:** *Usuario que accede a la aplicación web*
+   - **Quién tiene acceso:** *Cualquier usuario con una cuenta de Google*
+3. 🛠️ Presione **Implementar**. Copie la **URL** y el **ID de implementación**.
+4. 📊 En la hoja, vaya a **Junta → Abrir el panel** y pegue la URL. Desde ahí se abre el panel. Guárdelo en favoritos o en la pantalla de inicio del celular.
+5. La primera vez que abra el panel, Google pide permisos para su cuenta: acéptelos igual que en la instalación.
+6. **Actualización automática:** guarde el ID en GitHub para que cada versión nueva también actualice el panel:
+   ```bash
+   gh secret set DEPLOYMENT_ID_PANEL --repo AlenEngineer/junta-directiva-puntos
+   ```
+   Pegue el ID cuando lo pida. Sin este secreto, el formulario se actualiza igual, pero el panel queda en la versión anterior.
+
+> No confunda las dos implementaciones. La del **formulario** se ejecuta como usted y la puede abrir cualquiera con un enlace. La del **panel** se ejecuta como quien la abre y exige iniciar sesión. Si alguien abre el panel desde la implementación del formulario, solo verá *"No tiene acceso"*.
 
 ## Saldos de tesorería (📊 Google Sheets)
 

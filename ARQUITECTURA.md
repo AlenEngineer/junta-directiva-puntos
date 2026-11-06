@@ -50,11 +50,15 @@ src/
     Contactos.js     Importa teléfonos y correos de los contactos de Google
     Datos.js         CAPA DE DATOS: la única que lee o escribe las pestañas de datos
     Esquema.js       Migraciones de la estructura de la hoja
+    Seguridad.js     Quién puede administrar: exigirAdmin_() (editores de la hoja)
+    Panel.js         Panel de administración: página y acciones (aprobar, rechazar…)
     Utilidades.js    Fechas y textos
   formulario/
     Formulario.html  Estructura de la página (se une con los dos de abajo en dist/)
     estilos.css      Apariencia (parecida a Google Forms)
     formulario.js    Lógica de la página: páginas, validación, archivos, edición
+  panel/
+    Panel.html       Panel de administración (se une con panel.css y panel.js en dist/)
   appsscript.json    Configuración del proyecto de Apps Script
 scripts/
   empaquetar.js      Une src/ en dist/ (lo que se prueba y se publica)
@@ -73,7 +77,8 @@ dist/                Generado: Codigo.gs, Formulario.html, appsscript.json (no s
 3. **Los cambios de estructura van en `Esquema.js`** como una migración numerada: agrega o completa, nunca borra. Se aplican solos, una vez y en orden. La hoja guarda su número de esquema en la propiedad `ESQUEMA`.
 4. **Compatibilidad hacia atrás:** los enlaces ya enviados y los datos existentes deben seguir funcionando después de cada versión. Si no es posible, es una versión MAYOR y lo dice el CHANGELOG.
 5. **Todo lo que llega de la página se valida otra vez en el servidor** (`validarPunto`, `guardarArchivo_`). La validación de la página es solo para comodidad.
-6. **Ningún dato real en el repositorio:** nombres, teléfonos y correos viven solo en la hoja; los ejemplos y las pruebas usan nombres ficticios.
+6. **Toda función de administración empieza con `exigirAdmin_()`.** En Apps Script, cualquier función cuyo nombre no termina en `_` se puede llamar desde la página pública. `seguridad.test.js` falla si una función pública nueva no está protegida; las públicas a propósito están en su lista `PUBLICAS`.
+7. **Ningún dato real en el repositorio:** nombres, teléfonos y correos viven solo en la hoja; los ejemplos y las pruebas usan nombres ficticios.
 
 ## Modelo de datos (pestañas)
 
@@ -96,6 +101,7 @@ Las fechas se guardan como **texto** `dd/mm/aaaa` para que Sheets no las convier
 - **Archivos:** se revisan la extensión, el tamaño y los primeros bytes (la "firma") del contenido.
 - **Hoja:** los textos se guardan con `'` delante para que nunca se ejecuten como fórmulas. Las columnas internas tienen protección de advertencia.
 - **Límite de envíos** por enlace cada 6 horas, contra abusos.
+- **Administración:** solo quienes pueden editar la hoja, verificado con la cuenta de Google en cada acción. El panel es una segunda implementación (*Ejecutar como: usuario que accede*), así que Google exige iniciar sesión.
 - **Credenciales:** en los secretos de GitHub (`CLASPRC_JSON`, `SCRIPT_ID`, `DEPLOYMENT_ID`), nunca en el código.
 
 ## Publicación
@@ -113,13 +119,14 @@ Ver *Versiones* en el README para publicar o volver atrás.
 | Archivo | Qué prueba |
 |---|---|
 | `version.test.js` | La versión coincide en el código, `package.json` y el CHANGELOG |
+| `seguridad.test.js` | Quién puede administrar, que toda función de administración esté protegida y el servidor del panel |
 | `validar.test.js` | Reglas de un punto, firmas de archivos y fechas |
 | `mensajes.test.js` | Teléfonos, WhatsApp y correo |
 | `contactos.test.js` | Búsqueda de personas en los contactos de Google |
 | `datos.test.js` | Juntas, claves y validación de enlaces, con la hoja simulada |
 | `agenda.test.js` | La agenda generada: orden, actividad, presupuesto y material |
 | `edicion.test.js` | Enviar, editar, historial, permisos y migraciones, con la hoja simulada |
-| `formulario.test.js`, `descripcion.test.js`, `edicion-pagina.test.js`, `saldo-pagina.test.js`, `categorias-pagina.test.js`, `accesibilidad-pagina.test.js` | La página en un navegador real (Chromium), con el servidor simulado |
+| `formulario.test.js`, `descripcion.test.js`, `edicion-pagina.test.js`, `saldo-pagina.test.js`, `categorias-pagina.test.js`, `accesibilidad-pagina.test.js`, `panel-pagina.test.js` | La página en un navegador real (Chromium), con el servidor simulado |
 
 `tests/hoja-simulada.js` imita Google Sheets en memoria y `tests/servidor-simulado.js` imita `google.script.run`. **Lo que no se puede probar aquí** es lo que solo existe en Google: permisos, cuotas, la apariencia real de la hoja y el envío de correos.
 
