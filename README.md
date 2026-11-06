@@ -143,6 +143,20 @@ Cada celda importada tiene una **nota** que dice de qué contacto vino: pase el 
 
 La primera vez, Google pide permiso para **ver sus contactos**. El script solo los lee: no los cambia ni los envía a ningún lado.
 
+## Saldos de tesorería (📊 Google Sheets)
+
+En la página de *Presupuesto*, cada persona ve el fondo de su departamento según el último reporte de tesorería. Así sabe con cuánto cuenta antes de pedir dinero.
+
+**Cada mes**, cuando llegue el *Reporte de saldos, ingresos y egresos*:
+1. 📊 Abra la pestaña **Saldos** y borre las filas del mes anterior, desde la fila 2.
+2. Copie la tabla del reporte, **sin la fila de totales**, y péguela desde la celda **A2**. Las columnas A a H están en el mismo orden que el reporte; no importa que traigan `B/.` o comas.
+3. En **Departamento en Cargos**, escriba a qué departamento de la pestaña *Cargos* corresponde cada fila, **con el mismo nombre**. Si una fila sirve a varios departamentos, sepárelos con coma, por ejemplo `Ministerio de la Salud, Ministerio de la Familia`. Deje vacías las filas que no son de un departamento (préstamo, seguro, construcción…): no se le muestran a nadie.
+4. En **Periodo del reporte**, en la primera fila, escriba el periodo, por ejemplo `octubre 2026`.
+
+Si las filas de la tesorería no cambian de un mes a otro, puede pegar solo los montos (B a H) y conservar las columnas I y J.
+
+**Privacidad:** cada persona ve solo los fondos de sus propios departamentos. El enlace general no muestra saldos.
+
 ## Cambiar los cargos (📊 Google Sheets)
 
 Edite la pestaña **Cargos**: departamento, nombre, cargo y si es director (*Sí* o *No*). Agregue o borre filas según haga falta. Los cambios se aplican en la siguiente **Junta → Nueva junta**.

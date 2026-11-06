@@ -68,7 +68,7 @@ dist/                Generado: Codigo.gs, Formulario.html, appsscript.json (no s
 
 ## Reglas para mantener el orden
 
-1. **Solo `Datos.js` toca las pestañas de datos** (*Puntos*, *Juntas*, *_Claves*, *Cargos*, *Contactos*, *Historial*). El resto pide y entrega objetos, por ejemplo `puntosLeer_()`, `puntoReemplazar_(id, obj)` o `leerClaves_(junta)`. Las "vistas" (*Enlaces* y las *Agendas*) las escribe su propio módulo, porque nadie las lee de vuelta.
+1. **Solo `Datos.js` toca las pestañas de datos** (*Puntos*, *Juntas*, *_Claves*, *Cargos*, *Contactos*, *Historial*, *Saldos*). El resto pide y entrega objetos, por ejemplo `puntosLeer_()`, `puntoReemplazar_(id, obj)` o `leerClaves_(junta)`. Las "vistas" (*Enlaces* y las *Agendas*) las escribe su propio módulo, porque nadie las lee de vuelta.
 2. **Se lee y escribe por nombre de columna**, nunca por posición. Una columna nueva se agrega sola al final, y las filas viejas no se desordenan.
 3. **Los cambios de estructura van en `Esquema.js`** como una migración numerada: agrega o completa, nunca borra. Se aplican solos, una vez y en orden. La hoja guarda su número de esquema en la propiedad `ESQUEMA`.
 4. **Compatibilidad hacia atrás:** los enlaces ya enviados y los datos existentes deben seguir funcionando después de cada versión. Si no es posible, es una versión MAYOR y lo dice el CHANGELOG.
@@ -85,6 +85,7 @@ dist/                Generado: Codigo.gs, Formulario.html, appsscript.json (no s
 | **_Claves** (oculta) | el enlace de una persona para una junta | Clave (32 hex), Junta, Persona (o `GENERAL`), Correo enviado |
 | **Puntos** | un punto, en su versión actual | ver `COLS_PUNTOS` y `COLS_CONTROL` en `00-Config.js`; ID, Enviado por, Código de edición, Ediciones |
 | **Historial** | una versión anterior de un punto | Fecha de la edición + las mismas columnas de Puntos |
+| **Saldos** | un fondo del reporte de tesorería | las 8 columnas del reporte (ver `COLS_SALDOS`), Departamento en Cargos, Periodo del reporte |
 
 Las fechas se guardan como **texto** `dd/mm/aaaa` para que Sheets no las convierta según el idioma.
 
@@ -118,7 +119,7 @@ Ver *Versiones* en el README para publicar o volver atrás.
 | `datos.test.js` | Juntas, claves y validación de enlaces, con la hoja simulada |
 | `agenda.test.js` | La agenda generada: orden, actividad, presupuesto y material |
 | `edicion.test.js` | Enviar, editar, historial, permisos y migraciones, con la hoja simulada |
-| `formulario.test.js`, `descripcion.test.js`, `edicion-pagina.test.js` | La página en un navegador real (Chromium), con el servidor simulado |
+| `formulario.test.js`, `descripcion.test.js`, `edicion-pagina.test.js`, `saldo-pagina.test.js` | La página en un navegador real (Chromium), con el servidor simulado |
 
 `tests/hoja-simulada.js` imita Google Sheets en memoria y `tests/servidor-simulado.js` imita `google.script.run`. **Lo que no se puede probar aquí** es lo que solo existe en Google: permisos, cuotas, la apariencia real de la hoja y el envío de correos.
 

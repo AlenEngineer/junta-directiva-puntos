@@ -96,8 +96,30 @@ function publico_(ctx) {
       return { valor: c.departamento, texto: c.departamento + ' (' + c.cargo + ')' };
     }),
     categorias: CATEGORIAS,
+    saldos: saldosPublicos_(ctx),
     version: VERSION
   };
+}
+
+/**
+ * Saldos de tesorería de los departamentos de la persona (solo enlaces personales).
+ * Nunca se envían los de otros departamentos.
+ */
+function saldosPublicos_(ctx) {
+  if (ctx.general) return null;
+  var s;
+  try { s = saldosLeer_(); } catch (e) { return null; } // un error en la pestaña no debe romper el formulario
+  var porDepartamento = {}, hay = false;
+  ctx.cargos.forEach(function (c) {
+    var fondos = s.fondos.filter(function (f) {
+      return f.departamentos.some(function (d) { return normalizar_(d) === normalizar_(c.departamento); });
+    }).map(function (f) {
+      return { fondo: f.fondo, saldoAnterior: f.saldoAnterior, ingresos: f.ingresos,
+        egresos: f.egresos, transferencias: f.transferencias, saldo: f.saldo };
+    });
+    if (fondos.length) { porDepartamento[c.departamento] = fondos; hay = true; }
+  });
+  return hay ? { periodo: s.periodo, moneda: MONEDA, porDepartamento: porDepartamento } : null;
 }
 
 /** Limita cuántos puntos se pueden enviar con un mismo enlace en 6 horas. */

@@ -12,12 +12,13 @@
 // - Usa las funciones tabla* de Datos.js, no puntoAgregar_ (ya está dentro del bloqueo).
 // =====================================================================
 
-var ESQUEMA_ACTUAL = 3;
+var ESQUEMA_ACTUAL = 4;
 
 var MIGRACIONES = {
   1: migracionColumnas_,
   2: migracionIdsAnteriores_,
-  3: migracionProtecciones_
+  3: migracionProtecciones_,
+  4: migracionSaldos_
 };
 
 /** Aplica las migraciones pendientes. Es barato llamarlo seguido. */
@@ -78,4 +79,17 @@ function migracionProtecciones_() {
   if (claves) claves.protect().setDescription('Claves de los enlaces. No las cambie a mano.').setWarningOnly(true);
   var hist = hojaSiExiste_(HOJA_HISTORIAL);
   if (hist) hist.protect().setDescription('Historial de ediciones. No lo cambie a mano.').setWarningOnly(true);
+}
+
+/** 4 · Pestaña Saldos, para mostrar a cada departamento su saldo de tesorería (versión 1.4.0). */
+function migracionSaldos_() {
+  var ss = libro_();
+  if (ss.getSheetByName(HOJA_SALDOS)) return;
+  var h = crearHoja_(ss, HOJA_SALDOS, COLS_SALDOS, []);
+  h.getRange(1, 2, h.getMaxRows(), 7).setNumberFormat('#,##0.00');
+  h.getRange(1, 12).setValue('Cómo llenarla: copie la tabla del reporte de tesorería y péguela desde la celda A2 ' +
+    '(columnas A a H, sin la fila de totales). En "Departamento en Cargos" escriba a qué departamento de la pestaña ' +
+    'Cargos corresponde cada fila; si son varios, sepárelos con coma. Deje vacío lo que no es de un departamento. ' +
+    'En "Periodo del reporte" escriba el periodo en la primera fila, por ejemplo: octubre 2026.').setFontColor('#5f6368');
+  [240, 110, 110, 110, 110, 110, 110, 110, 260, 160].forEach(function (w, i) { h.setColumnWidth(i + 1, w); });
 }

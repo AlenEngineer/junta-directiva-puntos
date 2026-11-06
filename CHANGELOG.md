@@ -14,8 +14,21 @@ Cada versión explica, en **Qué hacer**, los pasos para una instalación existe
 
 Cambios que ya están en `main` pero todavía no forman parte de una versión.
 
+## [1.4.0] - 2026-11-06
+
+### Agregado
+- **Saldo de tesorería del departamento.** En la página de *Presupuesto*, cada persona ve el fondo de su departamento según el último reporte de tesorería: saldo a la fecha, saldo anterior, ingresos, egresos y transferencias. Si tiene varios cargos, ve el del departamento por el que presenta el punto.
+- Pestaña **Saldos**, con las mismas columnas del *Reporte de saldos, ingresos y egresos* para pegarlo tal cual, más **Departamento en Cargos** (a qué departamento corresponde cada fila; puede ser más de uno, separados por coma) y **Periodo del reporte**.
+
+### Seguridad
+- Cada persona recibe solo los saldos de sus propios departamentos. El enlace general no muestra saldos. Las filas sin *Departamento en Cargos* (préstamos, seguro, construcción…) no se le muestran a nadie.
+
 ### Interno
-- GitHub Actions: las pruebas ya no esperan en fila a otras ejecuciones; solo la publicación en Apps Script va de a una. En un pull request, un cambio nuevo cancela la ejecución anterior. No afecta a la aplicación.
+- GitHub Actions: las pruebas ya no esperan en fila a otras ejecuciones; solo la publicación en Apps Script va de a una. En un pull request, un cambio nuevo cancela la ejecución anterior.
+
+### Qué hacer
+- 📊 La pestaña **Saldos** se crea sola la primera vez que se use la hoja. Cada mes: copie la tabla del reporte de tesorería (sin la fila de totales) y péguela desde la celda **A2**; complete **Departamento en Cargos** y el **Periodo del reporte** en la primera fila. Ver *Saldos de tesorería* en el README.
+- Si actualiza a mano: cambian `Codigo.gs` y `Formulario.html`.
 
 ## [1.3.0] - 2026-11-05
 
@@ -150,7 +163,8 @@ Primera versión pública.
 - Formulario por secciones: informativo o para votación, actividad, presupuesto con cotización.
 - Agenda automática ordenada según el Manual de la Iglesia (evangelismo primero).
 
-[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.3.0...HEAD
+[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.0.0...v1.1.0
