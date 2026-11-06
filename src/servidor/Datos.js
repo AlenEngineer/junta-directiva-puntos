@@ -319,11 +319,15 @@ function montoTesoreria_(v) {
  */
 function saldosLeer_() {
   if (!libro_().getSheetByName(HOJA_SALDOS)) return { periodo: '', fondos: [] };
-  var filas = tablaLeer_(HOJA_SALDOS);
+  // Se ignoran las filas que repiten los encabezados (pasa al importar o pegar con encabezados).
+  var filas = tablaLeer_(HOJA_SALDOS).filter(function (f) {
+    return normalizar_(f['Departamento (tesorería)']) !== normalizar_('Departamento (tesorería)');
+  });
   var periodo = '';
   filas.forEach(function (f) {
     var p = f['Periodo del reporte'];
-    if (!periodo && p) periodo = p instanceof Date ? textoFecha_(p) : String(p).trim();
+    // Sheets convierte "octubre 2026" en una fecha: se vuelve a mostrar como "octubre 2026".
+    if (!periodo && p) periodo = p instanceof Date ? mesAnio_(p) : String(p).trim();
   });
   var fondos = filas.filter(function (f) {
     var nombre = String(f['Departamento (tesorería)'] || '').trim();

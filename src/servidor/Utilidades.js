@@ -38,3 +38,10 @@ function diaLegible_(fecha) {
 function normalizar_(texto) {
   return String(texto).trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
+
+/** "octubre 2026" a partir de una fecha. */
+function mesAnio_(fecha) {
+  var meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto',
+    'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  return meses[fecha.getMonth()] + ' ' + fecha.getFullYear();
+}

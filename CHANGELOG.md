@@ -14,6 +14,15 @@ Cada versión explica, en **Qué hacer**, los pasos para una instalación existe
 
 Cambios que ya están en `main` pero todavía no forman parte de una versión.
 
+## [1.4.1] - 2026-11-06
+
+### Corregido
+- Saldos: si Google Sheets convierte el periodo (por ejemplo *octubre 2026*) en una fecha, se muestra igual como *octubre 2026*, y no como *01/10/2026*.
+- Saldos: se ignoran las filas que repiten los encabezados, algo que pasa al importar un archivo debajo de los encabezados existentes.
+
+### Qué hacer
+- Nada.
+
 ## [1.4.0] - 2026-11-06
 
 ### Agregado
@@ -163,7 +172,8 @@ Primera versión pública.
 - Formulario por secciones: informativo o para votación, actividad, presupuesto con cotización.
 - Agenda automática ordenada según el Manual de la Iglesia (evangelismo primero).
 
-[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.0...HEAD
+[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.1.0...v1.2.0
