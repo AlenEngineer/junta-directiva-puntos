@@ -71,7 +71,7 @@ function generarAgenda() {
   }
   function seccion(cat) {
     agregar(['', cat.toUpperCase()], 'seccion');
-    var deCat = puntos.filter(function (f) { return v(f, 'Categoría') === cat; });
+    var deCat = puntos.filter(function (f) { return categoriaVigente_(v(f, 'Categoría')) === cat; });
     if (!deCat.length) agregar(['', 'Sin puntos presentados'], 'vacio');
     deCat.forEach(function (f) { agregar(filaPunto(f, true), 'punto'); });
   }

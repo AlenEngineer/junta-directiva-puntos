@@ -57,7 +57,7 @@ function obtenerPunto(clave, id, codigo) {
     titulo: t(v['Título']),
     datos: {
       nombre: ctx.general ? t(v['Presenta']) : '', departamento: t(v['Departamento']),
-      categoria: t(v['Categoría']), titulo: t(v['Título']), descripcion: t(v['Descripción y propuesta']),
+      categoria: categoriaVigente_(v['Categoría']), titulo: t(v['Título']), descripcion: t(v['Descripción y propuesta']),
       tipo: t(v['Tipo']), materialEnlace: t(v['Material de apoyo (enlace)']),
       esActividad: t(v['¿Es actividad?']), actFecha: iso(v['Fecha de la actividad']),
       actFechaFin: iso(v['Fecha de término de la actividad']),
@@ -95,7 +95,12 @@ function publico_(ctx) {
     departamentos: ctx.cargos.map(function (c) {
       return { valor: c.departamento, texto: c.departamento + ' (' + c.cargo + ')' };
     }),
-    categorias: CATEGORIAS,
+    // Categorías para la lista: las comunes, y las de cada departamento de la persona.
+    categorias: ctx.general ? categoriasPara_('', true) : CATEGORIAS.filter(function (c) { return !CATEGORIAS_RESTRINGIDAS[c]; }),
+    categoriasPorDepartamento: ctx.general ? null : ctx.cargos.reduce(function (m, c) {
+      m[c.departamento] = categoriasPara_(c.departamento, false);
+      return m;
+    }, {}),
     saldos: saldosPublicos_(ctx),
     version: VERSION
   };

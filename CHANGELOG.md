@@ -14,6 +14,27 @@ Cada versión explica, en **Qué hacer**, los pasos para una instalación existe
 
 Cambios que ya están en `main` pero todavía no forman parte de una versión.
 
+## [1.5.0] - 2026-11-06
+
+### Cambiado
+- **Categorías de los puntos:**
+  - *Departamentos* pasa a llamarse **Planes y actividades del departamento**.
+  - *Asuntos generales* pasa a llamarse **Otros asuntos**.
+- **Cada departamento ve solo las categorías que le corresponden:**
+  - **Tesorería y finanzas:** solo Tesorería.
+  - **Feligresía:** Secretaría y Ancianos.
+  - **Evangelismo y misión, Planes y actividades y Otros asuntos:** todos.
+  - **Enlace general:** solo *Evangelismo y misión* y *Otros asuntos*.
+- Si la persona tiene varios cargos, la lista cambia según el departamento por el que presenta el punto. El servidor también lo revisa.
+- **Agenda:** devocional, evangelismo y misión, acta anterior, tesorería y finanzas, feligresía, planes y actividades, otros asuntos y oración de clausura.
+
+### Compatibilidad
+- Los puntos ya enviados se ubican solos en la agenda: *Departamentos* va a *Planes y actividades* y *Asuntos generales*, a *Otros asuntos*. Una categoría desconocida va a *Otros asuntos*, así que ningún punto se pierde.
+- Al editar un punto viejo, su categoría se traduce a la nueva.
+
+### Qué hacer
+- Nada. Los nombres de departamento que habilitan categorías especiales son *Tesorería*, *Secretaría* y *Ancianos*, como en la pestaña *Cargos*.
+
 ## [1.4.1] - 2026-11-06
 
 ### Corregido
@@ -172,7 +193,8 @@ Primera versión pública.
 - Formulario por secciones: informativo o para votación, actividad, presupuesto con cotización.
 - Agenda automática ordenada según el Manual de la Iglesia (evangelismo primero).
 
-[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.1...HEAD
+[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.2.0...v1.3.0

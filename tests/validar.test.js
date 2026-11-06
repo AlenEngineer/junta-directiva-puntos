@@ -16,13 +16,29 @@ function t(nombre, d, o, esperaError) {
 let r = t('informativo simple', { ...base, tipo: 'Informativo', pideDinero: 'Sí', costo: '999' });
 if (r.costo !== '' || r.pideDinero !== '') { fails++; console.log('FALLA informativo guardó presupuesto'); }
 t('departamento ajeno', { ...base, departamento: 'Tesorería', tipo: 'Informativo' }, null, 'departamento');
-t('categoría inventada', { ...base, categoria: 'X', tipo: 'Informativo' }, null, 'categoría');
+t('categoría inventada', { ...base, categoria: 'X', tipo: 'Informativo' }, null, 'categoría válida');
 t('tipo viejo rechazado', { ...base, tipo: 'Votación: decisión de la junta' }, null, 'votación o informativo');
 t('votación sin actividad ni dinero', { ...base, tipo: 'Para votación', esActividad: 'No', pideDinero: 'No' });
 t('votación falta actividad', { ...base, tipo: 'Para votación', pideDinero: 'No' }, null, 'actividad');
 t('actividad sin lugar', { ...base, tipo: 'Para votación', esActividad: 'Sí', actFecha: '2027-03-20', actInicio: '15:00', responsable: 'Ana', pideDinero: 'No' }, null, 'lugar');
 r = t('actividad completa', { ...base, tipo: 'Para votación', esActividad: 'Sí', actFecha: '2027-03-20', actInicio: '15:00', lugar: 'Templo', responsable: 'Ana', asistencia: '50', pideDinero: 'No' });
 if (r.actFecha !== '20/03/2027') { fails++; console.log('FALLA formato fecha', r.actFecha); }
+// Categorías según el departamento (1.5.0)
+const opcDe = (depto) => ({ general: false, departamentos: [depto] });
+t('Escuela Sabática no puede usar Tesorería y finanzas', { ...base, categoria: 'Tesorería y finanzas', tipo: 'Informativo' }, null, 'categoría válida');
+t('Tesorería sí puede usar Tesorería y finanzas', { ...base, departamento: 'Tesorería', categoria: 'Tesorería y finanzas', tipo: 'Informativo' }, opcDe('Tesorería'));
+t('Ancianos puede usar Feligresía', { ...base, departamento: 'Ancianos', categoria: 'Feligresía (traslados, recepción de miembros)', tipo: 'Informativo' }, opcDe('Ancianos'));
+t('Secretaría puede usar Feligresía', { ...base, departamento: 'Secretaría', categoria: 'Feligresía (traslados, recepción de miembros)', tipo: 'Informativo' }, opcDe('Secretaría'));
+t('Jóvenes no puede usar Feligresía', { ...base, departamento: 'Ministerio Joven Adventista', categoria: 'Feligresía (traslados, recepción de miembros)', tipo: 'Informativo' }, opcDe('Ministerio Joven Adventista'), 'categoría válida');
+t('cualquier departamento usa Planes y actividades', { ...base, categoria: 'Planes y actividades del departamento', tipo: 'Informativo' });
+t('la categoría vieja "Departamentos" ya no se acepta en puntos nuevos', { ...base, categoria: 'Departamentos', tipo: 'Informativo' }, null, 'categoría válida');
+t('el enlace general solo usa Evangelismo u Otros asuntos', { ...base, nombre: 'María Torres', categoria: 'Planes y actividades del departamento', tipo: 'Informativo' }, { general: true, departamentos: [] }, 'categoría válida');
+t('el enlace general puede usar Otros asuntos', { ...base, nombre: 'María Torres', categoria: 'Otros asuntos', tipo: 'Informativo' }, { general: true, departamentos: [] });
+const { categoriaVigente_ } = new Function(code + '; return { categoriaVigente_ };')();
+console.log(categoriaVigente_('Departamentos') === 'Planes y actividades del departamento' && categoriaVigente_('Asuntos generales') === 'Otros asuntos' &&
+  categoriaVigente_('algo raro') === 'Otros asuntos' && categoriaVigente_('Evangelismo y misión') === 'Evangelismo y misión'
+  ? 'OK    categorías anteriores y desconocidas se ubican bien' : (fails++, 'FALLA categoriaVigente_'));
+
 // Material de apoyo
 r = t('informativo con enlace de video', { ...base, tipo: 'Informativo', materialEnlace: 'https://youtu.be/abc' });
 if (r.materialEnlace !== 'https://youtu.be/abc') { fails++; console.log('FALLA enlace de material no guardado'); }

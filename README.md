@@ -12,7 +12,8 @@ Aplicación web hecha con Google Apps Script para que los oficiales de la iglesi
   - *Material de apoyo* (opcional, en cualquier punto): un archivo de PowerPoint, PDF, Word o imagen de hasta 10 MB, o un enlace para videos y archivos grandes (YouTube, Google Drive). Se guarda en la misma carpeta de Drive que las cotizaciones y aparece en la agenda debajo de la descripción.
   - *Para votación*: pregunta si es una actividad (fechas, horas, lugar, responsable) y si se pide dinero de la iglesia. Las actividades de varios días, como un campamento o una campaña, llevan fecha de inicio y de término.
   - *Presupuesto*: costo total y monto que se pide a la iglesia, que no puede ser mayor. Si no cubre todo, pregunta cómo se conseguirá el resto. El costo se explica con una descripción, un enlace o un archivo (PDF, Word o imagen de hasta 5 MB).
-- **Agenda automática:** **Junta → Generar agenda** arma una pestaña con los puntos ordenados: devocional, evangelismo y misión, acta anterior, tesorería, departamentos, feligresía, asuntos generales y oración de clausura.
+- **Agenda automática:** **Junta → Generar agenda** arma una pestaña con los puntos ordenados: devocional, evangelismo y misión, acta anterior, tesorería y finanzas, feligresía, planes y actividades de los departamentos, otros asuntos y oración de clausura.
+- **Categorías según el departamento:** cada persona ve solo las categorías que le corresponden. *Tesorería y finanzas* solo la ve Tesorería; *Feligresía*, Secretaría y Ancianos; con el enlace general, solo *Evangelismo y misión* y *Otros asuntos*.
 - **Puntos del enlace general:** llegan como *Por revisar* y entran en la agenda cuando su Estado se cambia a *Aprobado*.
 - **Editar puntos enviados:** cada persona puede corregir sus puntos mientras la recepción esté abierta. La versión anterior queda en la pestaña *Historial*.
 
@@ -160,6 +161,8 @@ Si las filas de la tesorería no cambian de un mes a otro, puede pegar solo los 
 ## Cambiar los cargos (📊 Google Sheets)
 
 Edite la pestaña **Cargos**: departamento, nombre, cargo y si es director (*Sí* o *No*). Agregue o borre filas según haga falta. Los cambios se aplican en la siguiente **Junta → Nueva junta**.
+
+Las categorías *Tesorería y finanzas* y *Feligresía* dependen de los departamentos **Tesorería**, **Secretaría** y **Ancianos**. Si cambia esos nombres en *Cargos*, avíselo, porque hay que ajustarlos en `CATEGORIAS_RESTRINGIDAS` (`src/servidor/00-Config.js`).
 
 Si agrega a una persona nueva, aparece sola en **Contactos** la próxima vez que se actualice la pestaña Enlaces. Complete ahí su teléfono y correo. El nombre debe escribirse igual en *Cargos* y en *Contactos*.
 
