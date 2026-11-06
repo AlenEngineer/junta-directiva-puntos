@@ -14,6 +14,25 @@ Cada versión explica, en **Qué hacer**, los pasos para una instalación existe
 
 Cambios que ya están en `main` pero todavía no forman parte de una versión.
 
+## [1.2.0] - 2026-11-05
+
+### Agregado
+- **Editar un punto ya enviado.** Después de enviar aparece **Editar este punto**. Con un enlace personal, arriba del formulario aparece **Sus puntos enviados para esta junta**, con un botón **Editar** en cada uno. Se puede editar hasta que se cierre la recepción de puntos.
+- Al editar, los archivos adjuntos se conservan, salvo que se quiten o se reemplacen.
+- Pestaña **Historial**: cada vez que se edita un punto, la versión anterior se guarda ahí con la fecha.
+- En *Puntos*, columnas **ID**, **Enviado por**, **Código de edición**, **Última edición** y **Ediciones**.
+
+### Seguridad
+- Con un enlace personal solo se pueden ver y editar los puntos propios de la junta abierta.
+- Con el enlace general, que comparten varios miembros, solo se puede editar un punto desde la misma página donde se envió. Si estaba *Aprobado*, vuelve a *Por revisar*.
+
+### Compatibilidad
+- Los enlaces ya enviados siguen funcionando.
+- Los puntos enviados antes de esta versión en la junta abierta reciben un ID la primera vez que su autor abre el enlace, y desde entonces se pueden editar. Los del enlace general enviados antes no se pueden editar.
+
+### Qué hacer
+- Nada. Las columnas nuevas y la pestaña *Historial* aparecen solas. Si actualiza a mano: cambian `Codigo.gs` y `Formulario.html`.
+
 ## [1.1.0] - 2026-11-05
 
 ### Cambiado
@@ -105,7 +124,8 @@ Primera versión pública.
 - Formulario por secciones: informativo o para votación, actividad, presupuesto con cotización.
 - Agenda automática ordenada según el Manual de la Iglesia (evangelismo primero).
 
-[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.1.0...HEAD
+[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/0d31e92...v1.0.0
 [0.6.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/6ace68b...0d31e92

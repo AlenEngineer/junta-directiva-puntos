@@ -1,11 +1,11 @@
 {
   "name": "junta-directiva-puntos",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "license": "MIT",
   "description": "Aplicación web en Google Apps Script para recibir los puntos de la Junta Directiva de la iglesia.",
   "scripts": {
-    "test": "node tests/version.test.js && node tests/validar.test.js && node tests/mensajes.test.js && node tests/contactos.test.js && node tests/formulario.test.js && node tests/descripcion.test.js"
+    "test": "node tests/version.test.js && node tests/validar.test.js && node tests/mensajes.test.js && node tests/contactos.test.js && node tests/edicion.test.js && node tests/formulario.test.js && node tests/descripcion.test.js && node tests/edicion-pagina.test.js"
   },
   "devDependencies": {
     "playwright": "^1.47.0"

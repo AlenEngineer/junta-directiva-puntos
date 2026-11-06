@@ -14,6 +14,7 @@ Aplicación web hecha con Google Apps Script para que los oficiales de la iglesi
   - *Presupuesto*: costo total y monto que se pide a la iglesia, que no puede ser mayor. Si no cubre todo, pregunta cómo se conseguirá el resto. El costo se explica con una descripción, un enlace o un archivo (PDF, Word o imagen de hasta 5 MB).
 - **Agenda automática:** **Junta → Generar agenda** arma una pestaña con los puntos ordenados: devocional, evangelismo y misión, acta anterior, tesorería, departamentos, feligresía, asuntos generales y oración de clausura.
 - **Puntos del enlace general:** llegan como *Por revisar* y entran en la agenda cuando su Estado se cambia a *Aprobado*.
+- **Editar puntos enviados:** cada persona puede corregir sus puntos mientras la recepción esté abierta. La versión anterior queda en la pestaña *Historial*.
 
 ## Archivos
 

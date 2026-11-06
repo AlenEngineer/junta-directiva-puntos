@@ -110,6 +110,14 @@
   .chip button { border: none; background: none; cursor: pointer; color: var(--gris); font-size: 18px; line-height: 1; padding: 2px 4px; }
 
   .error-envio { color: var(--rojo); line-height: 20px; }
+  .punto-item { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 0; border-top: 1px solid var(--borde); }
+  .punto-item:first-child { border-top: none; }
+  .punto-item .meta { color: var(--gris); font-size: 12px; margin-top: 2px; }
+  .punto-item .btn { flex: none; }
+  .banner-edicion { border-left: 6px solid var(--morado); display: flex; align-items: center;
+    justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .acciones-hecho { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
   .pie { text-align: center; color: var(--gris); font-size: 12px; margin-top: 24px; }
   a { color: var(--morado); }
 </style>
@@ -129,7 +137,10 @@ Puede que la junta ya se haya realizado, que se haya cerrado la recepción de pu
   <div id="hecho" class="tarjeta encabezado oculto">
     <h1>Puntos para la Junta Directiva</h1>
     <div class="desc" id="hecho-texto"></div>
-    <div style="margin-top:20px"><a href="#" id="otro">Enviar otro punto</a></div>
+    <div class="acciones-hecho">
+      <button type="button" class="btn btn-secundario" id="editar-ultimo">Editar este punto</button>
+      <button type="button" class="btn btn-primario" id="otro">Enviar otro punto</button>
+    </div>
   </div>
 
   <form id="form" class="oculto" novalidate autocomplete="off">
@@ -138,6 +149,19 @@ Puede que la junta ya se haya realizado, que se haya cerrado la recepción de pu
       <div class="desc" id="desc"></div>
       <div class="linea"></div>
       <div class="nota-oblig">* Indica que la pregunta es obligatoria</div>
+    </div>
+
+    <!-- Puntos ya enviados con este enlace (solo enlaces personales) -->
+    <div id="mis-puntos" class="tarjeta oculto">
+      <div class="titulo-preg">Sus puntos enviados para esta junta</div>
+      <div class="ayuda">Puede editarlos hasta que se cierre la recepción de puntos.</div>
+      <div id="mis-puntos-lista" style="margin-top:8px"></div>
+    </div>
+
+    <div class="tarjeta banner-edicion oculto" id="banner-edicion">
+      <div><div class="titulo-preg">Editando un punto ya enviado</div>
+        <div class="ayuda" id="banner-titulo"></div></div>
+      <button type="button" class="btn btn-secundario" id="cancelar-edicion">Cancelar edición</button>
     </div>
 
     <!-- ===== Página 1: Datos del punto ===== -->
@@ -341,6 +365,9 @@ var DATOS = <?!= datosJson ?>;
   var OBLIG = 'Esta pregunta es obligatoria';
   var EXT = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp', 'heic'];
   var adjuntos = {};       // 'archivo' (cotización) y 'material': { nombre, base64 }
+  var existentes = {};     // archivos ya enviados que se conservan al editar
+  var edicion = null;      // { id, codigo, titulo } del punto que se está editando
+  var ultimo = null;       // { id, codigo, titulo } del último punto enviado
   var actual = 'pag1';
 
   // ---------- Preparar la página ----------
@@ -405,7 +432,7 @@ var DATOS = <?!= datosJson ?>;
       'Explique el punto. Si es para votación, escriba la propuesta tal como se votaría.';
     var total = 1 + (tipo !== 'Informativo' ? 1 : 0) + (tipo !== 'Informativo' && dinero !== 'No' ? 1 : 0);
     var num = Number(actual.slice(3));
-    $('siguiente').textContent = hayMas() ? 'Siguiente' : 'Enviar';
+    $('siguiente').textContent = hayMas() ? 'Siguiente' : (edicion ? 'Guardar cambios' : 'Enviar');
     $('atras').classList.toggle('oculto', actual === 'pag1');
     $('relleno').style.width = Math.round(num / total * 100) + '%';
     $('pagina-texto').textContent = 'Página ' + num + ' de ' + total;
@@ -457,7 +484,7 @@ var DATOS = <?!= datosJson ?>;
     cotizacion: function () {
       var e = val('enlace');
       if (e && !/^https?:\/\/\S+$/i.test(e)) return 'El enlace debe empezar con https://';
-      return val('descCosto') || e || adjuntos.archivo ? '' : 'Complete al menos una de las tres opciones';
+      return val('descCosto') || e || adjuntos.archivo || existentes.archivo ? '' : 'Complete al menos una de las tres opciones';
     },
     material: function () {
       var e = val('materialEnlace');
@@ -526,6 +553,7 @@ var DATOS = <?!= datosJson ?>;
       var lector = new FileReader();
       lector.onload = function () {
         adjuntos[id] = { nombre: f.name, base64: String(lector.result).split(',')[1] };
+        existentes[id] = false;
         $(id + '-nombre').textContent = f.name;
         $(id + '-chip').classList.remove('oculto');
         $(id + '-btn').classList.add('oculto');
@@ -539,6 +567,7 @@ var DATOS = <?!= datosJson ?>;
   }
   function quitarAdjunto(id) {
     delete adjuntos[id];
+    existentes[id] = false;
     $(id + '-chip').classList.add('oculto');
     $(id + '-btn').classList.remove('oculto');
   }
@@ -552,7 +581,8 @@ var DATOS = <?!= datosJson ?>;
       nombre: val('nombre'), departamento: dep,
       categoria: val('categoria'), titulo: val('titulo'), descripcion: val('descripcion'),
       tipo: radio('tipo'),
-      material: adjuntos.material || null, materialEnlace: val('materialEnlace')
+      material: adjuntos.material || null, materialEnlace: val('materialEnlace'),
+      mantenerMaterial: !!existentes.material && !adjuntos.material
     };
     if (d.tipo === 'Para votación') {
       d.esActividad = radio('esActividad');
@@ -565,6 +595,7 @@ var DATOS = <?!= datosJson ?>;
       if (d.pideDinero === 'Sí') {
         d.costo = val('costo'); d.monto = val('monto'); d.estrategia = val('estrategia');
         d.descCosto = val('descCosto'); d.enlace = val('enlace'); d.archivo = adjuntos.archivo || null;
+        d.mantenerArchivo = !!existentes.archivo && !adjuntos.archivo;
       }
     }
     return d;
@@ -573,29 +604,134 @@ var DATOS = <?!= datosJson ?>;
   function enviar() {
     var b = $('siguiente');
     b.disabled = true;
-    b.textContent = 'Enviando…';
+    b.textContent = edicion ? 'Guardando…' : 'Enviando…';
     $('error-envio').classList.add('oculto');
-    google.script.run
-      .withSuccessHandler(function () {
+    var runner = google.script.run
+      .withSuccessHandler(function (res) {
+        res = res || {};
+        ultimo = { id: res.id, codigo: res.codigo, titulo: res.titulo };
         $('form').classList.add('oculto');
-        $('hecho-texto').textContent = 'Su punto fue recibido. Gracias.' +
+        $('hecho-texto').textContent = (res.editado ? 'Sus cambios se guardaron. Gracias.' : 'Su punto fue recibido. Gracias.') +
           (D.general ? '\nSerá revisado antes de incluirse en la agenda.' : '');
+        $('editar-ultimo').classList.toggle('oculto', !res.id);
         $('hecho').classList.remove('oculto');
+        edicion = null;
+        cargarMisPuntos();
         window.scrollTo(0, 0);
       })
       .withFailureHandler(function (e) {
         b.disabled = false;
         actualizar();
         var msg = String((e && e.message) || e).replace(/^(Exception|Error):\s*/, '');
-        $('error-envio-texto').textContent = 'No se pudo enviar: ' + msg;
+        $('error-envio-texto').textContent = (edicion ? 'No se pudieron guardar los cambios: ' : 'No se pudo enviar: ') + msg;
         $('error-envio').classList.remove('oculto');
-      })
-      .enviarPunto(D.clave, datos());
+      });
+    if (edicion) runner.editarPunto(D.clave, edicion.id, edicion.codigo, datos());
+    else runner.enviarPunto(D.clave, datos());
   }
+
+  // ---------- Editar un punto ya enviado ----------
+  function mensajeError(e) { return String((e && e.message) || e).replace(/^(Exception|Error):\s*/, ''); }
+
+  function abrirParaEditar(id, codigo) {
+    google.script.run
+      .withSuccessHandler(function (p) {
+        $('hecho').classList.add('oculto');
+        $('form').classList.remove('oculto');
+        reiniciar();
+        cargar(p.datos);
+        edicion = { id: p.id, codigo: codigo || '', titulo: p.titulo };
+        $('banner-titulo').textContent = p.titulo;
+        $('banner-edicion').classList.remove('oculto');
+        $('mis-puntos').classList.add('oculto');
+        actualizar();
+        window.scrollTo(0, 0);
+      })
+      .withFailureHandler(function (e) { alert('No se pudo abrir el punto: ' + mensajeError(e)); })
+      .obtenerPunto(D.clave, id, codigo || '');
+  }
+
+  function cargar(p) {
+    if (D.general) $('nombre').value = p.nombre || '';
+    if (!D.general && D.departamentos.length > 1) $('depto').value = p.departamento || '';
+    ['categoria', 'titulo', 'descripcion', 'materialEnlace', 'actFecha', 'actFechaFin', 'actInicio', 'actFin',
+      'lugar', 'responsable', 'asistencia', 'costo', 'monto', 'estrategia', 'descCosto', 'enlace']
+      .forEach(function (k) { $(k).value = p[k] || ''; });
+    [['tipo', p.tipo], ['esActividad', p.esActividad], ['dinero', p.pideDinero]].forEach(function (x) {
+      var r = document.querySelector('input[name="' + x[0] + '"][value="' + x[1] + '"]');
+      if (r) r.checked = true;
+    });
+    if (p.archivoActual) mostrarExistente('archivo');
+    if (p.materialActual) mostrarExistente('material');
+    document.querySelectorAll('textarea').forEach(function (t) {
+      t.style.height = 'auto';
+      t.style.height = t.scrollHeight + 'px';
+    });
+  }
+
+  function mostrarExistente(id) {
+    existentes[id] = true;
+    $(id + '-nombre').textContent = 'Archivo enviado anteriormente';
+    $(id + '-chip').classList.remove('oculto');
+    $(id + '-btn').classList.add('oculto');
+  }
+
+  // La lista va debajo del encabezado que esté a la vista: el del formulario o el de "recibido".
+  function ubicarLista() {
+    var enHecho = !$('hecho').classList.contains('oculto');
+    var ancla = enHecho ? $('hecho') : document.querySelector('#form .encabezado');
+    ancla.parentNode.insertBefore($('mis-puntos'), ancla.nextSibling);
+  }
+
+  function cargarMisPuntos() {
+    if (D.general) return;
+    google.script.run
+      .withSuccessHandler(function (lista) {
+        var cont = $('mis-puntos-lista');
+        cont.innerHTML = '';
+        (lista || []).forEach(function (p) {
+          var item = document.createElement('div');
+          item.className = 'punto-item';
+          var txt = document.createElement('div');
+          var tit = document.createElement('div');
+          tit.textContent = p.titulo;
+          var meta = document.createElement('div');
+          meta.className = 'meta';
+          meta.textContent = p.tipo + ' · ' + p.departamento + (p.enviado ? ' · enviado ' + p.enviado : '') +
+            (p.ediciones ? ' · editado ' + p.ediciones + (p.ediciones === 1 ? ' vez' : ' veces') : '');
+          txt.appendChild(tit);
+          txt.appendChild(meta);
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn btn-secundario';
+          b.textContent = 'Editar';
+          b.addEventListener('click', function () { abrirParaEditar(p.id, ''); });
+          item.appendChild(txt);
+          item.appendChild(b);
+          cont.appendChild(item);
+        });
+        ubicarLista();
+        $('mis-puntos').classList.toggle('oculto', !(lista || []).length || !!edicion);
+      })
+      .withFailureHandler(function () { /* la lista es opcional */ })
+      .misPuntos(D.clave);
+  }
+
+  $('editar-ultimo').addEventListener('click', function () {
+    if (ultimo && ultimo.id) abrirParaEditar(ultimo.id, ultimo.codigo);
+  });
+  $('cancelar-edicion').addEventListener('click', function () {
+    if (!confirm('¿Cancelar la edición? Los cambios que no guardó se perderán.')) return;
+    reiniciar();
+    cargarMisPuntos();
+  });
 
   // ---------- Borrar y enviar otro ----------
   function reiniciar() {
     $('form').reset();
+    edicion = null;
+    existentes = {};
+    $('banner-edicion').classList.add('oculto');
     quitarAdjunto('archivo');
     quitarAdjunto('material');
     document.querySelectorAll('.pregunta.error').forEach(function (q) {
@@ -614,6 +750,7 @@ var DATOS = <?!= datosJson ?>;
     $('hecho').classList.add('oculto');
     $('form').classList.remove('oculto');
     reiniciar();
+    ubicarLista();
   });
 
   // ---------- Eventos ----------
@@ -627,6 +764,7 @@ var DATOS = <?!= datosJson ?>;
   });
   $('form').addEventListener('change', function (e) { actualizar(); limpiarError(e); });
   actualizar();
+  cargarMisPuntos();
 })();
 </script>
 </body>

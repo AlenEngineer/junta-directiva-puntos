@@ -3,12 +3,12 @@ const { chromium } = require('playwright');
 const html = fs.readFileSync(require('path').join(__dirname, '..', 'Formulario.html'), 'utf8');
 const CATS = ['Evangelismo y misión','Tesorería y finanzas','Departamentos','Feligresía (traslados, recepción de miembros)','Asuntos generales'];
 function pagina(datos) {
-  const stub = `<script>window.__envios=[];window.google={script:{run:(function(){var s,f;var r={withSuccessHandler:function(x){s=x;return r;},withFailureHandler:function(x){f=x;return r;},enviarPunto:function(c,d){window.__envios.push(d);setTimeout(function(){s({ok:true});},30);}};return r;})()}};</script>`;
+  const stub = require('./servidor-simulado');
   return html.replace('<?!= datosJson ?>', JSON.stringify(datos)).replace('<script>', stub + '<script>');
 }
 const daniel = { clave: 'a'.repeat(32), general: false, nombre: 'Daniel Rivas', junta: 'domingo 14 de marzo de 2027',
   departamentos: [{valor:'Escuela Sabática',texto:'Escuela Sabática (Director)'},{valor:'Ancianos',texto:'Ancianos (Anciano)'}],
-  categorias: CATS, version: '1.1.0' };
+  categorias: CATS, version: '1.2.0' };
 const OUT = require('path').join(__dirname, 'salida') + '/'; fs.mkdirSync(OUT, { recursive: true });
 let fails = 0;
 const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fails++; };
@@ -19,7 +19,7 @@ const check = (c, m) => { console.log((c ? 'OK    ' : 'FALLA ') + m); if (!c) fa
   fs.writeFileSync(OUT + 'p.html', pagina(daniel));
   await page.goto('file://' + OUT + 'p.html');
   await page.screenshot({ path: OUT + '1-inicio.png', fullPage: true });
-  check((await page.textContent('.pie')).includes('· v1.1.0'), 'el pie muestra la versión');
+  check((await page.textContent('.pie')).includes('· v1.2.0'), 'el pie muestra la versión');
   check(await page.isVisible('#q-depto'), 'muestra departamento si tiene varios');
   check((await page.$('#tiempo')) === null, 'ya no pregunta el tiempo estimado');
   check(!(await page.isVisible('#q-nombre')), 'oculta nombre con enlace personal');

@@ -22,7 +22,7 @@
  */
 
 // Versión de la aplicación. Debe coincidir con package.json y con CHANGELOG.md (lo revisan las pruebas).
-var VERSION = '1.1.0';
+var VERSION = '1.2.0';
 var REPOSITORIO = 'https://github.com/AlenEngineer/junta-directiva-puntos';
 
 var HOJA_CARGOS = 'Cargos';
@@ -31,6 +31,7 @@ var HOJA_PUNTOS = 'Puntos';
 var HOJA_ENLACES = 'Enlaces';
 var HOJA_CLAVES = '_Claves';
 var HOJA_CONTACTOS = 'Contactos';
+var HOJA_HISTORIAL = 'Historial';
 var GENERAL = 'GENERAL';
 var CODIGO_PAIS_INICIAL = '507'; // Panamá. Se cambia con Junta → Cambiar el código de país…
 
@@ -66,6 +67,9 @@ var COLS_PUNTOS = [
   'Estrategia para el resto', 'Descripción del costo', 'Enlace a la cotización',
   'Archivo de la cotización'
 ];
+
+// Columnas para editar puntos: quién lo envió, su código y cuántas veces se editó.
+var COLS_CONTROL = ['ID', 'Enviado por', 'Código de edición', 'Última edición', 'Ediciones'];
 
 var ESTADOS = ['Recibido', 'Por revisar', 'Aprobado', 'Rechazado'];
 
@@ -330,11 +334,140 @@ function doGet(e) {
 
 /** La llama la página al presionar "Enviar". */
 function enviarPunto(clave, d) {
+  return guardarPunto_(clave, d || {}, null);
+}
+
+/** La llama la página al presionar "Guardar cambios" en un punto ya enviado. */
+function editarPunto(clave, id, codigo, d) {
+  return guardarPunto_(clave, d || {}, { id: String(id || ''), codigo: String(codigo || '') });
+}
+
+/** Puntos que la persona envió para la junta abierta (solo enlaces personales). */
+function misPuntos(clave) {
+  var ctx = contexto_(String(clave || ''));
+  if (!ctx || ctx.general) return [];
+  completarIds_(ctx.junta);
+  var h = hoja_(HOJA_PUNTOS);
+  var datos = h.getDataRange().getValues();
+  var enc = datos[0].map(String);
+  var c = function (col) { return enc.indexOf(col); };
+  if (c('ID') < 0) return [];
+  var tz = Session.getScriptTimeZone();
+  return datos.slice(1).filter(function (f) {
+    return f[c('ID')] && String(f[c('Enviado por')]) === ctx.nombre && textoFecha_(f[c('Junta')]) === ctx.junta.fecha;
+  }).map(function (f) {
+    return {
+      id: String(f[c('ID')]),
+      titulo: String(f[c('Título')]),
+      tipo: String(f[c('Tipo')]),
+      departamento: String(f[c('Departamento')]),
+      enviado: f[0] instanceof Date ? Utilities.formatDate(f[0], tz, 'dd/MM HH:mm') : '',
+      ediciones: Number(f[c('Ediciones')]) || 0
+    };
+  });
+}
+
+/** Devuelve un punto ya enviado, con los datos para llenar el formulario. */
+function obtenerPunto(clave, id, codigo) {
   var ctx = contexto_(String(clave || ''));
   if (!ctx) throw new Error('Este enlace ya no es válido. Pida el enlace actualizado a la secretaría de la iglesia.');
-  limitar_(clave, ctx.general ? 10 : 25);
+  var r = buscarPuntoEditable_(ctx, String(id || ''), String(codigo || ''));
+  if (!r) throw new Error('No se encontró el punto, o ya no se puede editar.');
+  var v = r.valores, tz = Session.getScriptTimeZone();
+  var iso = function (x) {
+    var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(textoFecha_(x));
+    return m ? m[3] + '-' + m[2] + '-' + m[1] : '';
+  };
+  var hora = function (x) { return x instanceof Date ? Utilities.formatDate(x, tz, 'HH:mm') : String(x || ''); };
+  var t = function (x) { return x == null ? '' : String(x); };
+  return {
+    id: t(v['ID']),
+    titulo: t(v['Título']),
+    datos: {
+      nombre: ctx.general ? t(v['Presenta']) : '', departamento: t(v['Departamento']),
+      categoria: t(v['Categoría']), titulo: t(v['Título']), descripcion: t(v['Descripción y propuesta']),
+      tipo: t(v['Tipo']), materialEnlace: t(v['Material de apoyo (enlace)']),
+      esActividad: t(v['¿Es actividad?']), actFecha: iso(v['Fecha de la actividad']),
+      actFechaFin: iso(v['Fecha de término de la actividad']),
+      actInicio: hora(v['Hora de inicio']), actFin: hora(v['Hora de término']),
+      lugar: t(v['Lugar']), responsable: t(v['Responsable']), asistencia: t(v['Asistencia esperada']),
+      pideDinero: t(v['¿Solicita dinero?']), costo: t(v['Costo total']), monto: t(v['Monto solicitado a la iglesia']),
+      estrategia: t(v['Estrategia para el resto']), descCosto: t(v['Descripción del costo']),
+      enlace: t(v['Enlace a la cotización']),
+      archivoActual: !!v['Archivo de la cotización'], materialActual: !!v['Material de apoyo (archivo)']
+    }
+  };
+}
 
-  d = d || {};
+/**
+ * Busca un punto que esta persona puede editar en la junta abierta.
+ * Enlace personal: el punto debe ser suyo. Enlace general: hace falta el código
+ * de edición que recibió quien lo envió (solo lo tiene esa página).
+ */
+/**
+ * Compatibilidad con puntos enviados antes de la versión 1.2.0, que no tienen ID:
+ * les asigna uno y anota quién los envió (por su nombre), solo en la junta abierta.
+ * Los del enlace general quedan sin código de edición, así que no se pueden editar.
+ */
+function completarIds_(junta) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var h = hoja_(HOJA_PUNTOS);
+    if (h.getLastRow() < 2) return;
+    var enc = asegurarColumnas_(h, COLS_PUNTOS.concat(COLS_CONTROL));
+    var datos = h.getRange(1, 1, h.getLastRow(), enc.length).getValues();
+    var c = function (col) { return enc.indexOf(col); };
+    for (var i = 1; i < datos.length; i++) {
+      var f = datos[i];
+      if (f[c('ID')] || textoFecha_(f[c('Junta')]) !== junta.fecha || !f[c('Presenta')]) continue;
+      var general = f[c('Departamento')] === 'Miembro de la iglesia';
+      h.getRange(i + 1, c('ID') + 1).setValue(nuevaClave_());
+      h.getRange(i + 1, c('Enviado por') + 1).setValue(celdaSegura_(general ? GENERAL : String(f[c('Presenta')])));
+      if (f[c('Ediciones')] === '') h.getRange(i + 1, c('Ediciones') + 1).setValue(0);
+    }
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function buscarPuntoEditable_(ctx, id, codigo) {
+  if (!/^[0-9a-f]{32}$/.test(id)) return null;
+  var datos = hoja_(HOJA_PUNTOS).getDataRange().getValues();
+  var enc = datos[0].map(String);
+  var iId = enc.indexOf('ID');
+  if (iId < 0) return null;
+  for (var i = 1; i < datos.length; i++) {
+    if (datos[i][iId] !== id) continue;
+    var v = {};
+    enc.forEach(function (col, j) { v[col] = datos[i][j]; });
+    if (textoFecha_(v['Junta']) !== ctx.junta.fecha) return null;
+    var dueno = String(v['Enviado por']);
+    if (ctx.general) {
+      if (dueno !== GENERAL || !codigo || String(v['Código de edición']) !== codigo) return null;
+    } else if (dueno !== ctx.nombre) {
+      return null;
+    }
+    return { fila: i + 1, valores: v, enc: enc, filaOriginal: datos[i] };
+  }
+  return null;
+}
+
+function guardarPunto_(clave, d, edicion) {
+  var ctx = contexto_(String(clave || ''));
+  if (!ctx) throw new Error('Este enlace ya no es válido. Pida el enlace actualizado a la secretaría de la iglesia.');
+  limitar_(clave, ctx.general ? 15 : 40);
+
+  var anterior = null;
+  if (edicion) {
+    anterior = buscarPuntoEditable_(ctx, edicion.id, edicion.codigo);
+    if (!anterior) throw new Error('No se encontró el punto, o ya no se puede editar.');
+  }
+  var archivoAnt = anterior ? String(anterior.valores['Archivo de la cotización'] || '') : '';
+  var materialAnt = anterior ? String(anterior.valores['Material de apoyo (archivo)'] || '') : '';
+  d.mantenerArchivo = !!(d.mantenerArchivo && archivoAnt);
+  d.mantenerMaterial = !!(d.mantenerMaterial && materialAnt);
+
   var p = validarPunto(d, {
     general: ctx.general,
     departamentos: ctx.cargos.map(function (c) { return c.departamento; })
@@ -345,8 +478,9 @@ function enviarPunto(clave, d) {
   var departamento = ctx.general ? 'Miembro de la iglesia' : p.departamento;
 
   var archivoUrl = '';
-  if (p.pideDinero === 'Sí' && d.archivo) {
-    archivoUrl = guardarArchivo_(d.archivo, ctx.junta.fecha, presenta);
+  if (p.pideDinero === 'Sí') {
+    if (d.archivo) archivoUrl = guardarArchivo_(d.archivo, ctx.junta.fecha, presenta);
+    else if (d.mantenerArchivo) archivoUrl = archivoAnt;
   }
   var materialUrl = '';
   if (d.material) {
@@ -354,6 +488,8 @@ function enviarPunto(clave, d) {
       tipos: tiposMaterial_(), max: MAX_MATERIAL,
       textoTipos: 'PDF, PowerPoint, Word o una imagen', prefijo: 'Material'
     });
+  } else if (d.mantenerMaterial) {
+    materialUrl = materialAnt;
   }
 
   var valores = {
@@ -370,18 +506,56 @@ function enviarPunto(clave, d) {
     'Estrategia para el resto': p.estrategia, 'Descripción del costo': p.descCosto,
     'Enlace a la cotización': p.enlace, 'Archivo de la cotización': archivoUrl
   };
+  if (anterior) {
+    var a = anterior.valores;
+    valores['Fecha de envío'] = a['Fecha de envío'];
+    valores['ID'] = a['ID'];
+    valores['Enviado por'] = a['Enviado por'];
+    valores['Código de edición'] = a['Código de edición'];
+    valores['Última edición'] = new Date();
+    valores['Ediciones'] = (Number(a['Ediciones']) || 0) + 1;
+    // Un punto del enlace general vuelve a revisión; los demás conservan su estado.
+    if (!ctx.general && a['Estado']) valores['Estado'] = a['Estado'];
+  } else {
+    valores['ID'] = nuevaClave_();
+    valores['Enviado por'] = ctx.general ? GENERAL : ctx.nombre;
+    valores['Código de edición'] = nuevaClave_();
+    valores['Ediciones'] = 0;
+  }
 
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     var h = hoja_(HOJA_PUNTOS);
     // Se escribe por nombre de columna: si falta alguna columna nueva, se agrega al final.
-    var enc = asegurarColumnas_(h, COLS_PUNTOS);
-    h.appendRow(enc.map(function (col) { return col in valores ? celdaSegura_(valores[col]) : ''; }));
+    var enc = asegurarColumnas_(h, COLS_PUNTOS.concat(COLS_CONTROL));
+    var fila = enc.map(function (col) { return col in valores ? celdaSegura_(valores[col]) : ''; });
+    if (anterior) {
+      // Volver a ubicar la fila por su ID, por si la hoja cambió mientras tanto.
+      var ids = h.getRange(1, enc.indexOf('ID') + 1, h.getLastRow(), 1).getValues();
+      var nFila = -1;
+      for (var i = 1; i < ids.length; i++) if (ids[i][0] === valores['ID']) { nFila = i + 1; break; }
+      if (nFila < 0) throw new Error('No se encontró el punto, o ya no se puede editar.');
+      var actual = h.getRange(nFila, 1, 1, enc.length).getValues()[0];
+      guardarHistorial_(enc, actual);
+      h.getRange(nFila, 1, 1, enc.length).setValues([fila]);
+    } else {
+      h.appendRow(fila);
+    }
   } finally {
     lock.releaseLock();
   }
-  return { ok: true };
+  return { ok: true, id: valores['ID'], codigo: valores['Código de edición'], titulo: p.titulo, editado: !!anterior };
+}
+
+/** Copia la versión anterior de un punto a la pestaña Historial. */
+function guardarHistorial_(enc, filaVieja) {
+  var ss = libro_();
+  var h = ss.getSheetByName(HOJA_HISTORIAL) || crearHoja_(ss, HOJA_HISTORIAL, ['Fecha de la edición'], []);
+  var encH = asegurarColumnas_(h, ['Fecha de la edición'].concat(enc));
+  var v = { 'Fecha de la edición': new Date() };
+  enc.forEach(function (col, j) { v[col] = filaVieja[j]; });
+  h.appendRow(encH.map(function (col) { return col in v ? celdaSegura_(v[col]) : ''; }));
 }
 
 /**
@@ -471,7 +645,7 @@ function validarPunto(d, opc) {
     p.descCosto = txt(d.descCosto, 2000);
     p.enlace = txt(d.enlace, 1000);
     if (p.enlace && !/^https?:\/\/\S+$/i.test(p.enlace)) return err('El enlace a la cotización debe empezar con https://');
-    if (!p.descCosto && !p.enlace && !d.archivo) {
+    if (!p.descCosto && !p.enlace && !d.archivo && !d.mantenerArchivo) {
       return err('Explique el costo: escriba una descripción, pegue un enlace o adjunte la cotización.');
     }
   }
