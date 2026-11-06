@@ -126,8 +126,9 @@ Ver *Versiones* en el README para publicar o volver atrás.
 | `datos.test.js` | Juntas, claves y validación de enlaces, con la hoja simulada |
 | `agenda.test.js` | La agenda generada: orden, tiempos, actividad, presupuesto y material |
 | `agenda-panel.test.js` | Agenda del panel: orden, tiempos, validaciones y que editar un punto los conserve |
+| `enlaces-panel.test.js` | Enlaces del panel: estado por persona, correos, límite diario, cambio de enlace y permisos |
 | `edicion.test.js` | Enviar, editar, historial, permisos y migraciones, con la hoja simulada |
-| `formulario.test.js`, `descripcion.test.js`, `edicion-pagina.test.js`, `saldo-pagina.test.js`, `categorias-pagina.test.js`, `accesibilidad-pagina.test.js`, `panel-pagina.test.js`, `panel-agenda-pagina.test.js` | La página en un navegador real (Chromium), con el servidor simulado |
+| `formulario.test.js`, `descripcion.test.js`, `edicion-pagina.test.js`, `saldo-pagina.test.js`, `categorias-pagina.test.js`, `accesibilidad-pagina.test.js`, `panel-pagina.test.js`, `panel-agenda-pagina.test.js`, `panel-enlaces-pagina.test.js` | La página en un navegador real (Chromium), con el servidor simulado |
 
 `tests/hoja-simulada.js` imita Google Sheets en memoria y `tests/servidor-simulado.js` imita `google.script.run`. **Lo que no se puede probar aquí** es lo que solo existe en Google: permisos, cuotas, la apariencia real de la hoja y el envío de correos.
 

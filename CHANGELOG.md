@@ -14,6 +14,23 @@ Cada versión explica, en **Qué hacer**, los pasos para una instalación existe
 
 Cambios que ya están en `main` pero todavía no forman parte de una versión.
 
+## [1.9.0] - 2026-11-06
+
+### Agregado
+- **Panel, sección Enlaces** (de la junta abierta):
+  - Por persona: **cuántos puntos envió**, si ya recibió el correo y si le falta teléfono.
+  - Resumen: cuántos enviaron puntos, cuántos aún no y cuántos correos faltan.
+  - **WhatsApp** con el mensaje ya escrito, **Enviar o reenviar el correo**, **Copiar enlace** y **Cambiar enlace** (con confirmación).
+  - **Enviar correos pendientes** con un botón; los correos salen desde la cuenta de quien usa el panel.
+  - Filtros: *Aún no envían puntos*, *Correo pendiente*, *Sin teléfono ni correo*, y búsqueda.
+  - El enlace general, con los puntos recibidos.
+
+### Cambiado
+- El envío de correos se separó de los cuadros de la hoja para usarlo también desde el panel. El menú funciona igual.
+
+### Qué hacer
+- Nada. El panel y el formulario se actualizan solos.
+
 ## [1.8.0] - 2026-11-06
 
 ### Agregado
@@ -253,7 +270,8 @@ Primera versión pública.
 - Formulario por secciones: informativo o para votación, actividad, presupuesto con cotización.
 - Agenda automática ordenada según el Manual de la Iglesia (evangelismo primero).
 
-[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.8.0...HEAD
+[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.5.0...v1.6.0

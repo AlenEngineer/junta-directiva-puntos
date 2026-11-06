@@ -114,6 +114,8 @@ Todo se hace desde el menú **Junta** de la hoja:
 
 ## Compartir los enlaces (📊 Google Sheets)
 
+> 💡 Lo mismo se puede hacer desde el **panel**, en la sección *Enlaces*, también desde el celular. Ahí además se ve quién ya envió puntos.
+
 La pestaña **Enlaces** tiene dos columnas para compartir:
 
 **WhatsApp** (un clic por persona):
@@ -164,6 +166,12 @@ Una página aparte para administrar, que también se puede usar desde el celular
 - los cambios se guardan solos;
 - **Generar en la hoja** crea la pestaña de agenda;
 - **Imprimir / PDF** saca una versión limpia para imprimir o compartir.
+
+**Enlaces** (de la junta abierta):
+- quién **ya envió puntos** y quién todavía no;
+- quién recibió el correo y a quién le falta teléfono o correo;
+- por persona: **WhatsApp** con el mensaje listo, **enviar o reenviar el correo**, **copiar** o **cambiar** el enlace;
+- **Enviar correos pendientes** con un solo botón. Los correos salen desde la cuenta de quien usa el panel.
 
 **Quién puede entrar:** quienes pueden **editar la hoja** de la Junta Directiva. Para darle acceso a la secretaria, comparta la hoja con ella como editora. Google pide iniciar sesión, y el panel verifica el permiso en cada acción.
 

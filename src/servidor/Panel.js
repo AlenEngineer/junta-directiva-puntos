@@ -141,3 +141,81 @@ function panelGenerarAgendaHoja(fecha) {
   exigirAdmin_();
   return generarAgendaHoja_(juntaPorFecha_(fecha));
 }
+
+// ---------------------------------------------------------------------
+// Enlaces (solo existen para la junta abierta)
+// ---------------------------------------------------------------------
+
+/**
+ * Enlaces de la junta abierta: por persona, su enlace, el botón de WhatsApp,
+ * el estado del correo y cuántos puntos envió.
+ */
+function panelEnlaces() {
+  exigirAdmin_();
+  asegurarEsquema_();
+  var junta = juntaActual_();
+  if (!junta) return { junta: null };
+  var url = urlApp_(false);
+  var cargos = leerCargos_();
+  var contactos = leerContactos_(cargos.orden);
+  var claves = leerClaves_(junta);
+  var cp = codigoPais_();
+  var enviados = {};
+  puntosLeer_().forEach(function (p) {
+    if (p['ID'] && textoFecha_(p['Junta']) === junta.fecha) enviados[p['Enviado por']] = (enviados[p['Enviado por']] || 0) + 1;
+  });
+  var enlace = function (n) { return url && claves[n] ? url + '?t=' + claves[n].clave : ''; };
+  var persona = function (n) {
+    var c = contactos[n] || {}, e = enlace(n);
+    var tel = telefonoWa_(c.telefono, cp);
+    var correo = correoValido_(c.correo) ? c.correo : '';
+    return {
+      nombre: n,
+      cargos: cargos.personas[n].cargos.map(function (x) { return x.cargo + ' – ' + x.departamento; }),
+      director: cargos.personas[n].director,
+      enlace: e,
+      whatsapp: e ? linkWhatsApp_(tel, mensajeWhatsApp_(n, junta, e, correo)) : '',
+      telefono: tel ? 'ok' : (tel === null ? 'no válido' : 'sin teléfono'),
+      correo: correo,
+      correoEstado: !c.correo ? 'Sin correo' : (!correo ? 'Correo no válido' :
+        (claves[n] && claves[n].enviado ? 'Enviado ' + claves[n].enviado : 'Pendiente')),
+      puntos: enviados[n] || 0
+    };
+  };
+  var eg = enlace(GENERAL);
+  return {
+    junta: { fecha: junta.fecha, dia: junta.dia },
+    sinUrl: !url,
+    personas: cargos.orden.map(persona),
+    general: { enlace: eg, whatsapp: eg ? linkWhatsApp_('', mensajeGeneral_(junta, eg)) : '', puntos: enviados[GENERAL] || 0 }
+  };
+}
+
+/** Envía por correo el enlace a las personas indicadas (de la pestaña Cargos, con correo). */
+function panelEnviarCorreos(nombres) {
+  exigirAdmin_();
+  var junta = juntaActual_();
+  if (!junta) throw new Error('No hay una junta abierta.');
+  var url = urlApp_(false);
+  if (!url) throw new Error('Falta la URL del formulario. Guárdela desde la hoja: Junta → Cambiar la URL de la aplicación…');
+  if (!Array.isArray(nombres) || !nombres.length || nombres.length > 300) throw new Error('Elija a quién enviar.');
+  var claves = leerClaves_(junta);
+  var validos = personasConCorreo_(leerCargos_().orden);
+  nombres.forEach(function (n) {
+    if (validos.indexOf(n) < 0 || !claves[n]) throw new Error('No se puede enviar a "' + n + '": revise su correo en Contactos.');
+  });
+  var r = enviarCorreosNucleo_(junta, url, nombres);
+  escribirEnlaces_();
+  return r;
+}
+
+/** Crea un enlace nuevo para una persona (o el general); el anterior deja de funcionar. */
+function panelCambiarEnlace(nombre) {
+  exigirAdmin_();
+  var junta = juntaActual_();
+  if (!junta) throw new Error('No hay una junta abierta.');
+  if (nombre !== GENERAL && leerCargos_().orden.indexOf(nombre) < 0) throw new Error('Esa persona no está en la pestaña Cargos.');
+  claveCambiar_(junta.fecha, nombre);
+  escribirEnlaces_();
+  return { ok: true };
+}

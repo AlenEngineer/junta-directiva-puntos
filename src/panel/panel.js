@@ -21,6 +21,7 @@
         avisar(mensajeError(e), true);
         $('cargando').classList.add('oculto');
         if (info && puntos.length) mostrar(); // vuelve a habilitar los botones
+        if (vista === 'enlaces' && enlaces) mostrarEnlaces();
       });
     r[funcion].apply(r, args);
   }
@@ -228,12 +229,16 @@
       b.classList.toggle('activa', activa);
       if (activa) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
-    var esAgenda = nueva === 'agenda';
-    ['filtros', 'resumen', 'lista'].forEach(function (id) { $(id).classList.toggle('oculto', esAgenda); });
-    ['agenda-barra', 'agenda'].forEach(function (id) { $(id).classList.toggle('oculto', !esAgenda); });
-    if (esAgenda) cargarAgenda(); else cargarPuntos();
+    var de = { puntos: ['filtros', 'resumen', 'lista'], agenda: ['agenda-barra', 'agenda'], enlaces: ['enlaces-barra', 'enlaces'] };
+    Object.keys(de).forEach(function (v) { de[v].forEach(function (id) { $(id).classList.toggle('oculto', v !== nueva); }); });
+    // Los enlaces son solo de la junta abierta: no se elige junta.
+    $('junta-grupo').classList.toggle('oculto', nueva === 'enlaces');
+    recargar();
   }
-  function recargar() { guardarPendiente(); if (vista === 'agenda') cargarAgenda(); else cargarPuntos(); }
+  function recargar() {
+    guardarPendiente();
+    if (vista === 'agenda') cargarAgenda(); else if (vista === 'enlaces') cargarEnlaces(); else cargarPuntos();
+  }
   // Si quedan cambios de la agenda esperando, se guardan ya (antes de cambiar de junta o de pestaña).
   function guardarPendiente() {
     if (agenda && Object.keys(sucias).length) { clearTimeout(guardarTimer); guardarAgenda(); }
@@ -402,6 +407,155 @@
     imp.appendChild(ol);
     window.print();
   });
+
+  // ---------- Enlaces ----------
+  var enlaces = null;   // respuesta de panelEnlaces
+
+  function cargarEnlaces() {
+    $('cargando').classList.remove('oculto');
+    $('cargando').textContent = 'Cargando…';
+    $('enlaces').innerHTML = '';
+    llamar('panelEnlaces', [], function (r) {
+      enlaces = r;
+      $('cargando').classList.add('oculto');
+      mostrarEnlaces();
+    });
+  }
+  function correoPendiente(p) { return p.correo && p.correoEstado === 'Pendiente'; }
+  function filtrarPersonas() {
+    var f = $('e-filtro').value, t = normal($('e-texto').value);
+    return enlaces.personas.filter(function (p) {
+      if (f === 'sin-puntos' && p.puntos) return false;
+      if (f === 'correo' && !correoPendiente(p)) return false;
+      if (f === 'sin-contacto' && (p.telefono === 'ok' || p.correo)) return false;
+      return !t || normal(p.nombre + ' ' + p.cargos.join(' ')).indexOf(t) >= 0;
+    });
+  }
+  function mostrarEnlaces() {
+    var cont = $('enlaces');
+    cont.innerHTML = '';
+    if (!enlaces.junta) {
+      $('enlaces-barra').classList.add('oculto');
+      cont.appendChild(el('div', 'tarjeta vacio', 'No hay una junta abierta. Los enlaces se crean con Junta → Nueva junta, en la hoja.'));
+      return;
+    }
+    $('enlaces-barra').classList.remove('oculto');
+    $('enlaces-junta').textContent = 'Enlaces de la junta del ' + enlaces.junta.dia;
+    var todos = enlaces.personas;
+    var conPuntos = todos.filter(function (p) { return p.puntos; }).length;
+    var pendientes = todos.filter(correoPendiente);
+    var res = $('enlaces-resumen');
+    res.innerHTML = '';
+    res.appendChild(el('span', '', todos.length + ' personas'));
+    res.appendChild(el('span', 'chip ok', conPuntos + ' enviaron puntos'));
+    res.appendChild(el('span', 'chip gris', (todos.length - conPuntos) + ' aún no'));
+    if (pendientes.length) res.appendChild(el('span', 'chip pendiente', pendientes.length + ' correo(s) pendiente(s)'));
+    var bc = $('enlaces-correos');
+    bc.textContent = pendientes.length ? 'Enviar correos pendientes (' + pendientes.length + ')' : 'No hay correos pendientes';
+    bc.disabled = !pendientes.length;
+    if (enlaces.sinUrl) cont.appendChild(el('div', 'tarjeta vacio',
+      'Falta la URL del formulario. Guárdela en la hoja: Junta → Cambiar la URL de la aplicación…'));
+
+    var lista = filtrarPersonas();
+    var seccion = function (titulo, personas) {
+      if (!personas.length) return;
+      var t = el('section', 'tarjeta seccion-enlaces');
+      t.appendChild(el('h2', '', titulo));
+      personas.forEach(function (p) { t.appendChild(filaPersona(p)); });
+      cont.appendChild(t);
+    };
+    seccion('Directores', lista.filter(function (p) { return p.director; }));
+    seccion('Asociados y miembros', lista.filter(function (p) { return !p.director; }));
+    if (!lista.length) cont.appendChild(el('div', 'tarjeta vacio', 'Nadie coincide con el filtro.'));
+    if (!$('e-filtro').value && !$('e-texto').value) cont.appendChild(filaGeneral());
+  }
+  function botonEnlace(texto, clase, url) {
+    var a = el('a', 'btn ' + clase, texto);
+    a.href = url; a.target = '_blank'; a.rel = 'noopener';
+    return a;
+  }
+  function botonAccion(texto, clase, fn) {
+    var b = el('button', 'btn ' + clase, texto);
+    b.type = 'button';
+    b.addEventListener('click', function () { fn(b); });
+    return b;
+  }
+  function copiar(url) {
+    var manual = function () { window.prompt('Copie el enlace:', url); };
+    try {
+      navigator.clipboard.writeText(url).then(function () { avisar('Enlace copiado.'); }, manual);
+    } catch (e) { manual(); }
+  }
+  function cambiarEnlace(nombre, quien) {
+    if (!window.confirm('¿Crear un enlace nuevo para ' + quien + '? El enlace actual dejará de funcionar y habrá que enviarle el nuevo.')) return;
+    llamar('panelCambiarEnlace', [nombre], function () {
+      avisar('Enlace nuevo para ' + quien + '. Envíeselo de nuevo.');
+      cargarEnlaces();
+    });
+  }
+  function enviarCorreos(nombres, boton) {
+    boton.disabled = true;
+    boton.textContent = 'Enviando…';
+    llamar('panelEnviarCorreos', [nombres], function (r) {
+      avisar('Correos enviados: ' + r.enviados + (r.errores.length ? '. No se pudo enviar a: ' + r.errores.join('; ') : '.'), r.errores.length > 0);
+      cargarEnlaces();
+    });
+  }
+  function filaPersona(p) {
+    var f = el('div', 'persona');
+    f.dataset.nombre = p.nombre;
+    f.appendChild(el('div', 'persona-nombre', p.nombre));
+    f.appendChild(el('div', 'persona-cargos', p.cargos.join(' · ')));
+    var chips = el('div', 'punto-chips');
+    chips.appendChild(el('span', 'chip ' + (p.puntos ? 'ok' : 'gris'),
+      p.puntos ? p.puntos + (p.puntos === 1 ? ' punto enviado' : ' puntos enviados') : 'Aún no envía puntos'));
+    chips.appendChild(el('span', 'chip ' + (/^Enviado/.test(p.correoEstado) ? 'ok' : p.correoEstado === 'Pendiente' ? 'pendiente' : 'gris'),
+      p.correoEstado === 'Pendiente' ? 'Correo sin enviar' : p.correoEstado.replace(/^Enviado/, 'Correo enviado')));
+    if (p.telefono !== 'ok') chips.appendChild(el('span', 'chip gris', p.telefono === 'no válido' ? 'Teléfono no válido' : 'Sin teléfono'));
+    f.appendChild(chips);
+    var acc = el('div', 'acciones');
+    if (p.enlace) {
+      acc.appendChild(botonEnlace(p.telefono === 'ok' ? 'WhatsApp' : 'WhatsApp (elegir contacto)', 'btn-whatsapp', p.whatsapp));
+      if (p.correo) acc.appendChild(botonAccion(/^Enviado/.test(p.correoEstado) ? 'Reenviar correo' : 'Enviar correo', 'btn-neutro',
+        function (b) { enviarCorreos([p.nombre], b); }));
+      acc.appendChild(botonAccion('Copiar enlace', 'btn-neutro', function () { copiar(p.enlace); }));
+    } else if (!enlaces.sinUrl) {
+      acc.appendChild(el('span', 'persona-cargos', 'Sin enlace todavía.'));
+    }
+    if (!enlaces.sinUrl) acc.appendChild(botonAccion(p.enlace ? 'Cambiar enlace' : 'Crear enlace', 'btn-rechazar',
+      function () { cambiarEnlace(p.nombre, p.nombre); }));
+    f.appendChild(acc);
+    return f;
+  }
+  function filaGeneral() {
+    var g = enlaces.general;
+    var t = el('section', 'tarjeta seccion-enlaces');
+    t.appendChild(el('h2', '', 'Enlace general (miembros de la iglesia)'));
+    var f = el('div', 'persona');
+    f.dataset.nombre = 'GENERAL';
+    f.appendChild(el('div', 'persona-cargos', 'Para cualquier miembro. Sus puntos llegan como "Por revisar".'));
+    var chips = el('div', 'punto-chips');
+    chips.appendChild(el('span', 'chip ' + (g.puntos ? 'ok' : 'gris'), g.puntos + (g.puntos === 1 ? ' punto recibido' : ' puntos recibidos')));
+    f.appendChild(chips);
+    var acc = el('div', 'acciones');
+    if (g.enlace) {
+      acc.appendChild(botonEnlace('WhatsApp (elegir contacto)', 'btn-whatsapp', g.whatsapp));
+      acc.appendChild(botonAccion('Copiar enlace', 'btn-neutro', function () { copiar(g.enlace); }));
+    }
+    if (!enlaces.sinUrl) acc.appendChild(botonAccion(g.enlace ? 'Cambiar enlace' : 'Crear enlace', 'btn-rechazar',
+      function () { cambiarEnlace('GENERAL', 'el enlace general'); }));
+    f.appendChild(acc);
+    t.appendChild(f);
+    return t;
+  }
+  $('enlaces-correos').addEventListener('click', function () {
+    var nombres = enlaces.personas.filter(correoPendiente).map(function (p) { return p.nombre; });
+    if (!nombres.length) return;
+    if (!window.confirm('¿Enviar el enlace por correo a ' + nombres.length + ' persona(s) que aún no lo recibieron?')) return;
+    enviarCorreos(nombres, $('enlaces-correos'));
+  });
+  $('e-filtro').addEventListener('change', mostrarEnlaces);
+  $('e-texto').addEventListener('input', mostrarEnlaces);
 
   // ---------- Eventos ----------
   $('junta').addEventListener('change', recargar);

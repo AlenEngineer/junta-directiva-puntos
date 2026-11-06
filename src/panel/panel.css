@@ -85,6 +85,23 @@ h1 { font-size: 24px; font-weight: 500; margin: 0 0 8px; }
 .fijo-agenda { padding: 12px 18px; font-style: italic; color: var(--gris); }
 .sin-puntos { padding: 12px 18px; color: var(--gris-claro); }
 
+/* ---------- Enlaces ---------- */
+.enlaces-barra { display: grid; gap: 12px; }
+.enlaces-junta { font-weight: 500; }
+.chip.ok { background: var(--verde-claro); color: var(--verde); }
+.chip.pendiente { background: var(--ambar-claro); color: var(--ambar); }
+.chip.gris { background: #f1f3f4; color: var(--gris); }
+.seccion-enlaces { padding: 0; overflow: hidden; }
+.seccion-enlaces h2 { margin: 0; padding: 12px 18px; font-size: 15px; letter-spacing: .4px; text-transform: uppercase;
+  background: var(--morado-claro); color: var(--morado-oscuro); }
+.persona { display: grid; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--borde); }
+.seccion-enlaces h2 + .persona { border-top: none; }
+.persona-nombre { font-size: 17px; font-weight: 500; }
+.persona-cargos { font-size: 14px; color: var(--gris-claro); }
+.persona .acciones .btn { min-height: 40px; padding: 0 14px; font-size: 14px; }
+a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+.btn-whatsapp { background: #128c4b; color: #fff; }
+
 /* ---------- Impresión: solo la agenda, limpia ---------- */
 .imprimible { display: none; }
 @media print {
