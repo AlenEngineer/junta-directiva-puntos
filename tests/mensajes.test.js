@@ -1,7 +1,7 @@
 // Pruebas de teléfonos, mensajes de WhatsApp y correo.
 const fs = require('fs');
 const path = require('path');
-const code = fs.readFileSync(path.join(__dirname, '..', 'Codigo.gs'), 'utf8');
+const code = fs.readFileSync(path.join(__dirname, '..', 'dist', 'Codigo.gs'), 'utf8');
 const g = new Function(code + '; return { telefonoWa_, linkWhatsApp_, mensajeWhatsApp_, mensajeGeneral_, ' +
   'correoValido_, correoTexto_, correoHtml_, escHtml_, CODIGO_PAIS_INICIAL };')();
 

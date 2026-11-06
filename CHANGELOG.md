@@ -14,6 +14,29 @@ Cada versión explica, en **Qué hacer**, los pasos para una instalación existe
 
 Cambios que ya están en `main` pero todavía no forman parte de una versión.
 
+## [1.3.0] - 2026-11-05
+
+Reestructuración interna para que la aplicación sea más fácil de mantener y de extender. Para los hermanos y para la hoja, todo funciona igual.
+
+### Cambiado
+- El código está dividido por tema en `src/servidor/` y `src/formulario/`. `scripts/empaquetar.js` lo une en `dist/Codigo.gs` y `dist/Formulario.html`, que es lo que se prueba y se publica.
+- **Capa de datos** (`Datos.js`): es la única parte que lee o escribe las pestañas de datos, siempre por nombre de columna.
+- **Migraciones** (`Esquema.js`): los cambios de estructura de la hoja se aplican solos, una vez y en orden. Reemplazan los arreglos sueltos de versiones anteriores.
+- Cada *Release* incluye los archivos para instalar o actualizar a mano.
+
+### Agregado
+- `ARQUITECTURA.md`: cómo está hecha la aplicación, reglas para mantenerla y cuándo convendría migrar.
+- Protección con advertencia en las columnas internas de *Puntos* (ID, Enviado por, Código de edición) y en las pestañas *_Claves* e *Historial*, para que no se borren sin querer.
+- Los puntos de juntas pasadas también reciben ID (no se pueden editar, pero quedan identificados).
+- Pruebas de la capa de datos: juntas, enlaces y migraciones.
+
+### Compatibilidad
+- Los enlaces ya enviados, los datos de la hoja y la URL de la aplicación no cambian.
+
+### Qué hacer
+- Nada. La primera vez que se use, la hoja aplica las migraciones sola. Si edita una columna interna, Google le mostrará una advertencia: puede continuar, pero no se recomienda.
+- Si actualiza a mano: descargue los archivos de la *Release* (ver README).
+
 ## [1.2.0] - 2026-11-05
 
 ### Agregado
@@ -124,7 +147,8 @@ Primera versión pública.
 - Formulario por secciones: informativo o para votación, actividad, presupuesto con cotización.
 - Agenda automática ordenada según el Manual de la Iglesia (evangelismo primero).
 
-[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.2.0...HEAD
+[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/0d31e92...v1.0.0

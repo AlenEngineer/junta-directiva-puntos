@@ -1,6 +1,6 @@
 const fs = require('fs');
 const { chromium } = require('playwright');
-const html = fs.readFileSync(require('path').join(__dirname, '..', 'Formulario.html'), 'utf8');
+const html = fs.readFileSync(require('path').join(__dirname, '..', 'dist', 'Formulario.html'), 'utf8');
 const datos = { clave: 'a'.repeat(32), general: false, nombre: 'Luis Rivas', junta: 'domingo 14 de marzo de 2027',
   departamentos: [{valor:'Ancianos',texto:'Ancianos (Primer anciano)'}], categorias: ['Asuntos generales'] };
 const stub = require('./servidor-simulado');

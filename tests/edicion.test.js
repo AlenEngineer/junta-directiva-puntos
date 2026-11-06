@@ -1,57 +1,10 @@
 // Pruebas de enviar y editar puntos con una hoja de cálculo simulada en memoria.
-const fs = require('fs');
-const path = require('path');
-const code = fs.readFileSync(path.join(__dirname, '..', 'Codigo.gs'), 'utf8');
-
-// ---- Hoja de cálculo simulada (solo lo que usa el código) ----
-class Hoja {
-  constructor(nombre) { this.nombre = nombre; this.celdas = []; }
-  getLastRow() { return this.celdas.length; }
-  getLastColumn() { return Math.max(0, ...this.celdas.map(f => f.length)); }
-  appendRow(fila) { this.celdas.push(fila.map(guardar)); }
-  getDataRange() { return this.getRange(1, 1, this.getLastRow(), this.getLastColumn()); }
-  getRange(fila, col, nf = 1, nc = 1) {
-    const h = this;
-    return {
-      getValues: () => Array.from({ length: nf }, (_, i) =>
-        Array.from({ length: nc }, (_, j) => ((h.celdas[fila - 1 + i] || [])[col - 1 + j] ?? ''))),
-      setValues(v) {
-        v.forEach((f, i) => f.forEach((x, j) => {
-          const r = fila - 1 + i; while (h.celdas.length <= r) h.celdas.push([]);
-          h.celdas[r][col - 1 + j] = guardar(x);
-        }));
-        return this;
-      },
-      setValue(x) { return this.setValues([[x]]); },
-      setFontWeight() { return this; }, setBackground() { return this; }
-    };
-  }
-  setFrozenRows() {}
-}
-// Como Sheets: un texto que empieza con ' se guarda sin el apóstrofo.
-const guardar = (x) => (typeof x === 'string' && x[0] === "'" ? x.slice(1) : x);
-
-const hojas = {};
-const libro = {
-  getSheetByName: (n) => hojas[n] || null,
-  insertSheet: (n) => (hojas[n] = new Hoja(n))
-};
-
-const g = new Function(code + `;
-  libro_ = function () { return __libro; };
-  limitar_ = function () {};
-  LockService = { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) };
-  Session = { getScriptTimeZone: () => 'America/Panama' };
-  Utilities = { getUuid: () => require('crypto').randomUUID(),
-                formatDate: (d) => d.toISOString().slice(0, 10) };
-  guardarArchivo_ = function (a) { return 'https://drive.google.com/archivo/' + a.nombre; };
-  contexto_ = function (clave) { return __contextos[clave] || null; };
-  return { enviarPunto, editarPunto, misPuntos, obtenerPunto, crearHoja_, COLS_PUNTOS };`
-  .replace('require(', '__require('));
-global.__libro = libro;
-global.__require = require;
+const { cargarServidor } = require('./hoja-simulada');
+const { api, hojas, libro, propiedades } = cargarServidor(
+  ['enviarPunto', 'editarPunto', 'misPuntos', 'obtenerPunto', 'crearHoja_', 'asegurarEsquema_', 'COLS_PUNTOS', 'COLS_CLAVES', 'ESQUEMA_ACTUAL'],
+  'contexto_ = function (clave) { return __contextos[clave] || null; };');
 const junta = { fecha: '26/11/2026', dia: 'jueves 26 de noviembre de 2026' };
-global.__contextos = {
+globalThis.__contextos = {
   daniel: { clave: 'daniel', junta, general: false, nombre: 'Daniel Rivas',
     cargos: [{ departamento: 'Escuela Sabática', cargo: 'Director' }, { departamento: 'Ancianos', cargo: 'Anciano' }] },
   luis: { clave: 'luis', junta, general: false, nombre: 'Luis Rivas', cargos: [{ departamento: 'Comunicación', cargo: 'Director' }] },
@@ -59,7 +12,6 @@ global.__contextos = {
   otraJunta: { clave: 'otraJunta', junta: { fecha: '10/12/2026', dia: '…' }, general: false, nombre: 'Daniel Rivas',
     cargos: [{ departamento: 'Escuela Sabática', cargo: 'Director' }] }
 };
-const api = g();
 api.crearHoja_(libro, 'Puntos', api.COLS_PUNTOS, []);
 
 let fails = 0;
@@ -148,6 +100,15 @@ const viejo = (presenta, depto, junta, titulo) => { const enc = p0.celdas[0];
 viejo('Daniel Rivas', 'Ancianos', '26/11/2026', 'Punto antiguo de Daniel');
 viejo('María Torres', 'Miembro de la iglesia', '26/11/2026', 'Punto antiguo general');
 viejo('Daniel Rivas', 'Ancianos', '12/11/2026', 'Punto de una junta pasada');
+api.crearHoja_(libro, '_Claves', ['Clave', 'Junta', 'Persona'], []);   // instalación vieja: sin "Correo enviado"
+delete propiedades.ESQUEMA;
+api.asegurarEsquema_();
+check(propiedades.ESQUEMA === String(api.ESQUEMA_ACTUAL), 'migraciones: el esquema queda en la versión ' + api.ESQUEMA_ACTUAL);
+check(hojas._Claves.celdas[0].includes('Correo enviado'), 'migraciones: agrega la columna que faltaba en _Claves');
+check(p0.protecciones.length === 3 && hojas._Claves.protecciones.length === 1, 'migraciones: protege las columnas internas y las claves');
+const filasAntes = JSON.stringify(p0.celdas);
+api.asegurarEsquema_();
+check(JSON.stringify(p0.celdas) === filasAntes && p0.protecciones.length === 3, 'migraciones: no se repiten');
 lista = api.misPuntos('daniel');
 check(lista.length === 1 && lista[0].titulo === 'Punto antiguo de Daniel', 'compatibilidad: un punto anterior aparece en mis puntos');
 const idViejo = lista[0].id;
@@ -160,7 +121,8 @@ check(general0[enc0.indexOf('Enviado por')] === 'GENERAL' && !general0[enc0.inde
   'compatibilidad: un punto anterior del enlace general queda sin código (no editable)');
 falla(() => api.obtenerPunto('general', general0[enc0.indexOf('ID')], ''), 'No se encontró', 'compatibilidad: nadie edita el punto general anterior');
 const pasado = p0.celdas.find(r => r[enc0.indexOf('Título')] === 'Punto de una junta pasada');
-check(!pasado[enc0.indexOf('ID')], 'compatibilidad: los puntos de juntas pasadas no se tocan');
+falla(() => api.obtenerPunto('daniel', pasado[enc0.indexOf('ID')], ''), 'No se encontró',
+  'compatibilidad: un punto de una junta pasada recibe ID, pero no se puede editar');
 check(p0.celdas.length === 4, 'compatibilidad: no se agregan filas');
 
 console.log(fails ? fails + ' FALLAS' : 'TODO OK');

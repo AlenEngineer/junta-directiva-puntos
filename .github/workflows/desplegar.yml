@@ -53,6 +53,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+      - name: Empaquetar (src/ → dist/)
+        run: node scripts/empaquetar.js
 
       - name: Ver si hay una versión nueva
         id: version
@@ -93,7 +95,7 @@ jobs:
           ETIQUETA: ${{ steps.version.outputs.etiqueta }}
         run: |
           printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
-          printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
+          printf '{"scriptId":"%s","rootDir":"dist"}' "$SCRIPT_ID" > .clasp.json
           npx --yes @google/clasp@2.4.2 push --force
           npx --yes @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID" --description "$ETIQUETA"
 
@@ -117,4 +119,6 @@ jobs:
             dentro && /^\[.*\]: http/ { exit }
             dentro { print }
           ' CHANGELOG.md > notas.md
-          gh release create "$ETIQUETA" --title "$ETIQUETA" --notes-file notas.md --verify-tag --latest
+          printf '\n---\n**Instalación o actualización manual:** descargue `Codigo.gs`, `Formulario.html` y `appsscript.json` de esta página (ver README).\n' >> notas.md
+          gh release create "$ETIQUETA" --title "$ETIQUETA" --notes-file notas.md --verify-tag --latest \
+            dist/Codigo.gs dist/Formulario.html dist/appsscript.json

@@ -1,7 +1,7 @@
 // Pruebas de la importación desde los contactos de Google (sin conectarse a Google).
 const fs = require('fs');
 const path = require('path');
-const code = fs.readFileSync(path.join(__dirname, '..', 'Codigo.gs'), 'utf8');
+const code = fs.readFileSync(path.join(__dirname, '..', 'dist', 'Codigo.gs'), 'utf8');
 const g = new Function(code + '; return { prepararContactosGoogle_, buscarContacto_, tokensNombre_, ' +
   'mejorTelefono_, mejorCorreo_, telefonoWa_ };')();
 

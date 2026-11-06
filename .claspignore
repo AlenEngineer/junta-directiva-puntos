@@ -1,5 +1,0 @@
-# Solo estos archivos se suben a Apps Script. Todo lo demás (pruebas, README, etc.) se queda en GitHub.
-**/**
-!Codigo.gs
-!Formulario.html
-!appsscript.json
