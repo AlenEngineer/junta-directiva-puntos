@@ -215,8 +215,196 @@
     });
   }
 
+  // ---------- Pestañas ----------
+  var vista = 'puntos';
+  document.querySelectorAll('.pestana[data-vista]').forEach(function (b) {
+    b.addEventListener('click', function () { cambiarVista(b.dataset.vista); });
+  });
+  function cambiarVista(nueva) {
+    guardarPendiente();
+    vista = nueva;
+    document.querySelectorAll('.pestana[data-vista]').forEach(function (b) {
+      var activa = b.dataset.vista === nueva;
+      b.classList.toggle('activa', activa);
+      if (activa) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    var esAgenda = nueva === 'agenda';
+    ['filtros', 'resumen', 'lista'].forEach(function (id) { $(id).classList.toggle('oculto', esAgenda); });
+    ['agenda-barra', 'agenda'].forEach(function (id) { $(id).classList.toggle('oculto', !esAgenda); });
+    if (esAgenda) cargarAgenda(); else cargarPuntos();
+  }
+  function recargar() { guardarPendiente(); if (vista === 'agenda') cargarAgenda(); else cargarPuntos(); }
+  // Si quedan cambios de la agenda esperando, se guardan ya (antes de cambiar de junta o de pestaña).
+  function guardarPendiente() {
+    if (agenda && Object.keys(sucias).length) { clearTimeout(guardarTimer); guardarAgenda(); }
+  }
+
+  // ---------- Agenda ----------
+  var agenda = null;          // respuesta de panelAgenda
+  var sucias = {};            // categorías con cambios sin guardar
+  var guardarTimer = null;
+
+  function cargarAgenda() {
+    if (!$('junta').value) return;
+    $('cargando').classList.remove('oculto');
+    $('cargando').textContent = 'Cargando…';
+    $('agenda').innerHTML = '';
+    llamar('panelAgenda', [$('junta').value], function (a) {
+      agenda = a;
+      sucias = {};
+      $('cargando').classList.add('oculto');
+      $('agenda-estado').textContent = '';
+      mostrarAgenda();
+    });
+  }
+
+  function totalMinutos() {
+    return agenda.secciones.reduce(function (t, s) {
+      return t + s.puntos.reduce(function (u, p) { return u + (p.minutos || 0); }, 0);
+    }, 0);
+  }
+  function textoMinutos(m) {
+    var h = Math.floor(m / 60), r = m % 60;
+    return h ? h + ' h' + (r ? ' ' + r + ' min' : '') : m + ' min';
+  }
+
+  function mostrarAgenda() {
+    var cont = $('agenda');
+    cont.innerHTML = '';
+    var n = 0;
+    var cuenta = agenda.secciones.reduce(function (t, s) { return t + s.puntos.length; }, 0);
+    $('agenda-total').textContent = cuenta + (cuenta === 1 ? ' punto' : ' puntos') + ' · tiempo asignado: ' + textoMinutos(totalMinutos());
+    var fijo = function (texto) {
+      var t = el('div', 'tarjeta fijo-agenda', (++n) + '. ' + texto);
+      cont.appendChild(t);
+    };
+    var seccion = function (s) {
+      var t = el('section', 'tarjeta seccion-agenda');
+      t.appendChild(el('h2', '', s.categoria));
+      if (!s.puntos.length) t.appendChild(el('div', 'sin-puntos', 'Sin puntos presentados'));
+      s.puntos.forEach(function (p, i) { t.appendChild(filaAgenda(s, p, i, ++n)); });
+      cont.appendChild(t);
+    };
+    fijo(agenda.fijos.apertura);
+    seccion(agenda.secciones[0]);
+    fijo(agenda.fijos.acta);
+    agenda.secciones.slice(1).forEach(seccion);
+    fijo(agenda.fijos.cierre);
+    if (agenda.pendientes.length) {
+      var t = el('section', 'tarjeta seccion-agenda');
+      t.appendChild(el('h2', '', 'Por revisar (no entran en la agenda)'));
+      agenda.pendientes.forEach(function (p) {
+        var f = el('div', 'fila-agenda');
+        var tx = el('div', 'texto');
+        tx.appendChild(el('b', '', p.titulo));
+        tx.appendChild(el('span', '', p.presenta + ' · apruébelo en la pestaña Puntos para incluirlo'));
+        f.appendChild(tx);
+        t.appendChild(f);
+      });
+      cont.appendChild(t);
+    }
+  }
+
+  function filaAgenda(s, p, i, numero) {
+    var f = el('div', 'fila-agenda');
+    f.dataset.id = p.id;
+    f.appendChild(el('span', 'num', numero + '.'));
+    var tx = el('div', 'texto');
+    tx.appendChild(el('b', '', p.titulo));
+    tx.appendChild(el('span', '', p.presenta + ' (' + p.departamento + ') · ' + p.tipo));
+    f.appendChild(tx);
+    var sel = el('select');
+    sel.setAttribute('aria-label', 'Tiempo para "' + p.titulo + '"');
+    var o0 = el('option', '', 'Tiempo…'); o0.value = '0'; sel.appendChild(o0);
+    agenda.tiempos.forEach(function (m) { var o = el('option', '', m + ' min'); o.value = String(m); sel.appendChild(o); });
+    sel.value = String(p.minutos || 0);
+    sel.addEventListener('change', function () { p.minutos = Number(sel.value); marcar(s); mostrarAgenda(); });
+    f.appendChild(sel);
+    var mover = el('div', 'mover');
+    var boton = function (texto, etiqueta, delta, deshabilitado) {
+      var b = el('button', '', texto);
+      b.type = 'button';
+      b.setAttribute('aria-label', etiqueta + ' "' + p.titulo + '"');
+      b.disabled = deshabilitado;
+      b.addEventListener('click', function () {
+        var j = i + delta;
+        var tmp = s.puntos[i]; s.puntos[i] = s.puntos[j]; s.puntos[j] = tmp;
+        marcar(s);
+        mostrarAgenda();
+        var fila = document.querySelector('.fila-agenda[data-id="' + p.id + '"] .mover button:not(:disabled)');
+        if (fila) fila.focus();
+      });
+      mover.appendChild(b);
+    };
+    boton('▲', 'Subir', -1, i === 0);
+    boton('▼', 'Bajar', 1, i === s.puntos.length - 1);
+    f.appendChild(mover);
+    return f;
+  }
+
+  // Guardado automático: se envía la sección completa para que su orden quede fijo.
+  function marcar(s) {
+    sucias[s.categoria] = true;
+    $('agenda-estado').textContent = 'Guardando…';
+    clearTimeout(guardarTimer);
+    guardarTimer = setTimeout(guardarAgenda, 800);
+  }
+  function guardarAgenda() {
+    var cambios = [];
+    agenda.secciones.forEach(function (s) {
+      if (!sucias[s.categoria]) return;
+      s.puntos.forEach(function (p, i) { cambios.push({ id: p.id, orden: i + 1, minutos: p.minutos || 0 }); });
+    });
+    if (!cambios.length) return;
+    sucias = {};
+    llamar('panelGuardarAgenda', [agenda.junta.fecha, cambios], function () {
+      $('agenda-estado').textContent = 'Guardado ✓';
+    });
+  }
+
+  $('agenda-hoja').addEventListener('click', function () {
+    var b = $('agenda-hoja');
+    b.disabled = true;
+    var generar = function () {
+      llamar('panelGenerarAgendaHoja', [agenda.junta.fecha], function (r) {
+        b.disabled = false;
+        avisar('Listo: pestaña "' + r.hoja + '" en la hoja, con ' + r.puntos + ' punto(s).' +
+          (r.pendientes ? ' Hay ' + r.pendientes + ' por revisar.' : ''));
+      });
+    };
+    // Si hay cambios esperando, se guardan antes de generar.
+    if (Object.keys(sucias).length) { clearTimeout(guardarTimer); guardarAgenda(); setTimeout(generar, 300); } else generar();
+  });
+
+  $('agenda-imprimir').addEventListener('click', function () {
+    var imp = $('imprimible');
+    imp.innerHTML = '';
+    imp.appendChild(el('h1', '', 'Agenda de la Junta Directiva'));
+    imp.appendChild(el('p', 'sub', agenda.junta.dia + (totalMinutos() ? ' · tiempo asignado a los puntos: ' + textoMinutos(totalMinutos()) : '')));
+    var ol = el('ol');
+    var item = function (texto, min, quien) {
+      var li = el('li');
+      if (min) li.appendChild(el('span', 'min', min + ' min'));
+      li.appendChild(document.createTextNode(texto));
+      if (quien) { li.appendChild(el('br')); li.appendChild(el('span', 'quien', quien)); }
+      ol.appendChild(li);
+    };
+    var seccion = function (s) {
+      ol.appendChild(el('li', 'sec', s.categoria));
+      if (!s.puntos.length) ol.appendChild(el('li', 'vacio-imp', 'Sin puntos presentados'));
+      s.puntos.forEach(function (p) { item(p.titulo, p.minutos, p.presenta + ' (' + p.departamento + ') · ' + p.tipo); });
+    };
+    item(agenda.fijos.apertura);
+    seccion(agenda.secciones[0]);
+    item(agenda.fijos.acta);
+    agenda.secciones.slice(1).forEach(seccion);
+    item(agenda.fijos.cierre);
+    imp.appendChild(ol);
+    window.print();
+  });
+
   // ---------- Eventos ----------
-  $('junta').addEventListener('change', cargarPuntos);
+  $('junta').addEventListener('change', recargar);
   ['f-estado', 'f-categoria', 'f-depto'].forEach(function (id) { $(id).addEventListener('change', mostrar); });
   $('f-texto').addEventListener('input', mostrar);
 })();

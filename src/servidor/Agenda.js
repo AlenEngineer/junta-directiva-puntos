@@ -23,16 +23,37 @@ function generarAgenda() {
     if (!junta) { ui.alert('No hay una junta registrada para el ' + f.texto + '.'); return; }
   }
 
+  var r2 = generarAgendaHoja_(junta);
+  ui.alert('Agenda lista: ' + r2.puntos + ' punto(s).' +
+    (r2.pendientes ? '\n\nHay ' + r2.pendientes + ' punto(s) del enlace general por revisar. ' +
+      'Apruébelos en el panel (o cambie su Estado a "Aprobado" en la pestaña Puntos) y genere la agenda otra vez.' : ''));
+}
+
+/**
+ * Arma la agenda de una junta: { secciones: [{ categoria, puntos }], pendientes }.
+ * Incluye los puntos Recibidos y Aprobados; los Por revisar van aparte y los Rechazados no van.
+ * Dentro de cada sección, el orden lo da "Orden en agenda" y luego la fecha de envío.
+ */
+function agendaDeJunta_(junta) {
+  var todos = puntosLeer_().filter(function (p) { return textoFecha_(p['Junta']) === junta.fecha; });
+  var orden = function (p) { var n = Number(p['Orden en agenda']); return p['Orden en agenda'] === '' || isNaN(n) ? 1e9 : n; };
+  todos.sort(function (a, b) { return (orden(a) - orden(b)) || (a['Fecha de envío'] - b['Fecha de envío']); });
+  var incluidos = todos.filter(function (p) { return ['Por revisar', 'Rechazado'].indexOf(p['Estado']) < 0; });
+  return {
+    secciones: CATEGORIAS.map(function (cat) {
+      return { categoria: cat, puntos: incluidos.filter(function (p) { return categoriaVigente_(p['Categoría']) === cat; }) };
+    }),
+    pendientes: todos.filter(function (p) { return p['Estado'] === 'Por revisar'; })
+  };
+}
+
+/** Crea (o reemplaza) la pestaña "Agenda dd-mm-aaaa". Devuelve { hoja, puntos, pendientes, minutos }. */
+function generarAgendaHoja_(junta) {
+  var ss = libro_();
+  var agenda = agendaDeJunta_(junta);
   var v = function (punto, col) { return punto[col] == null ? '' : punto[col]; };
-
-  var todos = puntosLeer_()
-    .filter(function (p) { return textoFecha_(v(p, 'Junta')) === junta.fecha; })
-    .sort(function (a, b) { return a['Fecha de envío'] - b['Fecha de envío']; });
-  var pendientes = todos.filter(function (f) { return v(f, 'Estado') === 'Por revisar'; });
-  var puntos = todos.filter(function (f) { return ['Por revisar', 'Rechazado'].indexOf(v(f, 'Estado')) < 0; });
-
   var COLS = ['#', 'Punto', 'Presenta', 'Tipo', 'Tiempo asignado', 'Descripción y propuesta', 'Actividad', 'Presupuesto'];
-  var filas = [], estilos = [], n = 0, solicitado = 0;
+  var filas = [], estilos = [], n = 0, solicitado = 0, minutos = 0, incluidos = 0;
 
   function agregar(fila, estilo) {
     while (fila.length < COLS.length) fila.push('');
@@ -67,25 +88,26 @@ function generarAgenda() {
     if (v(f, 'Material de apoyo (archivo)')) descripcion += '\n\nMaterial (archivo): ' + v(f, 'Material de apoyo (archivo)');
     if (v(f, 'Material de apoyo (enlace)')) descripcion += '\n' + (v(f, 'Material de apoyo (archivo)') ? '' : '\n') +
       'Material (enlace): ' + v(f, 'Material de apoyo (enlace)');
+    var min = Number(v(f, 'Tiempo asignado (min)')) || 0;
+    if (numerar) { minutos += min; incluidos++; }
     return [numerar ? ++n : '', v(f, 'Título'), v(f, 'Presenta') + '\n(' + v(f, 'Departamento') + ')',
-      v(f, 'Tipo'), '', descripcion, actividad, presupuesto]; // el tiempo lo asigna la junta
+      v(f, 'Tipo'), min ? min + ' min' : '', descripcion, actividad, presupuesto];
   }
-  function seccion(cat) {
-    agregar(['', cat.toUpperCase()], 'seccion');
-    var deCat = puntos.filter(function (f) { return categoriaVigente_(v(f, 'Categoría')) === cat; });
-    if (!deCat.length) agregar(['', 'Sin puntos presentados'], 'vacio');
-    deCat.forEach(function (f) { agregar(filaPunto(f, true), 'punto'); });
+  function seccion(sec) {
+    agregar(['', sec.categoria.toUpperCase()], 'seccion');
+    if (!sec.puntos.length) agregar(['', 'Sin puntos presentados'], 'vacio');
+    sec.puntos.forEach(function (f) { agregar(filaPunto(f, true), 'punto'); });
   }
 
-  fijo('Devocional y oración de apertura');
-  seccion(CATEGORIAS[0]); // Evangelismo primero, según el Manual de la Iglesia
-  fijo('Lectura y aprobación del acta anterior');
-  CATEGORIAS.slice(1).forEach(seccion);
-  fijo('Oración de clausura');
+  fijo(FIJO_APERTURA);
+  seccion(agenda.secciones[0]); // Evangelismo primero, según el Manual de la Iglesia
+  fijo(FIJO_ACTA);
+  agenda.secciones.slice(1).forEach(seccion);
+  fijo(FIJO_CIERRE);
 
-  if (pendientes.length) {
+  if (agenda.pendientes.length) {
     agregar(['', 'PENDIENTES DE REVISIÓN (enviados por el enlace general, no incluidos)'], 'seccion');
-    pendientes.forEach(function (f) { agregar(filaPunto(f, false), 'vacio'); });
+    agenda.pendientes.forEach(function (f) { agregar(filaPunto(f, false), 'vacio'); });
   }
 
   var nombreHoja = 'Agenda ' + junta.fecha.replace(/\//g, '-');
@@ -110,13 +132,13 @@ function generarAgenda() {
   });
 
   var pie = 4 + filas.length + 1;
-  h.getRange(pie, 2).setValue('Total solicitado a la iglesia: ' + solicitado).setFontWeight('bold');
+  h.getRange(pie, 2, 2, 1).setValues([
+    ['Tiempo asignado a los puntos: ' + minutos + ' min'],
+    ['Total solicitado a la iglesia: ' + solicitado]
+  ]).setFontWeight('bold');
 
   [40, 220, 190, 120, 100, 320, 210, 280].forEach(function (w, i) { h.setColumnWidth(i + 1, w); });
   h.setFrozenRows(3);
-  ss.setActiveSheet(h);
-
-  ui.alert('Agenda lista: ' + puntos.length + ' punto(s).' +
-    (pendientes.length ? '\n\nHay ' + pendientes.length + ' punto(s) del enlace general por revisar. ' +
-      'En la pestaña Puntos, cambie su Estado a "Aprobado" y genere la agenda otra vez.' : ''));
+  try { ss.setActiveSheet(h); } catch (e) { /* desde el panel no hay hoja abierta */ }
+  return { hoja: nombreHoja, puntos: incluidos, pendientes: agenda.pendientes.length, minutos: minutos };
 }

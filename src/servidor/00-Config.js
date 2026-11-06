@@ -1,5 +1,5 @@
 // Versión de la aplicación. Debe coincidir con package.json y con CHANGELOG.md (lo revisan las pruebas).
-var VERSION = '1.7.0';
+var VERSION = '1.8.0';
 
 var REPOSITORIO = 'https://github.com/AlenEngineer/junta-directiva-puntos';
 
@@ -83,6 +83,15 @@ var COLS_PUNTOS = [
 
 // Columnas para editar puntos: quién lo envió, su código y cuántas veces se editó.
 var COLS_CONTROL = ['ID', 'Enviado por', 'Código de edición', 'Última edición', 'Ediciones'];
+
+// Columnas de la agenda (las asigna quien administra desde el panel).
+var COLS_AGENDA = ['Orden en agenda', 'Tiempo asignado (min)'];
+var TIEMPOS_AGENDA = [5, 10, 15, 20, 30, 45, 60];
+
+// Momentos fijos de la agenda, alrededor de las secciones de puntos.
+var FIJO_APERTURA = 'Devocional y oración de apertura';
+var FIJO_ACTA = 'Lectura y aprobación del acta anterior';
+var FIJO_CIERRE = 'Oración de clausura';
 
 var ESTADOS = ['Recibido', 'Por revisar', 'Aprobado', 'Rechazado'];
 

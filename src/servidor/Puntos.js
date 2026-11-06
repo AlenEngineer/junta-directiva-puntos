@@ -58,6 +58,8 @@ function guardarPunto_(clave, d, edicion) {
     valores['Enviado por'] = a['Enviado por'];
     valores['Código de edición'] = a['Código de edición'];
     valores['Última edición'] = new Date();
+    // El orden y el tiempo de la agenda los asigna quien administra: editar el punto no los borra.
+    COLS_AGENDA.forEach(function (col) { valores[col] = a[col] == null ? '' : a[col]; });
     valores['Ediciones'] = (Number(a['Ediciones']) || 0) + 1;
     // Un punto del enlace general vuelve a revisión; los demás conservan su estado.
     if (!ctx.general && a['Estado']) valores['Estado'] = a['Estado'];

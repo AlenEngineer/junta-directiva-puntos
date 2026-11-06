@@ -14,6 +14,26 @@ Cada versión explica, en **Qué hacer**, los pasos para una instalación existe
 
 Cambios que ya están en `main` pero todavía no forman parte de una versión.
 
+## [1.8.0] - 2026-11-06
+
+### Agregado
+- **Panel, sección Agenda:**
+  - La agenda de cada junta, con sus momentos fijos y sus secciones en orden.
+  - **Ordenar** los puntos de cada sección con ▲ ▼.
+  - **Asignar el tiempo** de cada punto (5 a 60 min), con el total.
+  - Los cambios **se guardan solos**.
+  - Los puntos *Por revisar* aparecen aparte.
+- **Generar en la hoja**, desde el panel: crea la pestaña *Agenda dd-mm-aaaa*.
+- **Imprimir / PDF**: una versión limpia de la agenda para imprimir o guardar como PDF.
+- En *Puntos*, columnas **Orden en agenda** y **Tiempo asignado (min)** (migración 5).
+
+### Cambiado
+- La agenda de la hoja (también desde el menú) usa el orden y los tiempos asignados, y muestra el total de tiempo.
+- Editar un punto ya no borra su orden ni su tiempo en la agenda.
+
+### Qué hacer
+- Nada. Con el secreto `DEPLOYMENT_ID_PANEL` guardado, el panel se actualiza solo. Si actualiza a mano: cambian `Codigo.gs` y `Panel.html`.
+
 ## [1.7.0] - 2026-11-06
 
 ### Agregado
@@ -233,7 +253,8 @@ Primera versión pública.
 - Formulario por secciones: informativo o para votación, actividad, presupuesto con cotización.
 - Agenda automática ordenada según el Manual de la Iglesia (evangelismo primero).
 
-[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.7.0...HEAD
+[Sin publicar]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/AlenEngineer/junta-directiva-puntos/compare/v1.4.1...v1.5.0
