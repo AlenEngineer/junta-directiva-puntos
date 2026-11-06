@@ -102,6 +102,7 @@ function publico_(ctx) {
       return m;
     }, {}),
     saldos: saldosPublicos_(ctx),
+    ayuda: ayudaPublica_(),
     version: VERSION
   };
 }
@@ -134,4 +135,9 @@ function limitar_(clave, max) {
   var n = Number(cache.get(k)) || 0;
   if (n >= max) throw new Error('Se enviaron demasiados puntos con este enlace en poco tiempo. Intente más tarde.');
   cache.put(k, String(n + 1), 21600);
+}
+
+/** El contacto de ayuda para la página. Un error aquí no debe romper el formulario. */
+function ayudaPublica_() {
+  try { return contactoAyuda_(); } catch (e) { return null; }
 }

@@ -17,6 +17,14 @@ class Hoja {
   }
   getDataRange() { return this.getRange(1, 1, this.getLastRow(), this.getLastColumn()); }
   getRange(fila, col, nf = 1, nc = 1) {
+    if (typeof fila === 'string') {
+      // Notación A1: "E1" (una celda) o "B:B" (una columna entera).
+      const num = (letras) => letras.split('').reduce((n, l) => n * 26 + l.charCodeAt(0) - 64, 0);
+      const celda = /^([A-Z]+)(\d+)$/.exec(fila), columna = /^([A-Z]+):\1$/.exec(fila);
+      if (celda) return this.getRange(Number(celda[2]), num(celda[1]));
+      if (columna) return this.getRange(1, num(columna[1]), this.getMaxRows(), 1);
+      throw new Error('Notación no soportada en la hoja simulada: ' + fila);
+    }
     const h = this;
     return {
       getValues: () => Array.from({ length: nf }, (_, i) =>
@@ -28,6 +36,7 @@ class Hoja {
         }));
         return this;
       },
+      getDisplayValues() { return this.getValues().map(f => f.map(x => (x == null ? '' : String(x)))); },
       setValue(x) { return this.setValues([[x]]); },
       clearContent() {
         for (let i = 0; i < nf; i++) for (let j = 0; j < nc; j++) if (h.celdas[fila - 1 + i]) h.celdas[fila - 1 + i][col - 1 + j] = '';

@@ -116,3 +116,29 @@ function mensajeGeneral_(junta, enlace) {
     'Junta Directiva del ' + junta.dia + ':\n\n' + enlace + '\n\n' +
     'Los puntos serán revisados antes de incluirse en la agenda.';
 }
+
+/**
+ * Quién recibe los pedidos de ayuda del formulario: la persona configurada en
+ * Junta → Cambiar el contacto de ayuda…, o si no hay, quien dirige Secretaría.
+ * Devuelve { nombre, url } con un enlace de WhatsApp, o null si no tiene teléfono.
+ */
+function contactoAyuda_() {
+  var cargos = leerCargos_();
+  var nombre = PropertiesService.getScriptProperties().getProperty('CONTACTO_AYUDA');
+  if (!nombre || !cargos.personas[nombre]) {
+    nombre = cargos.orden.filter(function (n) {
+      return cargos.personas[n].cargos.some(function (c) {
+        return normalizar_(c.departamento) === normalizar_('Secretaría') && c.director;
+      });
+    })[0];
+  }
+  if (!nombre) return null;
+  var contacto = contactosFilas_().filter(function (c) { return c.nombre === nombre; })[0];
+  var tel = contacto && telefonoWa_(contacto.telefono, codigoPais_());
+  if (!tel) return null;
+  var primero = nombre.split(' ')[0];
+  return {
+    nombre: primero,
+    url: linkWhatsApp_(tel, 'Hola, ' + primero + '. Necesito ayuda con el formulario de puntos para la Junta Directiva.')
+  };
+}

@@ -185,16 +185,42 @@
   };
 
   function validar(pagina) {
-    var primera = null;
+    var errores = [];
     $(pagina).querySelectorAll('.pregunta').forEach(function (q) {
       if (!visible(q)) return;
       var msg = reglas[q.dataset.v]();
       q.classList.toggle('error', !!msg);
       q.querySelector('.msg-error span').textContent = msg;
-      if (msg && !primera) primera = q;
+      if (msg) errores.push(q);
     });
-    if (primera) primera.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return !primera;
+    mostrarResumenErrores(errores);
+    return !errores.length;
+  }
+
+  // "Faltan 2 respuestas", con un enlace a cada pregunta. Se ve arriba, apenas se presiona el botón.
+  function mostrarResumenErrores(errores) {
+    var caja = $('resumen-errores');
+    if (!errores.length) { caja.classList.add('oculto'); return; }
+    $('resumen-titulo').textContent = errores.length === 1 ? 'Falta 1 respuesta por revisar' : 'Faltan ' + errores.length + ' respuestas por revisar';
+    var lista = $('resumen-lista');
+    lista.innerHTML = '';
+    errores.forEach(function (q) {
+      var li = document.createElement('li');
+      var a = document.createElement('a');
+      a.href = '#';
+      a.textContent = q.querySelector('.titulo-preg').textContent.replace(/\s*\*\s*$/, '');
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        q.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        var campo = q.querySelector('input:not([type=file]), select, textarea');
+        if (campo) campo.focus({ preventScroll: true });
+      });
+      li.appendChild(a);
+      lista.appendChild(li);
+    });
+    caja.classList.remove('oculto');
+    caja.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    caja.focus({ preventScroll: true });
   }
 
   // Vuelve a revisar todas las preguntas marcadas en rojo: algunas dependen de otras
@@ -206,6 +232,8 @@
       if (!msg) q.classList.remove('error');
       else q.querySelector('.msg-error span').textContent = msg;
     });
+    // El resumen de arriba se esconde cuando ya no queda nada por revisar en la página.
+    if (!$(actual).querySelector('.pregunta.error')) $('resumen-errores').classList.add('oculto');
   }
 
   // ---------- Navegación ----------
@@ -214,6 +242,7 @@
     actual = pagina;
     $(actual).classList.remove('oculto');
     $('error-envio').classList.add('oculto');
+    $('resumen-errores').classList.add('oculto');
     actualizar();
     window.scrollTo(0, 0);
   }
@@ -298,13 +327,17 @@
     b.disabled = true;
     b.textContent = edicion ? 'Guardando…' : 'Enviando…';
     $('error-envio').classList.add('oculto');
+    var enviado = datos();
     var runner = google.script.run
       .withSuccessHandler(function (res) {
         res = res || {};
         ultimo = { id: res.id, codigo: res.codigo, titulo: res.titulo };
         $('form').classList.add('oculto');
+        $('hecho-titulo').textContent = res.editado ? '¡Cambios guardados!' : '¡Listo! Su punto fue enviado';
         $('hecho-texto').textContent = (res.editado ? 'Sus cambios se guardaron. Gracias.' : 'Su punto fue recibido. Gracias.') +
-          (D.general ? '\nSerá revisado antes de incluirse en la agenda.' : '');
+          (D.general ? '\nSerá revisado antes de incluirse en la agenda.' : '') + '\nEsto es lo que envió:';
+        mostrarResumenEnvio(enviado);
+        if (!res.editado) borrarBorrador();
         $('editar-ultimo').classList.toggle('oculto', !res.id);
         $('hecho').classList.remove('oculto');
         edicion = null;
@@ -318,8 +351,86 @@
         $('error-envio-texto').textContent = (edicion ? 'No se pudieron guardar los cambios: ' : 'No se pudo enviar: ') + msg;
         $('error-envio').classList.remove('oculto');
       });
-    if (edicion) runner.editarPunto(D.clave, edicion.id, edicion.codigo, datos());
-    else runner.enviarPunto(D.clave, datos());
+    if (edicion) runner.editarPunto(D.clave, edicion.id, edicion.codigo, enviado);
+    else runner.enviarPunto(D.clave, enviado);
+  }
+
+  // Lista de lo que se envió, para que la persona quede tranquila.
+  function mostrarResumenEnvio(d) {
+    var filas = [['Título', d.titulo], [D.general ? 'Nombre' : 'Departamento', D.general ? d.nombre : d.departamento], ['Categoría', d.categoria], ['Tipo', d.tipo]];
+    if (d.esActividad === 'Sí') {
+      var fechas = d.actFechaFin && d.actFechaFin !== d.actFecha ? fechaCorta(d.actFecha) + ' al ' + fechaCorta(d.actFechaFin) : fechaCorta(d.actFecha);
+      filas.push(['Actividad', fechas + ' · ' + d.actInicio + ' · ' + d.lugar]);
+    }
+    if (d.pideDinero === 'Sí') filas.push(['Pide a la iglesia', d.monto + ' de un costo total de ' + d.costo]);
+    var adjuntos = [d.archivo && 'cotización', d.material && 'material de apoyo'].filter(Boolean);
+    if (adjuntos.length) filas.push(['Archivos adjuntos', adjuntos.join(' y ')]);
+    var ul = $('resumen-envio');
+    ul.innerHTML = '';
+    filas.forEach(function (f) {
+      if (!f[1]) return;
+      var li = document.createElement('li');
+      var b = document.createElement('b');
+      b.textContent = f[0];
+      li.appendChild(b);
+      li.appendChild(document.createTextNode(f[1]));
+      ul.appendChild(li);
+    });
+  }
+  function fechaCorta(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : (iso || '');
+  }
+
+  // ---------- Borrador: lo escrito se guarda en este celular o computadora ----------
+  // Si se cierra la página o se va la señal, se puede seguir después. Los archivos no se guardan.
+  var CLAVE_BORRADOR = 'borrador:' + D.clave;
+  var guardarTimer = null;
+  function almacen() {
+    try { return window.localStorage; } catch (e) { return null; }
+  }
+  function valoresActuales() {
+    var v = { nombre: val('nombre'), departamento: val('depto'), tipo: radio('tipo'), esActividad: radio('esActividad'),
+      pideDinero: radio('dinero'), conArchivos: !!(adjuntos.archivo || adjuntos.material), guardado: Date.now() };
+    ['categoria', 'titulo', 'descripcion', 'materialEnlace', 'actFecha', 'actFechaFin', 'actInicio', 'actFin',
+      'lugar', 'responsable', 'asistencia', 'costo', 'monto', 'estrategia', 'descCosto', 'enlace']
+      .forEach(function (k) { v[k] = val(k); });
+    return v;
+  }
+  function guardarBorrador() {
+    if (edicion) return; // al editar no se guarda borrador
+    clearTimeout(guardarTimer);
+    guardarTimer = setTimeout(function () {
+      var v = valoresActuales(), a = almacen();
+      if (!a) return;
+      try {
+        if (v.titulo || v.descripcion) a.setItem(CLAVE_BORRADOR, JSON.stringify(v));
+      } catch (e) { /* sin espacio o bloqueado: no pasa nada */ }
+    }, 400);
+  }
+  function borrarBorrador() {
+    clearTimeout(guardarTimer);
+    var a = almacen();
+    try { if (a) a.removeItem(CLAVE_BORRADOR); } catch (e) { /* nada */ }
+    $('borrador').classList.add('oculto');
+  }
+  function ofrecerBorrador() {
+    var a = almacen(), v = null;
+    try { v = a && JSON.parse(a.getItem(CLAVE_BORRADOR) || 'null'); } catch (e) { v = null; }
+    if (!v || !(v.titulo || v.descripcion)) return;
+    var cuando = new Date(v.guardado);
+    $('borrador-texto').textContent = 'Lo que escribió' + (v.titulo ? ' ("' + v.titulo + '")' : '') + ' quedó guardado el ' +
+      cuando.toLocaleDateString('es') + ' a las ' + cuando.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) + '.' +
+      (v.conArchivos ? ' Los archivos adjuntos hay que volver a agregarlos.' : '');
+    $('borrador').classList.remove('oculto');
+    $('borrador-recuperar').onclick = function () {
+      cargar(v);
+      $('borrador').classList.add('oculto');
+      actualizar();
+    };
+    $('borrador-descartar').onclick = function () {
+      if (confirm('¿Borrar lo que había escrito y empezar de nuevo?')) borrarBorrador();
+    };
   }
 
   // ---------- Editar un punto ya enviado ----------
@@ -436,7 +547,7 @@
     ir('pag1');
   }
   $('borrar').addEventListener('click', function () {
-    if (confirm('¿Borrar todas las respuestas del formulario?')) reiniciar();
+    if (confirm('¿Borrar todas las respuestas del formulario?')) { reiniciar(); borrarBorrador(); }
   });
   $('otro').addEventListener('click', function (e) {
     e.preventDefault();
@@ -454,8 +565,31 @@
     }
     actualizar();
     limpiarError(e);
+    guardarBorrador();
   });
-  $('form').addEventListener('change', function (e) { actualizar(); limpiarError(e); });
+  $('form').addEventListener('change', function (e) { actualizar(); limpiarError(e); guardarBorrador(); });
+
+  // ---------- Letra más grande (se recuerda en este celular o computadora) ----------
+  function aplicarLetra(grande) {
+    document.body.classList.toggle('letra-grande', grande);
+    $('letra').setAttribute('aria-pressed', String(grande));
+    $('letra').textContent = grande ? 'A− Letra normal' : 'A+ Letra más grande';
+  }
+  $('letra').addEventListener('click', function () {
+    var grande = !document.body.classList.contains('letra-grande');
+    aplicarLetra(grande);
+    try { var a = almacen(); if (a) a.setItem('letraGrande', grande ? '1' : ''); } catch (e) { /* nada */ }
+  });
+  try { var a0 = almacen(); aplicarLetra(!!(a0 && a0.getItem('letraGrande'))); } catch (e) { /* nada */ }
+
+  // ---------- ¿Necesita ayuda? (WhatsApp con quien administra) ----------
+  if (D.ayuda && D.ayuda.url) {
+    $('ayuda').href = D.ayuda.url;
+    $('ayuda').textContent = '💬 ¿Necesita ayuda? Escriba a ' + D.ayuda.nombre;
+    $('ayuda').classList.remove('oculto');
+  }
+
   actualizar();
   cargarMisPuntos();
+  ofrecerBorrador();
 })();
