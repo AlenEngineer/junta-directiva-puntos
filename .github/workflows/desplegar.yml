@@ -17,13 +17,14 @@ on:
   pull_request:
   workflow_dispatch:
 
-concurrency:
-  group: desplegar
-  cancel-in-progress: false
-
 jobs:
   pruebas:
     runs-on: ubuntu-latest
+    # Las pruebas corren en paralelo. En un pull request, si llega un cambio nuevo,
+    # se cancela la ejecución anterior (ya no sirve). En main nunca se cancela.
+    concurrency:
+      group: pruebas-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -39,6 +40,10 @@ jobs:
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && github.ref_type == 'tag')
     runs-on: ubuntu-latest
+    # Solo la publicación va de a una: nunca dos a la vez sobre Apps Script.
+    concurrency:
+      group: publicar
+      cancel-in-progress: false
     permissions:
       contents: write
     env:

@@ -14,6 +14,9 @@ Cada versión explica, en **Qué hacer**, los pasos para una instalación existe
 
 Cambios que ya están en `main` pero todavía no forman parte de una versión.
 
+### Interno
+- GitHub Actions: las pruebas ya no esperan en fila a otras ejecuciones; solo la publicación en Apps Script va de a una. En un pull request, un cambio nuevo cancela la ejecución anterior. No afecta a la aplicación.
+
 ## [1.3.0] - 2026-11-05
 
 Reestructuración interna para que la aplicación sea más fácil de mantener y de extender. Para los hermanos y para la hoja, todo funciona igual.
