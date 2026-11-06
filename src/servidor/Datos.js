@@ -112,7 +112,7 @@ function tablaCelda_(nombre, columnas, fila, columna, valor) {
 // Puntos e Historial
 // ---------------------------------------------------------------------
 
-function columnasPuntos_() { return COLS_PUNTOS.concat(COLS_CONTROL); }
+function columnasPuntos_() { return COLS_PUNTOS.concat(COLS_CONTROL, COLS_AGENDA); }
 
 /** Todos los puntos, como objetos por nombre de columna. */
 function puntosLeer_() {
@@ -135,6 +135,23 @@ function puntoReemplazar_(id, obj) {
     if (!anterior) throw new Error('No se encontró el punto, o ya no se puede editar.');
     historialAgregar_(anterior);
     tablaReemplazar_(HOJA_PUNTOS, columnasPuntos_(), anterior._fila, obj);
+  });
+}
+
+/**
+ * Guarda el orden y el tiempo asignado de varios puntos de una vez (lo usa el panel).
+ * cambios: [{ id, orden, minutos }]. Solo toca esas dos columnas.
+ */
+function puntosActualizarAgenda_(cambios) {
+  conBloqueo_(function () {
+    var porId = {};
+    puntosLeer_().forEach(function (p) { if (p['ID']) porId[p['ID']] = p; });
+    cambios.forEach(function (c) {
+      var p = porId[c.id];
+      if (!p) throw new Error('No se encontró el punto.');
+      tablaCelda_(HOJA_PUNTOS, columnasPuntos_(), p._fila, 'Orden en agenda', c.orden);
+      tablaCelda_(HOJA_PUNTOS, columnasPuntos_(), p._fila, 'Tiempo asignado (min)', c.minutos || '');
+    });
   });
 }
 

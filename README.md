@@ -99,7 +99,7 @@ Todo se hace desde el menú **Junta** de la hoja:
 | Opción | Para qué sirve |
 |---|---|
 | **Nueva junta…** | Elegir la fecha de la próxima junta y crear enlaces nuevos. Los anteriores dejan de funcionar. Al final ofrece enviar los correos. |
-| **Generar agenda…** | Crear la pestaña *Agenda dd-mm-aaaa* con los puntos ordenados. Se puede generar varias veces: se reemplaza. |
+| **Generar agenda…** | Crear la pestaña *Agenda dd-mm-aaaa* con los puntos ordenados, con el orden y los tiempos asignados en el panel. Se puede generar varias veces: se reemplaza. También se hace desde el panel. |
 | **Importar teléfonos y correos de mis contactos** | Llenar la pestaña *Contactos* desde sus contactos de Google. Solo llena celdas vacías. |
 | **Enviar enlaces por correo…** | Enviar el correo a quienes aún no lo recibieron. Si todos ya lo recibieron, ofrece reenviarlo. |
 | **Actualizar la pestaña Enlaces** | Después de editar *Contactos*, para que se actualicen los botones de WhatsApp y el estado del correo. |
@@ -150,11 +150,20 @@ La primera vez, Google pide permiso para **ver sus contactos**. El script solo l
 
 ## Panel de administración
 
-Una página aparte para administrar, que también se puede usar desde el celular. Por ahora tiene la sección **Puntos**:
+Una página aparte para administrar, que también se puede usar desde el celular.
+
+**Puntos:**
 - ver los puntos de cada junta;
 - filtrar por estado, categoría, departamento o texto;
 - ver el detalle con los archivos;
 - **aprobar o rechazar** con un clic.
+
+**Agenda:**
+- **ordenar** los puntos de cada sección (▲ ▼);
+- **asignar el tiempo** de cada uno, con el total;
+- los cambios se guardan solos;
+- **Generar en la hoja** crea la pestaña de agenda;
+- **Imprimir / PDF** saca una versión limpia para imprimir o compartir.
 
 **Quién puede entrar:** quienes pueden **editar la hoja** de la Junta Directiva. Para darle acceso a la secretaria, comparta la hoja con ella como editora. Google pide iniciar sesión, y el panel verifica el permiso en cada acción.
 

@@ -4,7 +4,7 @@ const { cargarServidor } = require('./hoja-simulada');
 const salida = { valores: [] };
 const cadena = new Proxy({}, { get: (_, k) => k === 'setValues' ? (v) => { salida.valores.push(...v); return cadena; }
   : k === 'setValue' ? (v) => { salida.valores.push([v]); return cadena; } : () => cadena });
-const { api, libro } = cargarServidor(['generarAgenda', 'crearHoja_', 'enviarPunto', 'COLS_PUNTOS'], `
+const { api, libro } = cargarServidor(['generarAgenda', 'crearHoja_', 'enviarPunto', 'COLS_PUNTOS', 'panelGuardarAgenda'], `
   contexto_ = function () { return { clave: 'x', junta: { fecha: '26/11/2026', dia: 'jueves 26' }, general: false,
     nombre: 'Daniel Rivas', cargos: [{ departamento: 'Ancianos', cargo: 'Anciano' }] }; };
   SpreadsheetApp = { getUi: () => ({ prompt: () => ({ getSelectedButton: () => 'OK', getResponseText: () => '' }),
@@ -20,8 +20,11 @@ const base = { departamento: 'Ancianos', categoria: 'Planes y actividades del de
   tipo: 'Para votación', esActividad: 'Sí', actFecha: '2027-03-20', actFechaFin: '2027-03-22', actInicio: '09:00', actFin: '12:00',
   lugar: 'Templo', responsable: 'Daniel', pideDinero: 'Sí', costo: '500', monto: '300', estrategia: 'Aportes', descCosto: 'Sillas',
   materialEnlace: 'https://youtu.be/x' };
-api.enviarPunto('x', base);
+const sillas = api.enviarPunto('x', base);
 api.enviarPunto('x', { ...base, categoria: 'Evangelismo y misión', titulo: 'Campaña', tipo: 'Informativo' });
+const mesas = api.enviarPunto('x', { ...base, titulo: 'Compra de mesas', tipo: 'Informativo', esActividad: '', pideDinero: '' });
+// Orden y tiempos asignados desde el panel: "mesas" antes que "sillas"
+api.panelGuardarAgenda('26/11/2026', [{ id: mesas.id, orden: 1, minutos: 10 }, { id: sillas.id, orden: 2, minutos: 15 }]);
 // Un punto viejo con la categoría "Departamentos" (anterior a 1.5.0) y uno con una categoría desconocida
 const hp = libro.getSheetByName('Puntos'), enc = hp.celdas[0];
 const fila = (v) => enc.map(c => v[c] ?? '');
@@ -41,11 +44,14 @@ ok(pos('PLANES Y ACTIVIDADES DEL DEPARTAMENTO') < pos('Punto viejo de departamen
   'un punto con la categoría vieja "Departamentos" va a Planes y actividades');
 ok(pos('OTROS ASUNTOS') < pos('Punto con categoría rara'), 'una categoría desconocida va a Otros asuntos (no se pierde)');
 ok(pos('TESORERÍA Y FINANZAS') < pos('FELIGRESÍA') && pos('FELIGRESÍA') < pos('PLANES Y ACTIVIDADES'), 'orden de las secciones');
+ok(pos('Compra de mesas') < pos('Compra de sillas') && texto.includes('Compra de mesas | Daniel Rivas\n(Ancianos) | Informativo | 10 min'),
+  'usa el orden y el tiempo asignados en el panel');
+ok(texto.includes('Tiempo asignado a los puntos: 25 min'), 'total de tiempo asignado');
 ok(texto.includes('Fechas: del 20/03/2027 al 22/03/2027 (3 días)') && texto.includes('Término: 12:00 (último día)'), 'actividad de varios días');
 ok(texto.includes('Solicitado a la iglesia: 300') && texto.includes('Total solicitado a la iglesia: 300'), 'presupuesto y total');
 ok(texto.includes('Material (enlace): https://youtu.be/x'), 'material de apoyo');
 ok(texto.includes('Daniel Rivas\n(Ancianos)'), 'quién presenta y su departamento');
-ok(__alertas[0] && __alertas[0].startsWith('Agenda lista: 4 punto(s)'), 'aviso final: ' + __alertas[0]);
+ok(__alertas[0] && __alertas[0].startsWith('Agenda lista: 5 punto(s)'), 'aviso final: ' + __alertas[0]);
 
 console.log(fails ? fails + ' FALLAS' : 'TODO OK');
 process.exitCode = fails ? 1 : 0;

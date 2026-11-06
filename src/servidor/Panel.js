@@ -81,3 +81,63 @@ function panelCambiarEstado(id, estado) {
   puntoCambiarEstado_(String(id), estado);
   return { ok: true, id: id, estado: estado };
 }
+
+// ---------------------------------------------------------------------
+// Agenda
+// ---------------------------------------------------------------------
+
+function juntaPorFecha_(fecha) {
+  var j = juntasLeer_().filter(function (x) { return x.fecha === String(fecha || ''); }).pop();
+  if (!j) throw new Error('No se encontró esa junta.');
+  return j;
+}
+
+/** La agenda de una junta, para ordenar y asignar tiempos en el panel. */
+function panelAgenda(fecha) {
+  exigirAdmin_();
+  var junta = juntaPorFecha_(fecha);
+  var agenda = agendaDeJunta_(junta);
+  var resumen = function (p) {
+    return {
+      id: String(p['ID']), titulo: String(p['Título'] || ''), presenta: String(p['Presenta'] || ''),
+      departamento: String(p['Departamento'] || ''), tipo: String(p['Tipo'] || ''), estado: String(p['Estado'] || ''),
+      minutos: Number(p['Tiempo asignado (min)']) || 0
+    };
+  };
+  return {
+    junta: { fecha: junta.fecha, dia: junta.dia },
+    fijos: { apertura: FIJO_APERTURA, acta: FIJO_ACTA, cierre: FIJO_CIERRE },
+    tiempos: TIEMPOS_AGENDA,
+    secciones: agenda.secciones.map(function (s) {
+      return { categoria: s.categoria, puntos: s.puntos.filter(function (p) { return p['ID']; }).map(resumen) };
+    }),
+    pendientes: agenda.pendientes.filter(function (p) { return p['ID']; }).map(resumen)
+  };
+}
+
+/**
+ * Guarda el orden y los tiempos. cambios: [{ id, orden, minutos }].
+ * Solo se aceptan puntos de esa junta y tiempos de la lista (o vacío).
+ */
+function panelGuardarAgenda(fecha, cambios) {
+  exigirAdmin_();
+  var junta = juntaPorFecha_(fecha);
+  if (!Array.isArray(cambios) || cambios.length > 500) throw new Error('Cambios no válidos.');
+  var deLaJunta = {};
+  puntosLeer_().forEach(function (p) { if (p['ID'] && textoFecha_(p['Junta']) === junta.fecha) deLaJunta[p['ID']] = true; });
+  var limpios = cambios.map(function (c) {
+    var id = String(c && c.id || ''), orden = Number(c && c.orden), minutos = Number(c && c.minutos) || 0;
+    if (!deLaJunta[id]) throw new Error('Un punto no pertenece a esta junta.');
+    if (!(orden >= 0 && orden < 10000 && Math.floor(orden) === orden)) throw new Error('Orden no válido.');
+    if (minutos && TIEMPOS_AGENDA.indexOf(minutos) < 0) throw new Error('Tiempo no válido.');
+    return { id: id, orden: orden, minutos: minutos };
+  });
+  puntosActualizarAgenda_(limpios);
+  return { ok: true, guardados: limpios.length };
+}
+
+/** Crea la pestaña de agenda en la hoja, con el orden y los tiempos asignados. */
+function panelGenerarAgendaHoja(fecha) {
+  exigirAdmin_();
+  return generarAgendaHoja_(juntaPorFecha_(fecha));
+}

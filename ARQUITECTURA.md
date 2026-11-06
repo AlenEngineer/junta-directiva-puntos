@@ -88,7 +88,7 @@ dist/                Generado: Codigo.gs, Formulario.html, appsscript.json (no s
 | **Contactos** | una persona | Nombre, Teléfono, Correo |
 | **Juntas** | una junta | Fecha (`dd/mm/aaaa`, texto), Día, Estado (*Abierta* o *Cerrada*) |
 | **_Claves** (oculta) | el enlace de una persona para una junta | Clave (32 hex), Junta, Persona (o `GENERAL`), Correo enviado |
-| **Puntos** | un punto, en su versión actual | ver `COLS_PUNTOS` y `COLS_CONTROL` en `00-Config.js`; ID, Enviado por, Código de edición, Ediciones |
+| **Puntos** | un punto, en su versión actual | ver `COLS_PUNTOS` y `COLS_CONTROL` en `00-Config.js`; ID, Enviado por, Código de edición, Ediciones, Orden en agenda, Tiempo asignado (min) |
 | **Historial** | una versión anterior de un punto | Fecha de la edición + las mismas columnas de Puntos |
 | **Saldos** | un fondo del reporte de tesorería | las 8 columnas del reporte (ver `COLS_SALDOS`), Departamento en Cargos, Periodo del reporte |
 
@@ -124,9 +124,10 @@ Ver *Versiones* en el README para publicar o volver atrás.
 | `mensajes.test.js` | Teléfonos, WhatsApp y correo |
 | `contactos.test.js` | Búsqueda de personas en los contactos de Google |
 | `datos.test.js` | Juntas, claves y validación de enlaces, con la hoja simulada |
-| `agenda.test.js` | La agenda generada: orden, actividad, presupuesto y material |
+| `agenda.test.js` | La agenda generada: orden, tiempos, actividad, presupuesto y material |
+| `agenda-panel.test.js` | Agenda del panel: orden, tiempos, validaciones y que editar un punto los conserve |
 | `edicion.test.js` | Enviar, editar, historial, permisos y migraciones, con la hoja simulada |
-| `formulario.test.js`, `descripcion.test.js`, `edicion-pagina.test.js`, `saldo-pagina.test.js`, `categorias-pagina.test.js`, `accesibilidad-pagina.test.js`, `panel-pagina.test.js` | La página en un navegador real (Chromium), con el servidor simulado |
+| `formulario.test.js`, `descripcion.test.js`, `edicion-pagina.test.js`, `saldo-pagina.test.js`, `categorias-pagina.test.js`, `accesibilidad-pagina.test.js`, `panel-pagina.test.js`, `panel-agenda-pagina.test.js` | La página en un navegador real (Chromium), con el servidor simulado |
 
 `tests/hoja-simulada.js` imita Google Sheets en memoria y `tests/servidor-simulado.js` imita `google.script.run`. **Lo que no se puede probar aquí** es lo que solo existe en Google: permisos, cuotas, la apariencia real de la hoja y el envío de correos.
 

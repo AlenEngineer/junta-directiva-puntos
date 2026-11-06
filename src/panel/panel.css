@@ -65,3 +65,40 @@ h1 { font-size: 24px; font-weight: 500; margin: 0 0 8px; }
 .aviso { position: sticky; top: 8px; z-index: 2; background: var(--texto); color: #fff; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; }
 .aviso.error { background: var(--rojo); }
 .cargando, .vacio { text-align: center; color: var(--gris-claro); padding: 28px; }
+
+/* ---------- Agenda ---------- */
+.agenda-barra { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.estado-guardado { color: var(--gris-claro); font-size: 14px; margin-left: 6px; }
+.seccion-agenda { padding: 0; overflow: hidden; }
+.seccion-agenda h2 { margin: 0; padding: 12px 18px; font-size: 15px; letter-spacing: .4px; text-transform: uppercase;
+  background: var(--morado-claro); color: var(--morado-oscuro); }
+.fila-agenda { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--borde); flex-wrap: wrap; }
+.fila-agenda:first-of-type { border-top: none; }
+.fila-agenda .num { width: 28px; color: var(--gris-claro); font-weight: 500; }
+.fila-agenda .texto { flex: 1 1 220px; min-width: 0; }
+.fila-agenda .texto b { display: block; font-weight: 500; }
+.fila-agenda .texto span { font-size: 14px; color: var(--gris-claro); }
+.fila-agenda select { font: 15px Roboto, Arial, sans-serif; min-height: 44px; padding: 0 10px; border: 1px solid #80868b; border-radius: 8px; background: #fff; }
+.mover { display: flex; gap: 4px; }
+.mover button { min-width: 44px; min-height: 44px; border: 1px solid var(--borde); background: #fff; border-radius: 8px; font-size: 16px; cursor: pointer; }
+.mover button:disabled { opacity: .3; cursor: default; }
+.fijo-agenda { padding: 12px 18px; font-style: italic; color: var(--gris); }
+.sin-puntos { padding: 12px 18px; color: var(--gris-claro); }
+
+/* ---------- Impresión: solo la agenda, limpia ---------- */
+.imprimible { display: none; }
+@media print {
+  body { background: #fff; }
+  .barra, .contenedor > *:not(.imprimible), #panel { display: none !important; }
+  .contenedor { margin: 0; max-width: none; }
+  .imprimible { display: block; font: 12pt/1.45 Roboto, Arial, sans-serif; color: #000; }
+  .imprimible h1 { font-size: 18pt; margin: 0 0 4pt; }
+  .imprimible .sub { margin: 0 0 14pt; color: #333; }
+  .imprimible ol { padding-left: 22pt; margin: 0; }
+  .imprimible li { margin: 0 0 6pt; break-inside: avoid; }
+  .imprimible .sec { display: block; font-weight: 700; text-transform: uppercase; margin: 12pt 0 4pt -22pt; }
+  .imprimible .vacio-imp { display: block; color: #666; margin: 0 0 6pt; }
+  .imprimible .min { float: right; }
+  .imprimible .quien { color: #444; font-size: 10.5pt; }
+  .imprimible .total { margin-top: 14pt; border-top: 1px solid #999; padding-top: 6pt; }
+}
