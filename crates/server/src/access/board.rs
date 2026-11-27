@@ -35,14 +35,17 @@ impl Can<RunBoard> {
         load(store, id).await
     }
 
-    /// Only into a known section of a draft. No scans are stored yet, so
-    /// a slip that names one names a scan that does not exist.
+    /// Only into a known section of a draft. No scans, activities or plans
+    /// are stored yet, so a slip that names one is refused.
     pub async fn add_item(&self, id: MeetingId, item: &NewItem) -> Result<Meeting, ApiError> {
         let store = &self.app.store;
         let meeting = load(store, id).await?;
         meeting.check_new_item(item, &self.setup)?;
         if let Some(scan) = item.scans.first() {
             return Err(ApiError::Agenda(AgendaError::UnknownScan(*scan)));
+        }
+        if item.activity.is_some() || item.plan.is_some() {
+            return Err(ApiError::NotStoredYet("activities and plans are not stored yet, so a point cannot name one"));
         }
         store.add_item(meeting.id, item).await?.ok_or(ApiError::Agenda(AgendaError::AgendaClosed))?;
         load(store, id).await

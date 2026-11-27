@@ -906,7 +906,7 @@ impl Roster {
 }
 
 /// Whether `charge` is a charge of `office`, directly or as a variant.
-fn holds(setup: &Setup, charge: &Charge, office: &OfficeId) -> bool {
+pub(crate) fn holds(setup: &Setup, charge: &Charge, office: &OfficeId) -> bool {
     charge.office == *office || setup.catalog().office(&charge.office).and_then(|o| o.variant_of.as_ref()) == Some(office)
 }
 

@@ -125,6 +125,7 @@ function addItemForm(meeting: Meeting, refresh: () => void): HTMLElement {
       received_on: null,
       scans: [],
       activity: null,
+      plan: null,
     };
     api(`/api/meetings/${meeting.id}/items`, "POST", item).then(refresh, (e: Error) => notify(e.message, "error"));
   };

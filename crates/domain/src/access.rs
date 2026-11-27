@@ -112,7 +112,7 @@ impl May {
 
     /// What one serving charge allows. A struct literal for the same reason:
     /// a new field does not compile until it has its rule.
-    fn of(charge: &Charge, catalog: &Catalog) -> Self {
+    pub(crate) fn of(charge: &Charge, catalog: &Catalog) -> Self {
         let runs_board = charge.modules().any(|m| m == Module::Agenda);
         let on_board = catalog.office(&charge.office).is_some_and(|o| o.board_member);
         let recorder = RECORDERS.contains(&charge.office.0.as_str());

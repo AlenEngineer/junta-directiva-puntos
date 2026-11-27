@@ -225,6 +225,8 @@ pub enum ApiError {
     /// Another request changed the meeting first.
     Conflict,
     Agenda(AgendaError),
+    /// Names something the server does not store yet. Says what.
+    NotStoredYet(&'static str),
     Setup(SetupError),
     NoEmail(ChargeId),
     Workos(WorkosError),
@@ -314,7 +316,7 @@ mod tests {
         let rename = vote(2, "church", json!({ "church": "Iglesia Central" }));
         let new_meeting = Some(json!({ "date": "2027-01-10", "kind": "regular" }));
         let new_item = Some(json!({ "section": "finanzas", "office": "tesorero", "title": "Diezmos", "presenter": null,
-                                    "request": "accept_report", "explanation": "", "received_on": null, "scans": [], "activity": null }));
+                                    "request": "accept_report", "explanation": "", "received_on": null, "scans": [], "activity": null, "plan": null }));
         let table = [
             (Method::GET, "/api/me", None, [S, A, A, A, A, A, A, A]),
             (Method::GET, "/api/setup", None, [S, F, A, A, A, A, F, A]),

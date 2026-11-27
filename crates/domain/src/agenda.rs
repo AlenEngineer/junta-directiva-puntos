@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::acta::ActaNumber;
+use crate::activity::{ActivityId, PlanId};
 use crate::catalog::{AgendaSection, OfficeId};
 use crate::schedule::{PlaceId, ServiceTime};
 use crate::setup::Setup;
@@ -91,10 +92,10 @@ pub struct AgendaItem {
     pub received_on: Option<Date>,
     /// Pages sent with the point, such as quotes. The slip's own pages are in `source`.
     pub scans: Vec<ScanId>,
-    /// Only when the point "invita a la iglesia": the members are expected
-    /// to attend and it goes on the church calendar. A point for the
-    /// office's own team has none.
-    pub activity: Option<Activity>,
+    /// The activity the slip's back describes, recorded as its own activity.
+    pub activity: Option<ActivityId>,
+    /// The plan a point that asks to approve a plan brings to the board.
+    pub plan: Option<PlanId>,
     /// None for points entered before the app kept who entered them.
     pub source: Option<Source>,
 }
@@ -128,69 +129,6 @@ impl Request {
     }
 }
 
-/// The activity of a point that "invita a la iglesia": the slip's back.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct Activity {
-    pub name: String,
-    pub purpose: String,
-    pub audience: String,
-    /// Who is responsible and the people it needs.
-    pub people_needed: String,
-    /// Another department it needs, as written on the slip.
-    pub other_office: Option<String>,
-    pub dates: ActivityDates,
-    pub time: Option<ServiceTime>,
-    pub place: Option<PlaceRef>,
-    pub origin: Origin,
-    pub budget: Option<Balboas>,
-}
-
-/// One day, a run of days, or several separate days. A run never ends
-/// before it starts and a list is never empty: both are refused when read.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
-#[serde(rename_all = "snake_case")]
-#[ts(export)]
-pub enum ActivityDates {
-    Day(Date),
-    Range { from: Date, to: Date },
-    List(Vec<Date>),
-}
-
-impl ActivityDates {
-    pub fn range(from: Date, to: Date) -> Result<Self, String> {
-        if to < from {
-            return Err(format!("the activity ends on {to}, before it starts on {from}"));
-        }
-        Ok(Self::Range { from, to })
-    }
-
-    pub fn list(dates: Vec<Date>) -> Result<Self, String> {
-        if dates.is_empty() {
-            return Err("an activity on several dates needs at least one date".into());
-        }
-        Ok(Self::List(dates))
-    }
-}
-
-impl<'de> Deserialize<'de> for ActivityDates {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        #[derive(Deserialize)]
-        #[serde(rename_all = "snake_case")]
-        enum Written {
-            Day(Date),
-            Range { from: Date, to: Date },
-            List(Vec<Date>),
-        }
-        match Written::deserialize(deserializer)? {
-            Written::Day(day) => Ok(Self::Day(day)),
-            Written::Range { from, to } => Self::range(from, to),
-            Written::List(dates) => Self::list(dates),
-        }
-        .map_err(serde::de::Error::custom)
-    }
-}
-
 /// One of the church's places, or anywhere else as written.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
@@ -198,17 +136,6 @@ impl<'de> Deserialize<'de> for ActivityDates {
 pub enum PlaceRef {
     Church(PlaceId),
     Other(String),
-}
-
-/// Where an activity comes from ("De dónde viene").
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "snake_case")]
-#[ts(export)]
-pub enum Origin {
-    Local,
-    /// The local field (the campo); the slip names no field.
-    Campo,
-    UnionOrDivision,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -231,7 +158,8 @@ pub struct NewItem {
     pub explanation: String,
     pub received_on: Option<Date>,
     pub scans: Vec<ScanId>,
-    pub activity: Option<Activity>,
+    pub activity: Option<ActivityId>,
+    pub plan: Option<PlanId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -240,7 +168,6 @@ pub enum AgendaError {
     EmptyTitle,
     UnknownSection(String),
     UnknownOffice(OfficeId),
-    UnknownPlace(PlaceId),
     UnknownScan(ScanId),
     /// Items can only be added while the meeting is a draft.
     AgendaClosed,
@@ -254,7 +181,6 @@ impl std::fmt::Display for AgendaError {
             Self::EmptyTitle => write!(f, "an item needs a title"),
             Self::UnknownSection(s) => write!(f, "this meeting has no section {s}"),
             Self::UnknownOffice(o) => write!(f, "the church has no office {}", o.0),
-            Self::UnknownPlace(p) => write!(f, "the church has no place {}", p.0),
             Self::UnknownScan(s) => write!(f, "there is no scan {}", s.0),
             Self::AgendaClosed => write!(f, "the agenda is closed; items can only be added to a draft"),
             Self::AlreadyHeld => write!(f, "the meeting was already held"),
@@ -270,7 +196,7 @@ impl NewMeeting {
 
 impl Meeting {
     /// Refuses only what cannot be: a closed agenda, a blank title, or a
-    /// section, office or place that does not exist. A late slip is accepted.
+    /// section or office that does not exist. A late slip is accepted.
     pub fn check_new_item(&self, item: &NewItem, setup: &Setup) -> Result<(), AgendaError> {
         if self.state != MeetingState::Draft {
             return Err(AgendaError::AgendaClosed);
@@ -283,13 +209,6 @@ impl Meeting {
         }
         if let Some(office) = item.office.as_ref().filter(|o| setup.catalog().office(o).is_none()) {
             return Err(AgendaError::UnknownOffice(office.clone()));
-        }
-        let place = item.activity.as_ref().and_then(|a| match &a.place {
-            Some(PlaceRef::Church(id)) => Some(id),
-            _ => None,
-        });
-        if let Some(place) = place.filter(|id| !setup.places().iter().any(|p| &p.id == *id)) {
-            return Err(AgendaError::UnknownPlace(place.clone()));
         }
         Ok(())
     }
@@ -349,6 +268,7 @@ mod tests {
             received_on: None,
             scans: vec![],
             activity: None,
+            plan: None,
         }
     }
 
@@ -365,22 +285,8 @@ mod tests {
             received_on,
             scans: vec![],
             activity: None,
+            plan: None,
             source: None,
-        }
-    }
-
-    fn activity(place: PlaceRef) -> Activity {
-        Activity {
-            name: "Campamento".into(),
-            purpose: String::new(),
-            audience: String::new(),
-            people_needed: String::new(),
-            other_office: None,
-            dates: ActivityDates::Day(day("2026-12-26")),
-            time: None,
-            place: Some(place),
-            origin: Origin::Local,
-            budget: None,
         }
     }
 
@@ -405,16 +311,12 @@ mod tests {
     }
 
     #[test]
-    fn a_point_names_a_known_office_and_its_activity_a_known_place() {
+    fn a_point_names_a_known_office() {
         let (m, setup) = (draft(), church());
         let pastors = NewItem { office: None, ..item("finanzas", "Informe") };
         assert_eq!(m.check_new_item(&pastors, &setup), Ok(()));
         let unknown = NewItem { office: Some(OfficeId::from("obispo")), ..item("finanzas", "Informe") };
         assert_eq!(m.check_new_item(&unknown, &setup), Err(AgendaError::UnknownOffice(OfficeId::from("obispo"))));
-        let at = |place| NewItem { activity: Some(activity(place)), ..item("finanzas", "Campamento") };
-        assert_eq!(m.check_new_item(&at(PlaceRef::Church("templo".into())), &setup), Ok(()));
-        assert_eq!(m.check_new_item(&at(PlaceRef::Other("Playa de Coronado".into())), &setup), Ok(()));
-        assert_eq!(m.check_new_item(&at(PlaceRef::Church("gimnasio".into())), &setup), Err(AgendaError::UnknownPlace("gimnasio".into())));
     }
 
     #[test]
@@ -439,19 +341,6 @@ mod tests {
         let expense: Request = serde_json::from_str(r#"{"approve_expense":{"amount":"480"}}"#).unwrap();
         assert_eq!(serde_json::to_string(&expense).unwrap(), r#"{"approve_expense":{"amount":"480.00"}}"#);
         assert_eq!(serde_json::to_string(&Request::Inform).unwrap(), r#""inform""#);
-    }
-
-    #[test]
-    fn an_activity_runs_on_a_day_a_range_or_a_list_and_never_backwards() {
-        let read = |json: &str| serde_json::from_str::<ActivityDates>(json);
-        assert_eq!(read(r#"{"day":"2026-12-26"}"#).unwrap(), ActivityDates::Day(day("2026-12-26")));
-        assert!(read(r#"{"range":{"from":"2026-12-26","to":"2026-12-28"}}"#).is_ok());
-        assert!(read(r#"{"range":{"from":"2026-12-26","to":"2026-12-26"}}"#).is_ok(), "a one-day range");
-        assert!(read(r#"{"list":["2026-12-05","2026-12-19"]}"#).is_ok());
-        let backwards = read(r#"{"range":{"from":"2026-12-28","to":"2026-12-26"}}"#).unwrap_err();
-        assert!(backwards.to_string().contains("before it starts"), "{backwards}");
-        let empty = read(r#"{"list":[]}"#).unwrap_err();
-        assert!(empty.to_string().contains("at least one date"), "{empty}");
     }
 
     #[test]
