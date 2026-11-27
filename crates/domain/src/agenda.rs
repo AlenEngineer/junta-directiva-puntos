@@ -91,7 +91,9 @@ pub struct AgendaItem {
     pub received_on: Option<Date>,
     /// Pages sent with the point, such as quotes. The slip's own pages are in `source`.
     pub scans: Vec<ScanId>,
-    /// Only when the point "convoca a los hermanos".
+    /// Only when the point "invita a la iglesia": the members are expected
+    /// to attend and it goes on the church calendar. A point for the
+    /// office's own team has none.
     pub activity: Option<Activity>,
     /// None for points entered before the app kept who entered them.
     pub source: Option<Source>,
@@ -126,7 +128,7 @@ impl Request {
     }
 }
 
-/// What a point that "convoca a los hermanos" calls them to: the slip's back.
+/// The activity of a point that "invita a la iglesia": the slip's back.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Activity {

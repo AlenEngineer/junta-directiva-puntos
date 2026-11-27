@@ -6,7 +6,7 @@ import type { PlaceRef } from "./PlaceRef";
 import type { ServiceTime } from "./ServiceTime";
 
 /**
- * What a point that "convoca a los hermanos" calls them to: the slip's back.
+ * The activity of a point that "invita a la iglesia": the slip's back.
  */
 export type Activity = { name: string, purpose: string, audience: string, 
 /**

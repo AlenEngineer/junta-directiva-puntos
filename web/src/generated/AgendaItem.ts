@@ -31,7 +31,9 @@ received_on: CalendarDate | null,
  */
 scans: Array<ScanId>, 
 /**
- * Only when the point "convoca a los hermanos".
+ * Only when the point "invita a la iglesia": the members are expected
+ * to attend and it goes on the church calendar. A point for the
+ * office's own team has none.
  */
 activity: Activity | null, 
 /**
