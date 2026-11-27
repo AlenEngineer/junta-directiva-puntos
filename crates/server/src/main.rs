@@ -1,59 +1,49 @@
+mod api;
 mod setup;
+mod store;
 
-use std::{path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf};
 
-use axum::{Json, Router, extract::State, routing::get};
-use domain::{Charge, agenda::Meeting, catalog::Catalog};
-use serde_json::{Value, json};
-use tokio::sync::RwLock;
+use tower_http::services::{ServeDir, ServeFile};
 
-/// In-memory until the persistence choice is made.
-struct Store {
-    church: String,
-    catalog: Catalog,
-    charges: Vec<Charge>,
-    meetings: Vec<Meeting>,
+fn env(name: &str, default: &str) -> String {
+    std::env::var(name).unwrap_or_else(|_| default.to_owned())
 }
 
-type AppState = Arc<RwLock<Store>>;
-
-fn app(state: AppState) -> Router {
-    Router::new()
-        .route("/api/health", get(|| async { "ok" }))
-        .route("/api/church", get(church))
-        .route("/api/catalog", get(catalog))
-        .route("/api/charges", get(charges))
-        .route("/api/meetings", get(meetings))
-        .with_state(state)
-}
-
-async fn church(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({ "name": state.read().await.church }))
-}
-
-async fn catalog(State(state): State<AppState>) -> Json<Catalog> {
-    Json(state.read().await.catalog.clone())
-}
-
-async fn charges(State(state): State<AppState>) -> Json<Vec<Charge>> {
-    Json(state.read().await.charges.clone())
-}
-
-async fn meetings(State(state): State<AppState>) -> Json<Vec<Meeting>> {
-    Json(state.read().await.meetings.clone())
+fn fail(message: String) -> ! {
+    eprintln!("{message}");
+    std::process::exit(1);
 }
 
 #[tokio::main]
 async fn main() {
-    let path = PathBuf::from(std::env::var("SETUP_FILE").unwrap_or_else(|_| "setup.json".into()));
-    let setup = setup::load(&path).unwrap_or_else(|e| {
-        eprintln!("cannot load the church setup: {e}\nSet SETUP_FILE, or start from examples/setup.json.");
-        std::process::exit(1);
-    });
-    let store = Store { church: setup.church, catalog: setup.catalog, charges: setup.charges, meetings: Vec::new() };
+    let addr: SocketAddr = env("API_ADDR", "127.0.0.1:3000")
+        .parse()
+        .unwrap_or_else(|e| fail(format!("API_ADDR: {e}")));
+    // Login (WorkOS) is not wired yet, so anything beyond this machine
+    // needs an explicit opt-in instead of exposing the church's data.
+    if !addr.ip().is_loopback() && env("MAYORDOMO_PUBLIC_WITHOUT_LOGIN", "") != "1" {
+        fail(format!(
+            "refusing to listen on {addr}: login is not set up yet. Use a loopback address, \
+             or set MAYORDOMO_PUBLIC_WITHOUT_LOGIN=1 on a network you trust."
+        ));
+    }
 
-    let addr = std::env::var("API_ADDR").unwrap_or_else(|_| "127.0.0.1:3000".into());
-    let listener = tokio::net::TcpListener::bind(&addr).await.expect("bind API_ADDR");
-    println!("api listening on http://{addr}");
-    axum::serve(listener, app(Arc::new(RwLock::new(store)))).await.expect("server");
+    let setup_path = PathBuf::from(env("SETUP_FILE", "setup.json"));
+    let setup = setup::load(&setup_path)
+        .unwrap_or_else(|e| fail(format!("cannot load the church setup: {e}\nSet SETUP_FILE, or start from examples/setup.json.")));
+    let database = env("DATABASE_URL", "sqlite://mayordomo.db");
+    let store = store::Store::open(&database)
+        .await
+        .unwrap_or_else(|e| fail(format!("cannot open {database}: {e}")));
+
+    let mut router = api::router(api::App { church: setup.church, catalog: setup.catalog, charges: setup.charges, store });
+    if let Ok(dir) = std::env::var("WEB_DIR") {
+        let index = PathBuf::from(&dir).join("index.html");
+        router = router.fallback_service(ServeDir::new(&dir).fallback(ServeFile::new(index)));
+    }
+
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap_or_else(|e| fail(format!("bind {addr}: {e}")));
+    println!("listening on http://{addr}");
+    axum::serve(listener, router).await.expect("server");
 }

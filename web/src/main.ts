@@ -1,11 +1,18 @@
 import type { Catalog } from "./generated/Catalog";
 import type { Charge } from "./generated/Charge";
 import type { Meeting } from "./generated/Meeting";
+import type { NewItem } from "./generated/NewItem";
+import type { NewMeeting } from "./generated/NewMeeting";
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`${path}: ${res.status}`);
-  return res.json() as Promise<T>;
+async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { "content-type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error ?? `${path}: ${res.status}`);
+  return data as T;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, ...children: Node[]) {
@@ -15,42 +22,90 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, ...chi
   return node;
 }
 
-const [church, catalog, charges, meetings] = await Promise.all([
-  get<{ name: string }>("/api/church"),
-  get<Catalog>("/api/catalog"),
-  get<Charge[]>("/api/charges"),
-  get<Meeting[]>("/api/meetings"),
+function button(label: string, action: () => Promise<unknown>) {
+  const b = el("button", label);
+  b.type = "button";
+  b.onclick = () => action().then(render, (e: Error) => alert(e.message));
+  return b;
+}
+
+const [church, catalog, charges] = await Promise.all([
+  api<{ name: string }>("/api/church"),
+  api<Catalog>("/api/catalog"),
+  api<Charge[]>("/api/charges"),
 ]);
+
+const stateLabel = { draft: "Borrador", called: "Convocada", held: "Celebrada" } as const;
+const nextLabel = { draft: "Convocar", called: "Marcar como celebrada", held: null } as const;
 
 function officeName(id: string): string {
   return catalog.offices.find((o) => o.id === id)?.name ?? id;
 }
 
-function agendaTemplate(): HTMLElement {
-  return el("ol", undefined, ...catalog.board_agenda.map((s) => el("li", s.title)));
+function addItemForm(meeting: Meeting): HTMLElement {
+  const section = el("select");
+  section.append(...meeting.sections.map((s) => Object.assign(el("option", s.title), { value: s.id })));
+  const title = Object.assign(el("input"), { placeholder: "Punto", required: true });
+  const form = el("form", undefined, section, title, el("button", "Agregar punto"));
+  form.onsubmit = (event) => {
+    event.preventDefault();
+    const item: NewItem = { section: section.value, title: title.value, kind: "informative", presenter: null };
+    api(`/api/meetings/${meeting.id}/items`, "POST", item).then(render, (e: Error) => alert(e.message));
+  };
+  return form;
 }
 
 function meetingView(meeting: Meeting): HTMLElement {
+  const next = nextLabel[meeting.state];
   const sections = meeting.sections.map((section) => {
-    const items = meeting.items.filter((i) => i.section === section.id);
-    return el("li", section.title, el("ul", undefined, ...items.map((i) => el("li", `${i.title} (${i.status})`))));
+    const items = meeting.items
+      .filter((i) => i.section === section.id)
+      .map((i) =>
+        el(
+          "li",
+          `${i.title} (${i.status}) `,
+          ...(meeting.state === "draft" ? [button("Quitar", () => api(`/api/meetings/${meeting.id}/items/${i.id}`, "DELETE"))] : []),
+        ),
+      );
+    return el("li", section.title, el("ul", undefined, ...items));
   });
-  return el("article", undefined, el("h3", `Junta directiva · ${meeting.date} · ${meeting.state}`), el("ol", undefined, ...sections));
+  return el(
+    "article",
+    undefined,
+    el("h3", `Junta directiva · ${meeting.date} · ${stateLabel[meeting.state]}`),
+    ...(next ? [button(next, () => api(`/api/meetings/${meeting.id}/advance`, "POST"))] : []),
+    el("ol", undefined, ...sections),
+    ...(meeting.state === "draft" ? [addItemForm(meeting)] : []),
+  );
 }
 
-document.getElementById("app")!.replaceChildren(
-  el("h1", church.name),
-  ...charges.map((charge) =>
-    el(
-      "section",
-      undefined,
-      el("h2", `${officeName(charge.office)} · ${charge.term.start_year}`),
-      el("ul", undefined, ...charge.responsibilities.map((r) => el("li", r.page ? `${r.summary} (p. ${r.page})` : r.summary))),
-      ...(charge.responsibilities.some((r) => r.module === "agenda")
-        ? [el("h3", "Plantilla de agenda de la junta"), agendaTemplate()]
-        : []),
-      ...meetings.filter((m) => m.charge === charge.id).map(meetingView),
+function newMeetingForm(): HTMLElement {
+  const date = Object.assign(el("input"), { type: "date", required: true });
+  const form = el("form", undefined, date, el("button", "Nueva junta"));
+  form.onsubmit = (event) => {
+    event.preventDefault();
+    const meeting: NewMeeting = { date: date.value, kind: "regular" };
+    api("/api/meetings", "POST", meeting).then(render, (e: Error) => alert(e.message));
+  };
+  return form;
+}
+
+async function render() {
+  const meetings = await api<Meeting[]>("/api/meetings");
+  const runsAgenda = charges.some((c) => c.responsibilities.some((r) => r.module === "agenda"));
+  document.getElementById("app")!.replaceChildren(
+    el("h1", church.name),
+    ...charges.map((charge) =>
+      el(
+        "section",
+        undefined,
+        el("h2", `${officeName(charge.office)} · ${charge.term.start_year}`),
+        el("ul", undefined, ...charge.responsibilities.map((r) => el("li", r.page ? `${r.summary} (p. ${r.page})` : r.summary))),
+      ),
     ),
-  ),
-  el("footer", catalog.layers.join(" + ")),
-);
+    ...(runsAgenda ? [el("h2", "Juntas directivas"), newMeetingForm(), ...meetings.map(meetingView)] : []),
+    el("footer", catalog.layers.join(" + ")),
+  );
+}
+
+await render();
