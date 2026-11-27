@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post, put},
+    routing::{any, get, post, put},
 };
 use domain::{
     agenda::{AgendaError, ItemId, ItemStatus, Meeting, MeetingId, NewItem, NewMeeting},
@@ -91,6 +91,8 @@ pub fn router(app: App) -> Router {
         .route("/api/meetings/{id}/items", post(add_item))
         .route("/api/meetings/{id}/items/{item}", axum::routing::delete(remove_item))
         .route("/api/meetings/{id}/items/{item}/status", put(set_item_status))
+        // Otherwise main's page fallback would answer a mistyped API path with the page.
+        .route("/api/{*rest}", any(|| async { ApiError::NotFound }))
         .with_state(Arc::new(app))
 }
 

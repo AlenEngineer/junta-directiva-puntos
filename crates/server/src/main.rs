@@ -4,6 +4,7 @@ mod store;
 
 use std::{net::SocketAddr, path::PathBuf};
 
+use axum::Router;
 use tower_http::services::{ServeDir, ServeFile};
 
 fn env(name: &str, default: &str) -> String {
@@ -43,11 +44,45 @@ async fn main() {
 
     let mut router = api::router(api::App { store });
     if let Ok(dir) = std::env::var("WEB_DIR") {
-        let index = PathBuf::from(&dir).join("index.html");
-        router = router.fallback_service(ServeDir::new(&dir).fallback(ServeFile::new(index)));
+        router = with_page(router, &dir);
     }
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap_or_else(|e| fail(format!("bind {addr}: {e}")));
     println!("listening on http://{addr}");
     axum::serve(listener, router).await.expect("server");
+}
+
+/// Serves the built page in `dir` for every path the API does not route.
+fn with_page(router: Router, dir: &str) -> Router {
+    let index = PathBuf::from(dir).join("index.html");
+    router.fallback_service(ServeDir::new(dir).fallback(ServeFile::new(index)))
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    use super::*;
+
+    async fn get(router: &Router, uri: &str) -> (StatusCode, String) {
+        let response = router.clone().oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
+        let status = response.status();
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        (status, String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    #[tokio::test]
+    async fn an_unknown_api_path_is_not_found_and_any_other_path_is_the_page() {
+        let store = store::Store::open("sqlite::memory:").await.unwrap();
+        let router = with_page(api::router(api::App { store }), concat!(env!("CARGO_MANIFEST_DIR"), "/../../web"));
+        assert_eq!(get(&router, "/api/no-such-thing").await, (StatusCode::NOT_FOUND, r#"{"error":"not found"}"#.to_owned()));
+        let (status, page) = get(&router, "/juntas/1").await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(page.contains("<title>Mayordomo</title>"), "{page}");
+    }
 }
