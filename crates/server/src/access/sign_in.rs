@@ -233,13 +233,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_code_workos_refuses_or_an_authkit_error_signs_nobody_in() {
+    async fn a_refused_code_an_authkit_error_or_workos_down_signs_nobody_in() {
         let app = TestApp::seeded().await;
         let refused = app.callback_with_code("expired").await;
         assert_eq!(location(&refused), "/?login=failed");
         assert!(set_cookie(&refused, "mayordomo_session").is_none());
         let error = app.send(get("/api/auth/callback?error=access_denied&state=x")).await;
         assert_eq!(location(&error), "/?login=failed");
+        app.workos.go_down();
+        let down = app.callback_with_code("ana@example.org").await;
+        assert_eq!(location(&down), "/?login=failed");
+        assert!(set_cookie(&down, "mayordomo_session").is_none());
     }
 
     #[tokio::test]

@@ -8,14 +8,15 @@ use axum::{
     routing::{any, delete, get, post, put},
 };
 use domain::{
-    access::Viewer,
+    ChargeId,
+    access::{Invitation, Viewer},
     agenda::{AgendaError, ItemId, ItemStatus, Meeting, MeetingId, NewItem, NewMeeting},
     setup::{Entry, NewEntry, Setup, SetupError},
 };
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::access::{self, ApiError, App, Can, Me, ReadBoard, ReadSetup, RecordVotes, RunBoard};
+use crate::access::{self, ApiError, App, Can, Me, ReadBoard, ReadSetup, RecordVotes, RunBoard, WorkosError};
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
@@ -29,6 +30,12 @@ impl IntoResponse for ApiError {
             Self::Setup(e @ SetupError::NoSetup) => (StatusCode::SERVICE_UNAVAILABLE, e.to_string()),
             Self::Setup(e @ SetupError::Stale) => (StatusCode::CONFLICT, e.to_string()),
             Self::Setup(e) => (StatusCode::UNPROCESSABLE_ENTITY, e.to_string()),
+            Self::NoEmail(charge) => (StatusCode::UNPROCESSABLE_ENTITY, format!("charge {} has no email to invite", charge.0)),
+            Self::Workos(WorkosError::Refused(message)) => (StatusCode::CONFLICT, message),
+            Self::Workos(e) => {
+                eprintln!("{e}");
+                (StatusCode::BAD_GATEWAY, "WorkOS did not answer; try again".to_owned())
+            }
             Self::Store(e) => {
                 eprintln!("store error: {e}");
                 (StatusCode::INTERNAL_SERVER_ERROR, "storage error".to_owned())
@@ -50,6 +57,7 @@ pub fn router(app: App) -> Router {
         .route("/api/me", get(me))
         .route("/api/setup", get(setup))
         .route("/api/setup/history", get(history).post(record_vote))
+        .route("/api/setup/charges/{id}/invitation", post(invite))
         .route("/api/meetings", get(meetings).post(create_meeting))
         .route("/api/meetings/{id}", get(meeting))
         .route("/api/meetings/{id}/advance", post(advance))
@@ -75,6 +83,10 @@ async fn history(can: Can<ReadSetup>) -> ApiResult<Vec<Entry>> {
 
 async fn record_vote(can: Can<RecordVotes>, Json(new): Json<NewEntry>) -> Result<(StatusCode, Json<Entry>), ApiError> {
     Ok((StatusCode::CREATED, Json(can.record(&new).await?)))
+}
+
+async fn invite(can: Can<RecordVotes>, Path(id): Path<u32>) -> Result<(StatusCode, Json<Invitation>), ApiError> {
+    Ok((StatusCode::ACCEPTED, Json(can.invite(ChargeId(id)).await?)))
 }
 
 async fn meetings(can: Can<ReadBoard>) -> ApiResult<Vec<Meeting>> {

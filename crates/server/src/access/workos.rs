@@ -1,8 +1,8 @@
-//! The calls Mayordomo makes to WorkOS: the code exchange, plus the two
-//! browser redirects to authorize and to log out. `base` is
-//! https://api.workos.com in production and a stand-in on a loopback port
-//! in tests, so tests exercise these very requests and parsers. The wire
-//! shapes stay in this file.
+//! The calls Mayordomo makes to WorkOS: the code exchange and an
+//! invitation, plus the two browser redirects to authorize and to log out.
+//! `base` is https://api.workos.com in production and a stand-in on a
+//! loopback port in tests, so tests exercise these very requests and
+//! parsers. The wire shapes stay in this file.
 
 use std::{fmt, time::Duration};
 
@@ -28,7 +28,7 @@ pub(super) struct Hints {
 
 #[derive(Debug)]
 pub enum WorkosError {
-    /// WorkOS answered 4xx, such as for a code already used. Its message.
+    /// WorkOS answered 4xx, such as for a code already used or an email already invited. Its message.
     Refused(String),
     /// The email that signed in is not verified, so it is never matched to a holder.
     Unverified,
@@ -88,6 +88,12 @@ impl Workos {
         })
     }
 
+    /// Has WorkOS email `email` an invitation to sign up, in Spanish.
+    pub(super) async fn invite(&self, email: &str) -> Result<Sent, WorkosError> {
+        let invitation = NewInvitation { email, locale: "es" };
+        read(self.http.post(self.endpoint("/user_management/invitations")).bearer_auth(&self.api_key).json(&invitation).send().await).await
+    }
+
     fn endpoint(&self, path: &str) -> String {
         format!("{}{path}", self.base)
     }
@@ -118,6 +124,18 @@ struct User {
     email_verified: bool,
     first_name: Option<String>,
     last_name: Option<String>,
+}
+
+/// The invitation WorkOS made. Its other fields are not used.
+#[derive(Deserialize)]
+pub(super) struct Sent {
+    pub(super) expires_at: String,
+}
+
+#[derive(Serialize)]
+struct NewInvitation<'a> {
+    email: &'a str,
+    locale: &'static str,
 }
 
 #[derive(Deserialize)]

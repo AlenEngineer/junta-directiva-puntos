@@ -8,7 +8,7 @@ use ts_rs::TS;
 
 use crate::catalog::Catalog;
 use crate::setup::Setup;
-use crate::{Charge, Date, Module, church_year, normalize_email};
+use crate::{Charge, ChargeId, Date, Module, church_year, normalize_email};
 
 /// The offices whose holder records the church's votes and invites holders
 /// to sign in. The clerk records the church's decisions (pp. 103-104, 167),
@@ -104,6 +104,16 @@ impl May {
             run_board: run_board || other.run_board,
         }
     }
+}
+
+/// An invitation WorkOS emailed to a charge's holder so they can sign up.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct Invitation {
+    pub charge: ChargeId,
+    pub email: String,
+    /// When the invitation stops working, as WorkOS reports it (UTC, ISO 8601).
+    pub expires_at: String,
 }
 
 #[cfg(test)]

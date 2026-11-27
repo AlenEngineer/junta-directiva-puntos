@@ -2,11 +2,16 @@
 //! stand-in for WorkOS on a loopback port. Nothing here calls WorkOS.
 
 use std::path::{Path, PathBuf};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
 
 use axum::{
     Json, Router,
     body::Body,
-    http::{HeaderValue, Method, Request, Response, StatusCode, header, request},
+    extract::State,
+    http::{HeaderMap, HeaderValue, Method, Request, Response, StatusCode, header, request},
     response::IntoResponse,
     routing,
 };
@@ -175,26 +180,56 @@ impl Expect {
     }
 }
 
-/// api.workos.com on a loopback port. `POST /user_management/authenticate`
-/// needs the test client id and API key, else 401. The code is the email it
-/// signs in, with the WorkOS session "session_for_<email>". The code
-/// "unverified:<email>" signs that email in unverified, and "expired" is
-/// refused with 400, as a code already used is.
+/// api.workos.com on a loopback port.
+///
+/// - `POST /user_management/authenticate` needs the test client id and API
+///   key, else 401. The code is the email it signs in, with the WorkOS
+///   session "session_for_<email>". The code "unverified:<email>" signs that
+///   email in unverified, and "expired" is refused with 400, as a code
+///   already used is.
+/// - `POST /user_management/invitations` needs the API key as a bearer
+///   token, else 401. It keeps each body and answers 201 with an invitation
+///   that expires on 2026-12-13. A second invitation to the same email is
+///   refused with 400.
+/// - After `go_down`, both answer 503.
 pub struct FakeWorkos {
     pub url: String,
+    fake: Fake,
+}
+
+#[derive(Clone, Default)]
+struct Fake {
+    invitations: Arc<Mutex<Vec<Value>>>,
+    down: Arc<AtomicBool>,
 }
 
 impl FakeWorkos {
     async fn start() -> Self {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
-        let fake = Router::new().route("/user_management/authenticate", routing::post(authenticate));
-        tokio::spawn(async move { axum::serve(listener, fake).await.unwrap() });
-        Self { url }
+        let fake = Fake::default();
+        let routes = Router::new()
+            .route("/user_management/authenticate", routing::post(authenticate))
+            .route("/user_management/invitations", routing::post(invite))
+            .with_state(fake.clone());
+        tokio::spawn(async move { axum::serve(listener, routes).await.unwrap() });
+        Self { url, fake }
+    }
+
+    /// Every invitation body WorkOS received, in order.
+    pub fn invitations(&self) -> Vec<Value> {
+        self.fake.invitations.lock().unwrap().clone()
+    }
+
+    pub fn go_down(&self) {
+        self.fake.down.store(true, Ordering::SeqCst);
     }
 }
 
-async fn authenticate(Json(body): Json<Value>) -> axum::response::Response {
+async fn authenticate(State(fake): State<Fake>, Json(body): Json<Value>) -> axum::response::Response {
+    if fake.down.load(Ordering::SeqCst) {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
     if body["client_id"] != CLIENT_ID || body["client_secret"] != API_KEY || body["grant_type"] != "authorization_code" {
         return (StatusCode::UNAUTHORIZED, Json(json!({ "error": "invalid_client", "error_description": "Invalid client secret." })))
             .into_response();
@@ -220,6 +255,24 @@ async fn authenticate(Json(body): Json<Value>) -> axum::response::Response {
         "refresh_token": "refresh_token",
     }))
     .into_response()
+}
+
+async fn invite(State(fake): State<Fake>, headers: HeaderMap, Json(body): Json<Value>) -> axum::response::Response {
+    if fake.down.load(Ordering::SeqCst) {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
+    if headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()) != Some(&format!("Bearer {API_KEY}")) {
+        return (StatusCode::UNAUTHORIZED, Json(json!({ "message": "Unauthorized" }))).into_response();
+    }
+    let mut invitations = fake.invitations.lock().unwrap();
+    if invitations.iter().any(|sent| sent["email"] == body["email"]) {
+        let refused = json!({ "code": "email_already_invited", "message": "An invitation has already been sent to this email." });
+        return (StatusCode::BAD_REQUEST, Json(refused)).into_response();
+    }
+    invitations.push(body.clone());
+    let invitation = json!({ "object": "invitation", "id": "invitation_01", "email": body["email"], "state": "pending",
+                             "expires_at": "2026-12-13T12:00:00.000Z", "token": "invitation_token" });
+    (StatusCode::CREATED, Json(invitation)).into_response()
 }
 
 pub fn get(uri: &str) -> request::Builder {

@@ -20,7 +20,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{extract::FromRequestParts, http::request::Parts};
 use domain::{
-    Date,
+    ChargeId, Date,
     access::{May, Viewer},
     agenda::AgendaError,
     setup::{Setup, SetupError},
@@ -29,6 +29,7 @@ use domain::{
 use crate::store::{RecordError, Store};
 
 pub use sign_in::routes as sign_in_routes;
+pub use workos::WorkosError;
 
 /// Where WorkOS's API lives. Tests pass a stand-in's address instead.
 pub const WORKOS_API: &str = "https://api.workos.com";
@@ -94,7 +95,7 @@ pub trait Permission {
 
 /// `GET /api/setup`, `GET /api/setup/history`.
 pub enum ReadSetup {}
-/// `POST /api/setup/history`.
+/// `POST /api/setup/history`, `POST /api/setup/charges/{id}/invitation`.
 pub enum RecordVotes {}
 /// `GET /api/meetings`, `GET /api/meetings/{id}`.
 pub enum ReadBoard {}
@@ -109,7 +110,7 @@ impl Permission for ReadSetup {
 }
 
 impl Permission for RecordVotes {
-    const NEEDS: &'static str = "recording votes needs the clerk or the first elder";
+    const NEEDS: &'static str = "recording votes and inviting holders needs the clerk or the first elder";
     fn granted(may: &May) -> bool {
         may.record_votes
     }
@@ -198,6 +199,8 @@ pub enum ApiError {
     Conflict,
     Agenda(AgendaError),
     Setup(SetupError),
+    NoEmail(ChargeId),
+    Workos(WorkosError),
     Store(sqlx::Error),
 }
 
@@ -280,6 +283,7 @@ mod tests {
             (Method::GET, "/api/setup", None, [S, F, A, A, A, A, F, A]),
             (Method::GET, "/api/setup/history", None, [S, F, A, A, A, A, F, A]),
             (Method::POST, "/api/setup/history", rename, [S, F, A, F, F, A, F, A]),
+            (Method::POST, "/api/setup/charges/2/invitation", None, [S, F, A, F, F, A, F, A]),
             (Method::GET, "/api/meetings", None, [S, F, A, A, F, A, F, A]),
             (Method::GET, "/api/meetings/1", None, [S, F, A, A, F, A, F, A]),
             (Method::POST, "/api/meetings", new_meeting, [S, F, F, F, F, A, F, A]),
@@ -305,7 +309,7 @@ mod tests {
         assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", release_ana).await.0, StatusCode::CREATED);
         let rename = vote(3, "business_meeting", json!({ "church": "Iglesia Central" }));
         let (status, body) = app.call(&ana, Method::POST, "/api/setup/history", rename).await;
-        assert_eq!((status, body["error"].as_str()), (StatusCode::FORBIDDEN, Some("recording votes needs the clerk or the first elder")));
+        assert_eq!((status, body["error"].as_str()), (StatusCode::FORBIDDEN, Some("recording votes and inviting holders needs the clerk or the first elder")));
         assert_eq!(app.call(&ana, Method::GET, "/api/me", None).await.1["charges"], json!([]), "same session, new answer");
     }
 
