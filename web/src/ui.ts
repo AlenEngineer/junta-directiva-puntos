@@ -39,7 +39,9 @@ function signIn() {
     return;
   }
   const why = loginFailure === "unverified" ? "Tu correo no está verificado." : "No se pudo iniciar sesión.";
-  root.replaceChildren(h("section", { class: "panel" }, h("p", null, why), h("a", { href: "/api/auth/login", class: "button" }, "Iniciar sesión")));
+  root.replaceChildren(
+    h("main", null, h("div", { class: "stack" }, h("h1", null, "Mayordomo"), h("p", null, why), h("p", null, h("a", { href: "/api/auth/login", class: "button primary" }, "Iniciar sesión")))),
+  );
 }
 
 type Child = Node | string | null | undefined | false;
@@ -112,6 +114,60 @@ export function monthName(month: number): string {
 export function churchYearSpan(year: number, starts: number): string {
   if (starts === 1) return `enero a diciembre de ${year}`;
   return `${monthName(starts)} de ${year} a ${monthName(starts - 1)} de ${year + 1}`;
+}
+
+const longFormat = new Intl.DateTimeFormat("es", { dateStyle: "long", timeZone: "UTC" });
+const dayFormat = new Intl.DateTimeFormat("es", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const shortDay = new Intl.DateTimeFormat("es", { weekday: "short", timeZone: "UTC" });
+const conjunction = new Intl.ListFormat("es", { type: "conjunction" });
+
+const utc = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+
+/** "22 de noviembre de 2026" for "2026-11-22". */
+export function longDate(iso: string): string {
+  return longFormat.format(utc(iso));
+}
+
+/** "Martes 8 de diciembre" for "2026-12-08". */
+export function dayDate(iso: string): string {
+  const text = dayFormat.format(utc(iso)).replace(",", "");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+const dayMonthFormat = new Intl.DateTimeFormat("es", { day: "numeric", month: "long", timeZone: "UTC" });
+
+/** "1 de diciembre". */
+export function dayMonth(iso: string): string {
+  return dayMonthFormat.format(utc(iso));
+}
+
+/** The stacked date of a row: "Mar" over "8". */
+export function dateMark(iso: string): HTMLElement {
+  const day = shortDay.format(utc(iso)).replace(".", "");
+  return h("div", { class: "date" }, day.charAt(0).toUpperCase() + day.slice(1), h("b", null, String(utc(iso).getUTCDate())));
+}
+
+/** Today as `YYYY-MM-DD`, in UTC like the server's church year. */
+export function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** "Anciano y Tesorero". */
+export function andList(items: string[]): string {
+  return conjunction.format(items);
+}
+
+/**
+ * The church's stamp, pressed only on what a body recorded. With no lines it
+ * is the empty outline of a vote not yet saved.
+ */
+export function stamp(lines: string[], options: { pressed?: boolean; small?: boolean } = {}): HTMLElement {
+  const unset = lines.length === 0;
+  const cls = ["stamp", unset && "unset", options.pressed && "pressed", options.small && "small"].filter(Boolean).join(" ");
+  const node = h("div", { class: cls }, ...(unset ? ["Sin sellar"] : lines).flatMap((line, i) => (i === 0 ? [line] : [h("br"), line])));
+  if (!unset) node.setAttribute("role", "img");
+  if (!unset) node.setAttribute("aria-label", lines.join(", "));
+  return node;
 }
 
 /** Storage that may be missing (private windows, blocked site data). */
