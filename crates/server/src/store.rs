@@ -410,7 +410,7 @@ pub mod tests {
         store.seed(&church("Iglesia")).await.unwrap();
         let rename = |name: &str| NewEntry {
             after: EntryId(1),
-            vote: Vote { body: domain::setup::VotingBody::BusinessMeeting, date: "2026-04-11".into(), minute: None },
+            vote: Vote { body: domain::setup::VotingBody::Church, date: "2026-04-11".into(), minute: None },
             change: church(name),
         };
         let (central, north) = (rename("Iglesia Central"), rename("Iglesia Norte"));

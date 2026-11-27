@@ -75,6 +75,28 @@ impl FromRequestParts<AppState> for Me {
     }
 }
 
+/// The developer, before the church has a setup: the one way to write
+/// entry 1. Extracting it answers 401 without a live session, 409 once a
+/// setup exists, and 403 for anyone else.
+pub struct FirstSetup {
+    app: AppState,
+}
+
+impl FromRequestParts<AppState> for FirstSetup {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, app: &AppState) -> Result<Self, ApiError> {
+        let Signed { viewer, setup } = signed(parts, app).await?;
+        if setup.is_some() {
+            return Err(ApiError::Setup(SetupError::Stale));
+        }
+        if !viewer.may.start_setup {
+            return Err(ApiError::Forbidden("only the developer enters the church's first setup"));
+        }
+        Ok(Self { app: Arc::clone(app) })
+    }
+}
+
 /// The person asking may do `P`. Every operation on the church's data is a
 /// method of the `Can<P>` whose permission it needs, and only extraction
 /// makes one, so holding a `Can<P>` proves the check passed.
@@ -137,6 +159,7 @@ impl<P: Permission> FromRequestParts<AppState> for Can<P> {
     /// 403 when no charge that serves today grants `P`.
     async fn from_request_parts(parts: &mut Parts, app: &AppState) -> Result<Self, ApiError> {
         let Signed { viewer, setup } = signed(parts, app).await?;
+        let setup = setup.ok_or(ApiError::Setup(SetupError::NoSetup))?;
         if !P::granted(&viewer.may) {
             return Err(ApiError::Forbidden(P::NEEDS));
         }
@@ -144,10 +167,11 @@ impl<P: Permission> FromRequestParts<AppState> for Can<P> {
     }
 }
 
-/// Who is asking, with the setup their permissions were read from.
+/// Who is asking, with the setup their permissions were read from, if
+/// the church has one yet.
 struct Signed {
     viewer: Viewer,
-    setup: Setup,
+    setup: Option<Setup>,
 }
 
 /// Read once per request: the session cookie, the live session it names,
@@ -156,8 +180,11 @@ async fn signed(parts: &Parts, app: &App) -> Result<Signed, ApiError> {
     let now = app.clock.now();
     let token = sign_in::session_token(&parts.headers).ok_or(ApiError::SignedOut)?;
     let person = app.store.signed_in(token, now.unix).await?.ok_or(ApiError::SignedOut)?;
-    let setup = app.store.setup().await?.ok_or(ApiError::Setup(SetupError::NoSetup))?;
-    let viewer = Viewer::new(&setup, person, now.today, app.developer.as_deref());
+    let setup = app.store.setup().await?;
+    let viewer = match &setup {
+        Some(setup) => Viewer::new(setup, person, now.today, app.developer.as_deref()),
+        None => Viewer::before_setup(person, app.developer.as_deref()),
+    };
     Ok(Signed { viewer, setup })
 }
 
@@ -244,7 +271,7 @@ mod tests {
         let app = TestApp::seeded().await;
         let dev = app.sign_in(DEVELOPER).await;
         let ana = json!({ "office": "secretario", "holder": { "name": "Ana Rojas", "email": "Ana@Example.org" }, "term": { "start_year": 2026 } });
-        let elected = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "business_meeting", json!({ "elect": [ana] }))).await;
+        let elected = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "church", json!({ "elect": [ana] }))).await;
         assert_eq!(elected.0, StatusCode::CREATED);
 
         let (status, me) = app.call(&app.sign_in("ana@example.org").await, Method::GET, "/api/me", None).await;
@@ -252,20 +279,30 @@ mod tests {
         assert_eq!((me["email"].as_str(), me["name"].as_str()), (Some("ana@example.org"), Some("ana Prueba")));
         assert_eq!((me["charges"][0]["id"].as_i64(), me["charges"][0]["office"].as_str()), (Some(2), Some("secretario")));
         assert_eq!(me["charges"].as_array().map(Vec::len), Some(1));
-        assert_eq!(me["may"], json!({ "read_setup": true, "record_votes": true, "read_board": true, "run_board": false }));
+        assert_eq!(me["may"], json!({ "read_setup": true, "record_votes": true, "read_board": true, "run_board": false, "start_setup": false }));
 
         let (_, developer) = app.call(&dev, Method::GET, "/api/me", None).await;
         assert_eq!((&developer["charges"], &developer["may"]["run_board"]), (&json!([]), &json!(true)));
         let (_, nobody) = app.call(&app.sign_in("nadie@example.org").await, Method::GET, "/api/me", None).await;
         assert_eq!(nobody["charges"], json!([]));
-        assert_eq!(nobody["may"], json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false }));
+        assert_eq!(
+            nobody["may"],
+            json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false, "start_setup": false })
+        );
     }
 
     #[tokio::test]
-    async fn before_the_church_has_a_setup_nobody_can_be_told_what_they_may_do() {
+    async fn before_the_church_has_a_setup_only_the_developer_may_start_one() {
         let app = TestApp::unseeded().await;
         let dev = app.sign_in(DEVELOPER).await;
-        assert_eq!(app.call(&dev, Method::GET, "/api/me", None).await.0, StatusCode::SERVICE_UNAVAILABLE);
+        let (status, me) = app.call(&dev, Method::GET, "/api/me", None).await;
+        assert_eq!((status, &me["charges"]), (StatusCode::OK, &json!([])));
+        assert_eq!(
+            me["may"],
+            json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false, "start_setup": true })
+        );
+        let (_, ana) = app.call(&app.sign_in("ana@example.org").await, Method::GET, "/api/me", None).await;
+        assert_eq!(ana["may"]["start_setup"], false);
     }
 
     #[tokio::test]
@@ -274,7 +311,7 @@ mod tests {
         let app = TestApp::seeded().await;
         let people = app.with_officers().await;
         let names = ["signed out", "nobody", "ana, clerk", "luis, treasurer", "marta, multimedia", "pedro, first elder", "olga, succeeded", "developer"];
-        let rename = vote(2, "business_meeting", json!({ "church": "Iglesia Central" }));
+        let rename = vote(2, "church", json!({ "church": "Iglesia Central" }));
         let new_meeting = Some(json!({ "date": "2027-01-10", "kind": "regular" }));
         let new_item = Some(json!({ "section": "finanzas", "title": "Diezmos", "kind": "informative", "presenter": null }));
         let approved = Some(json!({ "status": "approved" }));
@@ -305,9 +342,9 @@ mod tests {
     async fn a_vote_that_releases_the_clerk_takes_effect_on_her_next_request() {
         let app = TestApp::seeded().await;
         let [_, _, ana, .., dev] = app.with_officers().await;
-        let release_ana = vote(2, "business_meeting", json!({ "release": [2] }));
+        let release_ana = vote(2, "church", json!({ "release": [2] }));
         assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", release_ana).await.0, StatusCode::CREATED);
-        let rename = vote(3, "business_meeting", json!({ "church": "Iglesia Central" }));
+        let rename = vote(3, "church", json!({ "church": "Iglesia Central" }));
         let (status, body) = app.call(&ana, Method::POST, "/api/setup/history", rename).await;
         assert_eq!((status, body["error"].as_str()), (StatusCode::FORBIDDEN, Some("recording votes and inviting holders needs the clerk or the first elder")));
         assert_eq!(app.call(&ana, Method::GET, "/api/me", None).await.1["charges"], json!([]), "same session, new answer");
@@ -321,12 +358,12 @@ mod tests {
             json!({ "elect": [{ "office": "tesorero", "holder": { "name": name, "email": format!("{}@example.org", name.to_lowercase()) },
                                 "term": { "start_year": start_year } }] })
         };
-        let luis = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "business_meeting", treasurer("Luis", 2025))).await;
+        let luis = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "church", treasurer("Luis", 2025))).await;
         assert_eq!(luis.0, StatusCode::CREATED);
         let luis = app.sign_in("luis@example.org").await;
         assert_eq!(app.call(&luis, Method::GET, "/api/meetings", None).await.0, StatusCode::OK, "his 2025 term ended, but nobody succeeded him");
 
-        let rosa = app.call(&dev, Method::POST, "/api/setup/history", vote(2, "business_meeting", treasurer("Rosa", 2026))).await;
+        let rosa = app.call(&dev, Method::POST, "/api/setup/history", vote(2, "church", treasurer("Rosa", 2026))).await;
         assert_eq!(rosa.0, StatusCode::CREATED);
         assert_eq!(app.call(&luis, Method::GET, "/api/meetings", None).await.0, StatusCode::FORBIDDEN);
         let rosa = app.sign_in("rosa@example.org").await;

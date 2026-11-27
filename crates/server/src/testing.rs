@@ -21,6 +21,8 @@ use reqwest::Url;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
+use domain::{catalog::Layer, setup::Change};
+
 use crate::access::{App, Clock, Config};
 use crate::store::Store;
 
@@ -37,15 +39,15 @@ pub struct TestApp {
 }
 
 impl TestApp {
-    /// The example church from examples/setup.json, in memory.
+    /// The example church, in memory.
     pub async fn seeded() -> Self {
-        Self::open("sqlite::memory:", "setup.json").await
+        Self::open("sqlite::memory:").await
     }
 
-    /// The database at `url`, seeded from `setup_file` while it is empty, as `main` does.
-    pub async fn open(url: &str, setup_file: &str) -> Self {
+    /// The database at `url`, with the example church's first setup while it has none.
+    pub async fn open(url: &str) -> Self {
         let store = Store::open(url).await.unwrap();
-        crate::seed::ensure(&store, &examples().join(setup_file)).await.unwrap();
+        store.seed(&example_church()).await.unwrap();
         Self::serving(store).await
     }
 
@@ -54,7 +56,8 @@ impl TestApp {
         Self::serving(Store::open("sqlite::memory:").await.unwrap()).await
     }
 
-    async fn serving(store: Store) -> Self {
+    /// The router over `store` as it is.
+    pub async fn serving(store: Store) -> Self {
         let workos = FakeWorkos::start().await;
         let config = Config {
             workos_api: workos.url.clone(),
@@ -85,7 +88,7 @@ impl TestApp {
         self.send(get(&format!("{}?{}", back.path(), back.query().unwrap())).header(header::COOKIE, login_cookie)).await
     }
 
-    /// The developer records one business meeting vote that releases charge
+    /// The developer records one vote of the church that releases charge
     /// 1 and elects, for 2026, Ana as clerk (charge 2), Luis as treasurer
     /// (3), Marta in multimedia, an office off the board (4), and Pedro as
     /// first elder (5). The same vote elects Olga as clerk for 2025 (6), so
@@ -102,7 +105,7 @@ impl TestApp {
             elect("secretario", "Ana", 2026), elect("tesorero", "Luis", 2026), elect("multimedia", "Marta", 2026),
             elect("primer-anciano", "Pedro", 2026), elect("secretario", "Olga", 2025),
         ] });
-        let voted = self.call(&dev, Method::POST, "/api/setup/history", vote(1, "business_meeting", officers)).await;
+        let voted = self.call(&dev, Method::POST, "/api/setup/history", vote(1, "church", officers)).await;
         assert_eq!(voted.0, StatusCode::CREATED, "{}", voted.1);
         let meeting = self.call(&dev, Method::POST, "/api/meetings", Some(json!({ "date": "2026-12-06", "kind": "regular" }))).await;
         assert_eq!(meeting.0, StatusCode::CREATED);
@@ -307,6 +310,19 @@ pub fn set_cookie(response: &Response<Body>, name: &str) -> Option<String> {
 /// `name=value` from a `Set-Cookie` header, as the browser sends it back.
 pub fn cookie_pair(set_cookie: &str) -> String {
     set_cookie.split(';').next().unwrap().to_owned()
+}
+
+/// The first setup of the church the tests use: the offices that
+/// examples/iglesia.json adds and hides, and charge 1, a first elder with
+/// no email.
+pub fn example_church() -> Change {
+    let layer = Layer::parse(&std::fs::read_to_string(examples().join("iglesia.json")).unwrap()).unwrap();
+    serde_json::from_value(json!({
+        "church": layer.name,
+        "catalog": layer.edit,
+        "elect": [{ "office": "primer-anciano", "holder": { "name": "Hermano de ejemplo" }, "term": { "start_year": 2026 } }],
+    }))
+    .unwrap()
 }
 
 pub fn examples() -> PathBuf {

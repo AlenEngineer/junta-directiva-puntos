@@ -2,7 +2,7 @@
 import type { Vote } from "./Vote";
 
 /**
- * What approved an entry. `Initial` is the developer's exception, loaded
- * once from the setup file with no vote, and only ever entry 1.
+ * What approved an entry. `Initial` is the developer's exception, entered
+ * once in the app with no vote, and only ever entry 1.
  */
 export type Approval = { "kind": "initial" } | { "kind": "vote" } & Vote;

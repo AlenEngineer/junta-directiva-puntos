@@ -49,14 +49,26 @@ impl Viewer {
             .filter(|c| c.holder.email.as_deref() == Some(email.as_str()) && c.serves_in(year, setup.charges()))
             .cloned()
             .collect();
-        let is_developer = developer.map(normalize_email).is_some_and(|d| !d.is_empty() && d == email);
-        let may = if is_developer {
+        let may = if is_developer(&email, developer) {
             May::EVERYTHING
         } else {
             charges.iter().map(|c| May::of(c, setup.catalog())).fold(May::default(), May::or)
         };
         Self { email, name: person.name, charges, may }
     }
+
+    /// `person` before the church has a setup. Nobody holds anything yet,
+    /// so the developer may only start the setup, and anyone else may do
+    /// nothing.
+    pub fn before_setup(person: Person, developer: Option<&str>) -> Self {
+        let email = normalize_email(&person.email);
+        let may = May { start_setup: is_developer(&email, developer), ..May::default() };
+        Self { email, name: person.name, charges: Vec::new(), may }
+    }
+}
+
+fn is_developer(email: &str, developer: Option<&str>) -> bool {
+    developer.map(normalize_email).is_some_and(|d| !d.is_empty() && d == email)
 }
 
 /// What a viewer may do. Each field unlocks one group of routes and is
@@ -73,12 +85,15 @@ pub struct May {
     pub read_board: bool,
     /// Create board meetings, edit their items, call them and mark them held.
     pub run_board: bool,
+    /// Enter the church's first setup: the developer, while the church has none.
+    pub start_setup: bool,
 }
 
 impl May {
-    /// The developer's exception. A struct literal, so a new field does not
-    /// compile until it is listed here.
-    pub const EVERYTHING: Self = Self { read_setup: true, record_votes: true, read_board: true, run_board: true };
+    /// The developer's exception, once the church has a setup. A struct
+    /// literal, so a new field does not compile until it is listed here.
+    /// A setup exists, so there is none left to start.
+    pub const EVERYTHING: Self = Self { read_setup: true, record_votes: true, read_board: true, run_board: true, start_setup: false };
 
     /// What one serving charge allows. A struct literal for the same reason:
     /// a new field does not compile until it has its rule.
@@ -90,18 +105,20 @@ impl May {
             record_votes: RECORDERS.contains(&charge.office.0.as_str()),
             read_board: on_board || runs_board,
             run_board: runs_board,
+            start_setup: false,
         }
     }
 
     /// Everything either allows. Destructured in full, so a new field
     /// cannot be left out of the merge.
     fn or(self, other: Self) -> Self {
-        let Self { read_setup, record_votes, read_board, run_board } = self;
+        let Self { read_setup, record_votes, read_board, run_board, start_setup } = self;
         Self {
             read_setup: read_setup || other.read_setup,
             record_votes: record_votes || other.record_votes,
             read_board: read_board || other.read_board,
             run_board: run_board || other.run_board,
+            start_setup: start_setup || other.start_setup,
         }
     }
 }
@@ -203,6 +220,14 @@ mod tests {
     fn the_developer_may_do_everything_while_holding_nothing() {
         let viewer = Viewer::new(&officers(), person(" Dev@Example.org "), TODAY, Some("dev@example.org"));
         assert_eq!((viewer.may, viewer.charges.len()), (May::EVERYTHING, 0));
+    }
+
+    #[test]
+    fn before_a_setup_exists_only_the_developer_may_start_one() {
+        let dev = Viewer::before_setup(person(" Dev@Example.org "), Some("dev@example.org"));
+        assert_eq!((dev.email.as_str(), dev.may), ("dev@example.org", May { start_setup: true, ..May::default() }));
+        assert_eq!(Viewer::before_setup(person("ana@example.org"), Some("dev@example.org")).may, May::default());
+        assert_eq!(Viewer::before_setup(person("ana@example.org"), None).may, May::default());
     }
 
     #[test]

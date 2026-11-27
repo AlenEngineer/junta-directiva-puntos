@@ -1,17 +1,35 @@
-//! The church's setup, behind `ReadSetup` and `RecordVotes`.
+//! The church's setup, behind `FirstSetup`, `ReadSetup` and `RecordVotes`.
 
 use domain::{
     ChargeId,
     access::Invitation,
-    setup::{Entry, NewEntry, Setup},
+    catalog::Catalog,
+    setup::{Change, Entry, NewEntry, Served, SetupError},
 };
 
-use super::{ApiError, Can, ReadSetup, RecordVotes};
+use super::{ApiError, Can, FirstSetup, ReadSetup, RecordVotes};
+
+impl FirstSetup {
+    /// The offices a first setup starts from: the bundled manual's.
+    pub fn manual(&self) -> Catalog {
+        Catalog::manual_2025()
+    }
+
+    /// Writes entry 1, with no vote. If another request wrote it first,
+    /// nothing is written and the answer is 409.
+    pub async fn start(&self, initial: &Change) -> Result<Entry, ApiError> {
+        if !self.app.store.seed(initial).await? {
+            return Err(ApiError::Setup(SetupError::Stale));
+        }
+        let first = self.app.store.history().await?.into_iter().next();
+        first.ok_or(ApiError::Setup(SetupError::NoSetup))
+    }
+}
 
 impl Can<ReadSetup> {
-    /// The setup this request's permissions were read from.
-    pub fn setup(self) -> Setup {
-        self.setup
+    /// The setup this request's permissions were read from, as it stands today.
+    pub fn setup(&self) -> Served<'_> {
+        self.setup.on(self.app.clock.now().today)
     }
 
     /// Every entry, oldest first.
