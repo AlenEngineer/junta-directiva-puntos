@@ -4,6 +4,8 @@ import type { Charge } from "./Charge";
 import type { ChargeId } from "./ChargeId";
 import type { EntryId } from "./EntryId";
 import type { Month } from "./Month";
+import type { Place } from "./Place";
+import type { Service } from "./Service";
 
 /**
  * The church's setup as its votes leave it, and `latest`, the entry the
@@ -13,7 +15,11 @@ export type Setup = { church: string,
 /**
  * The month the church year starts in.
  */
-year_starts: Month, latest: EntryId, catalog: Catalog, 
+year_starts: Month, latest: EntryId, catalog: Catalog, places: Array<Place>, 
+/**
+ * The services the church holds every week.
+ */
+services: Array<Service>, 
 /**
  * Every charge held, including those a successor has replaced.
  */

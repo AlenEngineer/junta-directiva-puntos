@@ -6,6 +6,7 @@
 pub mod access;
 pub mod agenda;
 pub mod catalog;
+pub mod schedule;
 pub mod setup;
 
 use serde::{Deserialize, Serialize};

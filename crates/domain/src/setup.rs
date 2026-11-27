@@ -5,12 +5,15 @@
 //! so the catalog and the charges are derived, never edited, and a `Setup`
 //! exists only once every rule held.
 
+use std::collections::HashSet;
 use std::fmt;
+use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::catalog::{Catalog, CatalogEdit, Layer, OfficeId};
+use crate::schedule::{Place, PlaceId, Service, ServiceId};
 use crate::{Charge, ChargeId, Date, Month, NewCharge, church_year};
 
 /// Position in the history, from 1, without gaps. A SQLite row id, far below
@@ -70,7 +73,7 @@ pub enum Approval {
 /// What a vote decides. Every part is optional and an absent part changes
 /// nothing. The parts apply in this order, so one vote can create an office
 /// and fill it, or release a holder and hide the office: rename, church
-/// year, catalog, release, elect.
+/// year, catalog with places and services, release, elect.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Change {
@@ -84,6 +87,14 @@ pub struct Change {
     /// the terms of a layer file. The church's name names the layer.
     #[serde(default)]
     pub catalog: CatalogEdit,
+    /// Replaces every place when present.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub places: Option<Vec<Place>>,
+    /// Replaces the whole service schedule when present.
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub services: Option<Vec<Service>>,
     /// Officers elected. Each gets the next charge id.
     #[serde(default)]
     pub elect: Vec<NewCharge>,
@@ -94,16 +105,30 @@ pub struct Change {
 
 impl Change {
     pub fn is_empty(&self) -> bool {
-        let Self { church, year_starts, catalog, elect, release } = self;
-        church.is_none() && year_starts.is_none() && catalog.is_empty() && elect.is_empty() && release.is_empty()
+        let Self { church, year_starts, catalog, places, services, elect, release } = self;
+        church.is_none()
+            && year_starts.is_none()
+            && catalog.is_empty()
+            && places.is_none()
+            && services.is_none()
+            && elect.is_empty()
+            && release.is_empty()
     }
 
     /// Whether the board may vote the change. The board keeps its own agenda,
-    /// and the church votes everything else.
-    /// Destructured in full so a new kind of change does not reach the board
-    /// by default.
-    fn is_agenda_only(&self) -> bool {
-        let Self { church, year_starts, catalog: CatalogEdit { offices, hide, restore, board_agenda: _ }, elect, release } = self;
+    /// the church's places and its service schedule, and the church votes
+    /// everything else. Destructured in full so a new kind of change does
+    /// not reach the board by default.
+    fn is_board_business(&self) -> bool {
+        let Self {
+            church,
+            year_starts,
+            catalog: CatalogEdit { offices, hide, restore, board_agenda: _ },
+            places: _,
+            services: _,
+            elect,
+            release,
+        } = self;
         church.is_none()
             && year_starts.is_none()
             && offices.is_empty()
@@ -156,7 +181,7 @@ impl NewEntry {
         if self.change.is_empty() {
             return Err(SetupError::EmptyChange);
         }
-        if self.vote.body == VotingBody::Board && !self.change.is_agenda_only() {
+        if self.vote.body == VotingBody::Board && !self.change.is_board_business() {
             return Err(SetupError::NeedsChurchVote);
         }
         self.change.check()
@@ -225,6 +250,14 @@ impl Setup {
     pub fn charges(&self) -> &[Charge] {
         &self.charges
     }
+
+    pub fn places(&self) -> &[Place] {
+        &self.facts.places
+    }
+
+    pub fn services(&self) -> &[Service] {
+        &self.facts.services
+    }
 }
 
 impl Setup {
@@ -239,6 +272,8 @@ impl Setup {
             year_starts: self.year_starts(),
             latest: self.latest(),
             catalog: &self.catalog,
+            places: self.places(),
+            services: self.services(),
             charges: &self.charges,
             church_year,
             serving,
@@ -256,6 +291,9 @@ pub struct Served<'a> {
     year_starts: Month,
     latest: EntryId,
     catalog: &'a Catalog,
+    places: &'a [Place],
+    /// The services the church holds every week.
+    services: &'a [Service],
     /// Every charge held, including those a successor has replaced.
     charges: &'a [Charge],
     /// The church year today falls in.
@@ -273,6 +311,8 @@ struct Facts {
     /// The catalog part of every entry that changed the catalog, in order,
     /// with each office a vote added stamped with that vote.
     edits: Vec<CatalogEdit>,
+    places: Vec<Place>,
+    services: Vec<Service>,
     /// The charges held, under the ids the history gave them.
     elected: Vec<(ChargeId, NewCharge)>,
     /// Charge ids handed out so far. A released id is never handed out again.
@@ -308,6 +348,7 @@ impl Facts {
             }
             self.edits.push(edit);
         }
+        self.reschedule(change)?;
         for charge in &change.release {
             let Some(at) = self.elected.iter().position(|(id, _)| id == charge) else {
                 return Err(SetupError::UnknownCharge(*charge));
@@ -320,6 +361,33 @@ impl Facts {
         }
         self.latest = id;
         Ok(self)
+    }
+
+    /// Replaces the places and services `change` names, and checks that
+    /// every service still meets in a known place.
+    fn reschedule(&mut self, change: &Change) -> Result<(), SetupError> {
+        let mut removed = Vec::new();
+        if let Some(places) = &change.places {
+            if let Some(id) = duplicate(places.iter().map(|p| &p.id)) {
+                return Err(SetupError::DuplicatePlace(id.clone()));
+            }
+            removed = std::mem::replace(&mut self.places, places.clone());
+        }
+        if let Some(services) = &change.services {
+            if let Some(id) = duplicate(services.iter().map(|s| &s.id)) {
+                return Err(SetupError::DuplicateService(id.clone()));
+            }
+            self.services = services.clone();
+        }
+        let Some(service) = self.services.iter().find(|s| !self.places.iter().any(|p| p.id == s.place)) else {
+            return Ok(());
+        };
+        let (service, place) = (service.id.clone(), service.place.clone());
+        Err(if removed.iter().any(|p| p.id == place) {
+            SetupError::PlaceInUse { place, service }
+        } else {
+            SetupError::UnknownPlace { service, place }
+        })
     }
 
     fn build(self) -> Result<Setup, SetupError> {
@@ -340,6 +408,11 @@ impl Facts {
     }
 }
 
+fn duplicate<'a, T: Eq + Hash>(ids: impl IntoIterator<Item = &'a T>) -> Option<&'a T> {
+    let mut seen = HashSet::new();
+    ids.into_iter().find(|id| !seen.insert(*id))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SetupError {
     /// The catalog would be invalid. Carries the catalog's own message.
@@ -351,6 +424,11 @@ pub enum SetupError {
     /// The board voted something only the church can decide.
     NeedsChurchVote,
     UnknownCharge(ChargeId),
+    DuplicatePlace(PlaceId),
+    DuplicateService(ServiceId),
+    UnknownPlace { service: ServiceId, place: PlaceId },
+    /// A vote removed a place that a service it keeps still meets in.
+    PlaceInUse { place: PlaceId, service: ServiceId },
     /// A charge whose office is not in the catalog, because it was elected
     /// into an unknown office or its office was hidden while it was held.
     ChargeWithoutOffice { charge: ChargeId, office: OfficeId },
@@ -372,10 +450,16 @@ impl fmt::Display for SetupError {
             Self::BadDate(date) => write!(f, "{date} is not a YYYY-MM-DD date"),
             Self::BlankHolder => write!(f, "a charge needs a holder with a name"),
             Self::NeedsChurchVote => {
-                write!(f, "the board can only change the board agenda; this change needs a vote of the church")
+                write!(f, "the board can only change the board agenda, the places and the service schedule; this change needs a vote of the church")
             }
             Self::UnknownCharge(id) => {
                 write!(f, "charge {} is not held, so it cannot be released", id.0)
+            }
+            Self::DuplicatePlace(id) => write!(f, "place {} appears twice", id.0),
+            Self::DuplicateService(id) => write!(f, "service {} appears twice", id.0),
+            Self::UnknownPlace { service, place } => write!(f, "service {} meets in unknown place {}", service.0, place.0),
+            Self::PlaceInUse { place, service } => {
+                write!(f, "place {} cannot be removed while service {} meets there", place.0, service.0)
             }
             Self::ChargeWithoutOffice { charge, office } => {
                 write!(f, "charge {} is for unknown office {}", charge.0, office.0)
@@ -422,6 +506,86 @@ mod tests {
         serde_json::to_value(value).unwrap()
     }
 
+    fn places(json: &str) -> Option<Vec<Place>> {
+        Some(serde_json::from_str(json).unwrap())
+    }
+
+    fn services(json: &str) -> Option<Vec<Service>> {
+        Some(serde_json::from_str(json).unwrap())
+    }
+
+    const TEMPLE_AND_SCHOOL: &str = r#"[{"id":"templo","name":"Templo","kind":"own"},
+                                       {"id":"escuela","name":"Aulas de la escuela adventista","kind":"borrowed"}]"#;
+    const YOUTH_AT_THE_SCHOOL: &str =
+        r#"[{"id":"jovenes","name":"Sociedad de Jóvenes","weekday":"saturday","time":"15:30","place":"escuela"}]"#;
+
+    fn scheduled() -> Setup {
+        let schedule = Change { places: places(TEMPLE_AND_SCHOOL), services: services(YOUTH_AT_THE_SCHOOL), ..Change::default() };
+        decide(&church(), Church, schedule).unwrap()
+    }
+
+    #[test]
+    fn the_board_changes_the_places_and_the_service_schedule() {
+        let hall = r#"[{"id":"casa-comunal","name":"Casa comunal del corregimiento","kind":"external"}]"#;
+        let youth_at_the_hall =
+            r#"[{"id":"jovenes","name":"Sociedad de Jóvenes","weekday":"saturday","time":"16:00","place":"casa-comunal"}]"#;
+        let moved = Change { places: places(hall), services: services(youth_at_the_hall), ..Change::default() };
+        let next = decide(&scheduled(), Board, moved.clone()).unwrap();
+        assert_eq!(next.places().iter().map(|p| p.id.0.as_str()).collect::<Vec<_>>(), ["casa-comunal"]);
+        let served = json(&next.on(Date { year: 2026, month: Month::JANUARY, day: 1 }));
+        assert_eq!(served["services"][0]["time"], "16:00");
+        assert_eq!(served["places"][0]["kind"], "external");
+
+        let and_elect = Change { elect: vec![elect("secretario", "Ana Rojas")], ..moved };
+        assert_eq!(decide(&scheduled(), Board, and_elect).unwrap_err(), SetupError::NeedsChurchVote);
+    }
+
+    #[test]
+    fn a_service_on_an_unknown_place_is_refused() {
+        let initial = Change { church: Some("Iglesia".into()), services: services(YOUTH_AT_THE_SCHOOL), ..Change::default() };
+        let err = Setup::initial(&initial).unwrap_err();
+        assert_eq!(err, SetupError::UnknownPlace { service: "jovenes".into(), place: "escuela".into() });
+        assert_eq!(err.to_string(), "service jovenes meets in unknown place escuela");
+    }
+
+    #[test]
+    fn a_place_a_service_still_uses_cannot_be_removed() {
+        let setup = scheduled();
+        let temple = r#"[{"id":"templo","name":"Templo","kind":"own"}]"#;
+        let err = decide(&setup, Board, Change { places: places(temple), ..Change::default() }).unwrap_err();
+        assert_eq!(err.to_string(), "place escuela cannot be removed while service jovenes meets there");
+        let with_its_service = Change { places: places(temple), services: Some(vec![]), ..Change::default() };
+        assert!(decide(&setup, Board, with_its_service).unwrap().services().is_empty());
+    }
+
+    #[test]
+    fn a_place_or_service_listed_twice_is_refused() {
+        let twice = r#"[{"id":"templo","name":"Templo","kind":"own"},{"id":"templo","name":"Otro","kind":"borrowed"}]"#;
+        let err = decide(&church(), Board, Change { places: places(twice), ..Change::default() }).unwrap_err();
+        assert_eq!(err, SetupError::DuplicatePlace("templo".into()));
+        let youth = services(YOUTH_AT_THE_SCHOOL).unwrap();
+        let err = decide(&scheduled(), Board, Change { services: Some([youth.clone(), youth].concat()), ..Change::default() }).unwrap_err();
+        assert_eq!(err.to_string(), "service jovenes appears twice");
+    }
+
+    #[test]
+    fn replay_keeps_the_places_and_the_schedule() {
+        let initial = Change { church: Some("Iglesia".into()), places: places(TEMPLE_AND_SCHOOL), ..Change::default() };
+        let schedule = Change { services: services(YOUTH_AT_THE_SCHOOL), ..Change::default() };
+        let rename = Change { church: Some("Iglesia Central".into()), ..Change::default() };
+        let first = Setup::initial(&initial).unwrap();
+        let stepped = decide(&decide(&first, Board, schedule.clone()).unwrap(), Church, rename.clone()).unwrap();
+        let stored = |id, approval, change: &Change| entry(id, approval, serde_json::from_value(json(change)).unwrap());
+        let history = [
+            stored(1, Approval::Initial, &initial),
+            stored(2, Approval::Vote(vote(Board)), &schedule),
+            stored(3, Approval::Vote(vote(Church)), &rename),
+        ];
+        let replayed = Setup::replay(&history).unwrap();
+        assert_eq!((replayed.places(), replayed.services()), (stepped.places(), stepped.services()));
+        assert_eq!(replayed.services()[0].place, "escuela".into());
+    }
+
     #[test]
     fn one_vote_adds_an_office_and_elects_its_holder() {
         let office = r#"{"offices":[{"id":"bienvenida","name":"Coordinador de bienvenida","board_member":false,
@@ -441,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    fn the_board_votes_only_its_agenda() {
+    fn the_board_votes_its_agenda_and_the_church_everything_else() {
         let setup = church();
         let agenda = Change { catalog: catalog(r#"{"board_agenda":[{"id":"oracion","title":"Oración"}]}"#), ..Change::default() };
         for body in [Board, Church] {
@@ -631,6 +795,7 @@ mod tests {
         assert_eq!(setup.catalog().board_agenda.len(), 1);
         assert!(setup.catalog().office(&"hogar-y-escuela".into()).is_none());
         assert_eq!(setup.year_starts(), Month::JANUARY);
+        assert!(setup.places().is_empty() && setup.services().is_empty());
     }
 
     #[test]

@@ -281,14 +281,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_board_votes_only_its_agenda_and_new_meetings_use_it() {
+    async fn the_board_may_not_elect_and_new_meetings_use_its_agenda() {
         let app = TestApp::seeded().await;
         let dev = app.sign_in(DEVELOPER).await;
         app.call(&dev, Method::POST, "/api/meetings", Some(json!({ "date": "2026-12-06", "kind": "regular" }))).await;
         let election = json!({ "elect": [{ "office": "secretario", "holder": { "name": "Ana Rojas" }, "term": { "start_year": 2026 } }] });
         let (status, body) = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "board", election)).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(body["error"], "the board can only change the board agenda; this change needs a vote of the church");
+        assert_eq!(body["error"], "the board can only change the board agenda, the places and the service schedule; this change needs a vote of the church");
 
         let agenda = json!({ "catalog": { "board_agenda": [{ "id": "oracion", "title": "Oración" }] } });
         assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", vote(1, "board", agenda)).await.0, StatusCode::CREATED);

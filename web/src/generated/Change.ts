@@ -3,12 +3,14 @@ import type { CatalogEdit } from "./CatalogEdit";
 import type { ChargeId } from "./ChargeId";
 import type { Month } from "./Month";
 import type { NewCharge } from "./NewCharge";
+import type { Place } from "./Place";
+import type { Service } from "./Service";
 
 /**
  * What a vote decides. Every part is optional and an absent part changes
  * nothing. The parts apply in this order, so one vote can create an office
  * and fill it, or release a holder and hide the office: rename, church
- * year, catalog, release, elect.
+ * year, catalog with places and services, release, elect.
  */
 export type Change = { 
 /**
@@ -24,6 +26,14 @@ year_starts: Month | null,
  * the terms of a layer file. The church's name names the layer.
  */
 catalog: CatalogEdit, 
+/**
+ * Replaces every place when present.
+ */
+places?: Array<Place> | null, 
+/**
+ * Replaces the whole service schedule when present.
+ */
+services?: Array<Service> | null, 
 /**
  * Officers elected. Each gets the next charge id.
  */
