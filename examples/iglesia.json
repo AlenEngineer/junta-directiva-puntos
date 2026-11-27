@@ -1,0 +1,15 @@
+{
+  "name": "Iglesia de ejemplo",
+  "hide": ["ministerio-de-universitarios", "hogar-y-escuela"],
+  "offices": [
+    {
+      "id": "multimedia",
+      "name": "Coordinador de multimedia",
+      "approved_by": "Reunión administrativa del 10 de enero de 2026",
+      "board_member": false,
+      "responsibilities": [
+        { "summary": "Transmitir los cultos del sábado" }
+      ]
+    }
+  ]
+}

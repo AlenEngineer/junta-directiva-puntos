@@ -1,0 +1,308 @@
+{
+  "name": "Manual de la Iglesia, 10.ª edición en español, revisión 2025",
+  "offices": [
+    {
+      "id": "anciano",
+      "name": "Anciano",
+      "page": 91,
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Dirigir los cultos de la iglesia",
+          "page": 94
+        },
+        {
+          "summary": "Incentivar la fidelidad en la devolución del diezmo",
+          "page": 94
+        },
+        {
+          "summary": "Incentivar el estudio de la Biblia, la oración y el crecimiento espiritual",
+          "page": 95
+        },
+        {
+          "summary": "Promover todos los ramos de la obra y la obra misionera mundial",
+          "page": 95
+        },
+        {
+          "summary": "Cooperar con la asociación",
+          "page": 95
+        }
+      ]
+    },
+    {
+      "id": "primer-anciano",
+      "name": "Primer anciano",
+      "page": 96,
+      "variant_of": "anciano",
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Presidir la junta directiva cuando el pastor lo pida",
+          "page": 167,
+          "module": "agenda"
+        },
+        {
+          "summary": "Servir como secretario de la comisión de ancianos",
+          "page": 92
+        }
+      ]
+    },
+    {
+      "id": "director-de-iglesia",
+      "name": "Director de iglesia",
+      "page": 97,
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Responsable de los cultos y las reuniones administrativas en ausencia del pastor",
+          "page": 97
+        }
+      ]
+    },
+    {
+      "id": "jefe-de-diaconos",
+      "name": "Jefe de diáconos",
+      "page": 98,
+      "board_member": true
+    },
+    {
+      "id": "jefa-de-diaconisas",
+      "name": "Jefa de diaconisas",
+      "page": 101,
+      "board_member": true
+    },
+    {
+      "id": "secretario",
+      "name": "Secretario de iglesia",
+      "page": 103,
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Registrar, presentar y preservar las actas de la junta directiva",
+          "page": 167
+        }
+      ]
+    },
+    {
+      "id": "tesorero",
+      "name": "Tesorero",
+      "page": 104,
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Informar periódicamente a la junta el estado de las finanzas",
+          "page": 168
+        }
+      ]
+    },
+    {
+      "id": "coordinador-de-interesados",
+      "name": "Coordinador de interesados",
+      "page": 109,
+      "board_member": true
+    },
+    {
+      "id": "accion-solidaria-adventista",
+      "name": "Director de Acción Solidaria Adventista",
+      "page": 129,
+      "board_member": true
+    },
+    {
+      "id": "sociedad-de-hombres",
+      "name": "Coordinador de la Sociedad de Hombres Adventistas",
+      "page": 129,
+      "board_member": true
+    },
+    {
+      "id": "ministerio-de-las-posibilidades",
+      "name": "Coordinador del Ministerio Adventista de las Posibilidades",
+      "page": 111,
+      "board_member": true
+    },
+    {
+      "id": "ministerio-joven",
+      "name": "Director del Ministerio Joven Adventista",
+      "page": 138,
+      "board_member": true
+    },
+    {
+      "id": "club-de-aventureros",
+      "name": "Director del Club de Aventureros",
+      "page": 138,
+      "board_member": true
+    },
+    {
+      "id": "ministerio-de-embajadores",
+      "name": "Director del Ministerio de Embajadores",
+      "page": 136,
+      "board_member": true
+    },
+    {
+      "id": "club-de-conquistadores",
+      "name": "Director del Club de Conquistadores",
+      "page": 137,
+      "board_member": true
+    },
+    {
+      "id": "ministerio-de-universitarios",
+      "name": "Coordinador del Ministerio de Universitarios",
+      "page": 136,
+      "board_member": true
+    },
+    {
+      "id": "ministerio-de-jovenes-adultos",
+      "name": "Director del Ministerio de Jóvenes Adultos",
+      "page": 135,
+      "board_member": true
+    },
+    {
+      "id": "escuela-biblica",
+      "name": "Coordinador de la Escuela Bíblica",
+      "page": 129,
+      "board_member": true
+    },
+    {
+      "id": "ministerio-infantil",
+      "name": "Coordinador del Ministerio Infantil",
+      "page": 113,
+      "board_member": true
+    },
+    {
+      "id": "musica",
+      "name": "Coordinador de Música",
+      "page": 121,
+      "board_member": true
+    },
+    {
+      "id": "comunicacion",
+      "name": "Director del departamento de Comunicación",
+      "page": 114,
+      "board_member": true
+    },
+    {
+      "id": "educacion",
+      "name": "Director de Educación / director de la escuela de iglesia",
+      "page": 116,
+      "board_member": true
+    },
+    {
+      "id": "ministerio-de-la-familia",
+      "name": "Director del Ministerio de la Familia",
+      "page": 119,
+      "board_member": true
+    },
+    {
+      "id": "ministerio-de-la-salud",
+      "name": "Director del Ministerio de la Salud",
+      "page": 120,
+      "board_member": true
+    },
+    {
+      "id": "hogar-y-escuela",
+      "name": "Director de la Asociación Hogar y Escuela",
+      "page": 116,
+      "board_member": true
+    },
+    {
+      "id": "ministerio-personal",
+      "name": "Director de Ministerio Personal",
+      "page": 129,
+      "board_member": true
+    },
+    {
+      "id": "secretario-ministerio-personal",
+      "name": "Secretario de Ministerio Personal",
+      "page": 129,
+      "board_member": true
+    },
+    {
+      "id": "publicaciones",
+      "name": "Coordinador del Ministerio de las Publicaciones",
+      "page": 123,
+      "board_member": true
+    },
+    {
+      "id": "libertad-religiosa",
+      "name": "Director de Libertad Religiosa",
+      "page": 122,
+      "board_member": true
+    },
+    {
+      "id": "escuela-sabatica",
+      "name": "Director general de la Escuela Sabática",
+      "page": 126,
+      "board_member": true
+    },
+    {
+      "id": "mayordomia-cristiana",
+      "name": "Director de Mayordomía Cristiana",
+      "page": 131,
+      "board_member": true
+    },
+    {
+      "id": "ministerio-de-la-mujer",
+      "name": "Directora del Ministerio de la Mujer",
+      "page": 132,
+      "board_member": true
+    }
+  ],
+  "board_agenda": [
+    {
+      "id": "devocional",
+      "title": "Devocional"
+    },
+    {
+      "id": "discipulado",
+      "title": "Plan de discipulado: formación espiritual y evangelización",
+      "page": 168
+    },
+    {
+      "id": "membresia",
+      "title": "Membresía: reconexión y revisión redentora",
+      "page": 168
+    },
+    {
+      "id": "evangelismo",
+      "title": "Evangelismo del territorio",
+      "page": 168
+    },
+    {
+      "id": "planes-de-departamentos",
+      "title": "Planes de los departamentos para aprobación",
+      "page": 168
+    },
+    {
+      "id": "informes-de-departamentos",
+      "title": "Informes de los departamentos",
+      "page": 169
+    },
+    {
+      "id": "finanzas",
+      "title": "Informe de tesorería y finanzas",
+      "page": 169
+    },
+    {
+      "id": "informes-de-oficiales",
+      "title": "Informes de los oficiales",
+      "page": 169
+    },
+    {
+      "id": "comisiones",
+      "title": "Recomendaciones de las comisiones",
+      "page": 169
+    },
+    {
+      "id": "educacion-adventista",
+      "title": "Educación adventista",
+      "page": 169
+    },
+    {
+      "id": "otros-asuntos",
+      "title": "Otros asuntos"
+    },
+    {
+      "id": "oracion-final",
+      "title": "Oración de clausura"
+    }
+  ]
+}
