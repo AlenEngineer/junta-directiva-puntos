@@ -45,13 +45,23 @@ async fn login(State(app): State<AppState>, headers: HeaderMap, Query(hints): Qu
 struct Callback {
     code: Option<String>,
     state: Option<String>,
+    error: Option<String>,
+    error_description: Option<String>,
 }
 
 /// Checks the state, trades the code for who signed in, and opens a session.
 async fn callback(State(app): State<AppState>, headers: HeaderMap, Query(back): Query<Callback>) -> Response {
     let origin = Origin::of(&headers);
-    let (Some(code), Some(state)) = (back.code, back.state) else { return refuse(&origin, "failed") };
+    if let Some(error) = &back.error {
+        eprintln!("sign-in failed: AuthKit answered {error}: {}", back.error_description.as_deref().unwrap_or(""));
+        return refuse(&origin, "failed");
+    }
+    let (Some(code), Some(state)) = (back.code, back.state) else {
+        eprintln!("sign-in failed: the callback has no code or no state");
+        return refuse(&origin, "failed");
+    };
     if cookie(&headers, LOGIN) != Some(state.as_str()) {
+        eprintln!("sign-in failed: the state does not match this browser's login cookie (cookie present: {})", cookie(&headers, LOGIN).is_some());
         return refuse(&origin, "failed");
     }
     let session = match app.workos.authenticate(&code).await {
@@ -211,7 +221,18 @@ mod tests {
             }
             let login = app.send(request).await;
             assert_eq!(query(&location(&login), "redirect_uri"), callback);
-            assert_eq!(set_cookie(&login, "mayordomo_login").unwrap().ends_with("; Secure"), secure, "{callback}");
+            let login_cookie = set_cookie(&login, "mayordomo_login").unwrap();
+            assert_eq!(login_cookie.ends_with("; Secure"), secure, "{callback}");
+
+            let state = query(&location(&login), "state");
+            let mut request = get(&format!("/api/auth/callback?code=ana%40example.org&state={state}"))
+                .header(header::HOST, host)
+                .header(header::COOKIE, cookie_pair(&login_cookie));
+            if let Some(forwarded) = forwarded {
+                request = request.header("x-forwarded-host", forwarded);
+            }
+            let session = set_cookie(&app.send(request).await, "mayordomo_session").unwrap();
+            assert_eq!(session.ends_with("; Secure"), secure, "{callback}");
         }
     }
 
