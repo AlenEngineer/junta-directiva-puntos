@@ -27,6 +27,7 @@ impl IntoResponse for ApiError {
             Self::Conflict => (StatusCode::CONFLICT, "the meeting changed; reload and try again".to_owned()),
             Self::Agenda(e @ (AgendaError::AgendaClosed | AgendaError::AlreadyHeld)) => (StatusCode::CONFLICT, e.to_string()),
             Self::Agenda(e) => (StatusCode::UNPROCESSABLE_ENTITY, e.to_string()),
+            Self::NotStoredYet(what) => (StatusCode::UNPROCESSABLE_ENTITY, what.to_owned()),
             Self::Setup(e @ SetupError::NoSetup) => (StatusCode::SERVICE_UNAVAILABLE, e.to_string()),
             Self::Setup(e @ SetupError::Stale) => (StatusCode::CONFLICT, e.to_string()),
             Self::Setup(e) => (StatusCode::UNPROCESSABLE_ENTITY, e.to_string()),
@@ -132,7 +133,7 @@ mod tests {
 
     fn item(section: &str, title: &str) -> Option<Value> {
         Some(json!({ "section": section, "office": "tesorero", "title": title, "presenter": null, "request": "accept_report",
-                     "explanation": "", "received_on": null, "scans": [], "activity": null }))
+                     "explanation": "", "received_on": null, "scans": [], "activity": null, "plan": null }))
     }
 
     fn ids(setup: &Value, list: &str) -> Vec<String> {
@@ -180,6 +181,11 @@ mod tests {
         with_a_scan["scans"] = json!([1]);
         let (status, body) = app.call(&dev, Method::POST, "/api/meetings/1/items", Some(with_a_scan)).await;
         assert_eq!((status, body["error"].as_str()), (StatusCode::UNPROCESSABLE_ENTITY, Some("there is no scan 1")));
+        let mut with_an_activity = item("finanzas", "X").unwrap();
+        with_an_activity["activity"] = json!(1);
+        let (status, body) = app.call(&dev, Method::POST, "/api/meetings/1/items", Some(with_an_activity)).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(body["error"].as_str().unwrap().contains("not stored yet"), "{body}");
         let (status, _) = app.call(&dev, Method::POST, "/api/meetings/9/items", item("finanzas", "X")).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         let (status, _) = app.call(&dev, Method::DELETE, "/api/meetings/1/items/9", None).await;

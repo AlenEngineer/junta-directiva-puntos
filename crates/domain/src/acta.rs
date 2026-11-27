@@ -8,6 +8,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::activity::ActivityId;
 use crate::agenda::{AgendaItem, ItemId, Meeting, MeetingId, Request};
 use crate::catalog::OfficeId;
 use crate::schedule::ServiceTime;
@@ -114,6 +115,10 @@ pub struct ItemOutcome {
     pub votes: Option<Votes>,
     /// Why a point was returned or postponed, or anything else written on its line.
     pub note: Option<String>,
+    /// The rows of an approved plan the board returned to be corrected.
+    /// They come back as points of their own.
+    #[serde(default)]
+    pub returned: Vec<ActivityId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -368,6 +373,7 @@ mod tests {
             received_on: None,
             scans: vec![],
             activity: None,
+            plan: None,
             source: None,
         }
     }
@@ -387,7 +393,7 @@ mod tests {
     }
 
     fn outcome(item: i64, outcome: Outcome, note: Option<&str>) -> ItemOutcome {
-        ItemOutcome { item: ItemId(item), outcome, votes: None, note: note.map(Into::into) }
+        ItemOutcome { item: ItemId(item), outcome, votes: None, note: note.map(Into::into), returned: vec![] }
     }
 
     fn acta(meeting: i64, outcomes: Vec<ItemOutcome>) -> Acta {

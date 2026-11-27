@@ -5,6 +5,7 @@
 
 pub mod access;
 pub mod acta;
+pub mod activity;
 pub mod agenda;
 pub mod catalog;
 pub mod roster;

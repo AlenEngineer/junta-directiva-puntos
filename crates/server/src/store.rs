@@ -5,7 +5,7 @@
 use std::{fmt, str::FromStr};
 
 use domain::access::Person;
-use domain::agenda::{Activity, AgendaItem, ItemId, Meeting, MeetingId, MeetingState, NewItem, NewMeeting, Request};
+use domain::agenda::{AgendaItem, ItemId, Meeting, MeetingId, MeetingState, NewItem, NewMeeting, Request};
 use domain::catalog::{AgendaSection, OfficeId};
 use domain::{Date, ScanId};
 use domain::setup::{Approval, Change, Entry, EntryId, NewEntry, Setup, SetupError, Vote};
@@ -82,7 +82,9 @@ fn parse<T: DeserializeOwned>(text: String) -> Result<T> {
 }
 
 /// What a point's slip asks beyond its section, title and presenter, as
-/// the `slip` column keeps it.
+/// the `slip` column keeps it. A slip stored when it embedded its activity
+/// reads without it: activities are records of their own now, and none is
+/// stored yet.
 #[derive(Serialize, Deserialize)]
 struct Slip {
     office: Option<OfficeId>,
@@ -90,14 +92,13 @@ struct Slip {
     explanation: String,
     received_on: Option<Date>,
     scans: Vec<ScanId>,
-    activity: Option<Activity>,
 }
 
 impl Slip {
     /// A point stored before slips: only its kind, read as a request.
     fn legacy(kind: &str) -> Result<Self> {
         let request = Request::from_legacy_kind(kind).ok_or_else(|| sqlx::Error::Decode(format!("unknown legacy kind {kind}").into()))?;
-        Ok(Self { office: None, request, explanation: String::new(), received_on: None, scans: Vec::new(), activity: None })
+        Ok(Self { office: None, request, explanation: String::new(), received_on: None, scans: Vec::new() })
     }
 }
 
@@ -106,7 +107,7 @@ fn item_from(row: &SqliteRow) -> Result<AgendaItem> {
         Some(json) => serde_json::from_str(&json).map_err(|e| sqlx::Error::Decode(e.into()))?,
         None => Slip::legacy(row.try_get("legacy_kind")?)?,
     };
-    let Slip { office, request, explanation, received_on, scans, activity } = slip;
+    let Slip { office, request, explanation, received_on, scans } = slip;
     Ok(AgendaItem {
         id: ItemId(row.try_get("id")?),
         section: domain::agenda::SectionId(row.try_get("section")?),
@@ -117,7 +118,8 @@ fn item_from(row: &SqliteRow) -> Result<AgendaItem> {
         explanation,
         received_on,
         scans,
-        activity,
+        activity: None,
+        plan: None,
         source: None,
     })
 }
@@ -286,7 +288,6 @@ impl Store {
             explanation: item.explanation.trim().to_owned(),
             received_on: item.received_on,
             scans: item.scans.clone(),
-            activity: item.activity.clone(),
         };
         let done = sqlx::query(
             "INSERT INTO items (meeting_id, section, title, presenter, slip)
@@ -516,5 +517,25 @@ pub mod tests {
             ]
         );
         assert!(meeting.items.iter().all(|i| i.office.is_none() && i.source.is_none()));
+    }
+
+    #[tokio::test]
+    async fn a_slip_stored_with_its_activity_embedded_still_reads() {
+        let store = Store::open("sqlite::memory:").await.unwrap();
+        let slip = r#"{"office":"ministerio-joven","request":"approve_plan","explanation":"","received_on":null,"scans":[],
+                       "activity":{"name":"Campamento","purpose":"","audience":"","people_needed":"","other_office":null,
+                                   "dates":{"day":"2026-12-26"},"time":null,"place":null,"origin":"local","budget":null}}"#;
+        sqlx::query("INSERT INTO meetings (date, kind, state, sections) VALUES ('2026-12-06', 'regular', 'draft', '[]')")
+            .execute(&store.pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO items (meeting_id, section, title, slip) VALUES (1, 'planes-de-departamentos', 'Campamento', ?)")
+            .bind(slip)
+            .execute(&store.pool)
+            .await
+            .unwrap();
+        let meeting = store.meeting(MeetingId(1)).await.unwrap().unwrap();
+        let read: Vec<(&str, Request, bool)> = meeting.items.iter().map(|i| (i.title.as_str(), i.request, i.activity.is_none())).collect();
+        assert_eq!(read, [("Campamento", Request::ApprovePlan, true)]);
     }
 }
