@@ -161,10 +161,12 @@ mod tests {
     use tower::ServiceExt;
 
     use super::*;
+    use crate::store::tests::TempDatabase;
 
     async fn app_with(database: &str) -> Router {
-        let setup = crate::setup::load(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/setup.json")).unwrap();
         let store = Store::open(database).await.unwrap();
+        let examples = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+        let setup = crate::seed::ensure(&store, &examples.join("setup.json")).await.unwrap();
         router(App { church: setup.church().to_owned(), catalog: setup.catalog().clone(), charges: setup.charges().to_vec(), store })
     }
 
@@ -231,18 +233,14 @@ mod tests {
 
     #[tokio::test]
     async fn meetings_survive_a_restart() {
-        let path = std::env::temp_dir().join(format!("mayordomo-test-{}.db", std::process::id()));
-        let url = format!("sqlite://{}", path.display());
+        let database = TempDatabase::new("meetings-restart");
         {
-            let app = app_with(&url).await;
+            let app = app_with(&database.url()).await;
             call(&app, Method::POST, "/api/meetings", Some(json!({ "date": "2026-12-06", "kind": "evangelism" }))).await;
             call(&app, Method::POST, "/api/meetings/1/items", item("evangelismo", "Campaña de primavera")).await;
         }
-        let app = app_with(&url).await;
+        let app = app_with(&database.url()).await;
         let (_, meetings) = call(&app, Method::GET, "/api/meetings", None).await;
-        for suffix in ["", "-wal", "-shm"] {
-            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
-        }
         assert_eq!(meetings[0]["kind"], "evangelism");
         assert_eq!(meetings[0]["items"][0]["title"], "Campaña de primavera");
     }
