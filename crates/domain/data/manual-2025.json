@@ -63,13 +63,69 @@
       "id": "jefe-de-diaconos",
       "name": "Jefe de diáconos",
       "page": 98,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Presidir la comisión de diáconos",
+          "page": 98
+        },
+        {
+          "summary": "Dar la bienvenida a miembros y visitas, y ayudar en los servicios y las reuniones",
+          "page": 99
+        },
+        {
+          "summary": "Visitar a los miembros en sus hogares",
+          "page": 100
+        },
+        {
+          "summary": "Preparar los servicios bautismales",
+          "page": 100
+        },
+        {
+          "summary": "Ayudar en el servicio de comunión",
+          "page": 100
+        },
+        {
+          "summary": "Cuidar de los enfermos y de los pobres",
+          "page": 100
+        },
+        {
+          "summary": "Cuidar y mantener la propiedad de la iglesia",
+          "page": 100
+        }
+      ]
     },
     {
       "id": "jefa-de-diaconisas",
       "name": "Jefa de diaconisas",
       "page": 101,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Presidir la comisión de diaconisas y asignar los deberes de cada diaconisa",
+          "page": 101
+        },
+        {
+          "summary": "Dar la bienvenida a miembros y visitas, y visitarlos en sus hogares",
+          "page": 102
+        },
+        {
+          "summary": "Ayudar en las ceremonias bautismales",
+          "page": 102
+        },
+        {
+          "summary": "Preparar la mesa y ayudar en el servicio de comunión",
+          "page": 102
+        },
+        {
+          "summary": "Ayudar a los diáconos en el cuidado de los enfermos y de los pobres",
+          "page": 103
+        },
+        {
+          "summary": "Cuidar y mantener la propiedad de la iglesia",
+          "page": 103
+        }
+      ]
     },
     {
       "id": "secretario",
@@ -99,151 +155,665 @@
       "id": "coordinador-de-interesados",
       "name": "Coordinador de interesados",
       "page": 109,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Mantener una lista actualizada de las personas interesadas",
+          "page": 109
+        },
+        {
+          "summary": "Ayudar al pastor y al presidente de Ministerio Personal a reclutar miembros que atiendan a los interesados",
+          "page": 110
+        },
+        {
+          "summary": "Presentar a la junta un informe mensual de los interesados recibidos y atendidos",
+          "page": 110
+        },
+        {
+          "summary": "Entregar al pastor el nombre de cada interesado cuyo interés se ha cultivado",
+          "page": 110
+        }
+      ]
     },
     {
       "id": "accion-solidaria-adventista",
       "name": "Director de Acción Solidaria Adventista",
       "page": 129,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Reunir y preparar ropa, alimentos y otros materiales para los necesitados",
+          "page": 130
+        },
+        {
+          "summary": "Identificar las necesidades de la comunidad y responder con servicios",
+          "page": 130
+        },
+        {
+          "summary": "Trabajar con la Sociedad de Hombres, los diáconos, las diaconisas y los departamentos para ministrar a la comunidad",
+          "page": 130
+        },
+        {
+          "summary": "Participar en la comisión de Ministerio Personal",
+          "page": 130
+        }
+      ]
     },
     {
       "id": "sociedad-de-hombres",
       "name": "Coordinador de la Sociedad de Hombres Adventistas",
       "page": 129,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Promover la predicación de miembros voluntarios",
+          "page": 129
+        },
+        {
+          "summary": "Promover el ministerio en las prisiones",
+          "page": 129
+        },
+        {
+          "summary": "Promover los servicios comunitarios",
+          "page": 129
+        },
+        {
+          "summary": "Participar en la comisión de Ministerio Personal",
+          "page": 226
+        }
+      ]
     },
     {
       "id": "ministerio-de-las-posibilidades",
       "name": "Coordinador del Ministerio Adventista de las Posibilidades",
       "page": 111,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Presidir la comisión del Ministerio de las Posibilidades",
+          "page": 112
+        },
+        {
+          "summary": "Animar a los miembros con necesidades especiales y aprender a comunicarse con ellos",
+          "page": 112
+        },
+        {
+          "summary": "Crear programas de testificación",
+          "page": 112
+        },
+        {
+          "summary": "Recomendar cómo hacer más accesibles las instalaciones de la iglesia",
+          "page": 112
+        },
+        {
+          "summary": "Ayudar a resolver los problemas de transporte",
+          "page": 112
+        },
+        {
+          "summary": "Ayudar a cada persona a descubrir un rol o ministerio con propósito",
+          "page": 112
+        }
+      ]
     },
     {
       "id": "ministerio-joven",
       "name": "Director del Ministerio Joven Adventista",
       "page": 138,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Presidir la comisión del Ministerio Joven Adventista",
+          "page": 135
+        },
+        {
+          "summary": "Desarrollar con la comisión metas y planes para el ministerio joven",
+          "page": 135
+        },
+        {
+          "summary": "Guiar, aconsejar y animar a los jóvenes a asumir responsabilidades",
+          "page": 138
+        },
+        {
+          "summary": "Enrolar a todos los jóvenes en las actividades del Ministerio Joven",
+          "page": 138
+        },
+        {
+          "summary": "Mantener informado al director de Jóvenes de la asociación",
+          "page": 139
+        },
+        {
+          "summary": "Organizar reuniones periódicas que vinculen a los jóvenes con la iglesia",
+          "page": 170
+        }
+      ]
     },
     {
       "id": "club-de-aventureros",
       "name": "Director del Club de Aventureros",
       "page": 138,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Dirigir los programas del club para el hogar y la iglesia, con padres e hijos",
+          "page": 138
+        },
+        {
+          "summary": "Elegir con los directivos del club al equipo adicional",
+          "page": 138
+        },
+        {
+          "summary": "Velar por que quienes trabajan con niños cumplan la verificación de antecedentes",
+          "page": 138
+        },
+        {
+          "summary": "Mantenerse en contacto con el pastor, el consejero y el director de Jóvenes de la asociación",
+          "page": 138
+        },
+        {
+          "summary": "Coordinar las reuniones del club con las demás organizaciones de jóvenes y de familia",
+          "page": 171
+        }
+      ]
     },
     {
       "id": "ministerio-de-embajadores",
       "name": "Director del Ministerio de Embajadores",
       "page": 136,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Promover el compromiso activo de los jóvenes de 16 a 21 años con la iglesia",
+          "page": 136
+        },
+        {
+          "summary": "Formar con los demás dirigentes la comisión de Embajadores y designar dirigentes para las actividades",
+          "page": 137
+        },
+        {
+          "summary": "Desarrollar las actividades en coordinación con la comisión del Ministerio Joven",
+          "page": 137
+        },
+        {
+          "summary": "Mantenerse en contacto con el pastor, el consejero y el director de Jóvenes de la asociación",
+          "page": 138
+        },
+        {
+          "summary": "Organizar reuniones periódicas del Ministerio Joven Sénior",
+          "page": 171
+        }
+      ]
     },
     {
       "id": "club-de-conquistadores",
       "name": "Director del Club de Conquistadores",
       "page": 137,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Dirigir el programa del club para el desarrollo espiritual y la ganancia de almas de los adolescentes",
+          "page": 137
+        },
+        {
+          "summary": "Velar por que quienes trabajan con menores cumplan la verificación de antecedentes",
+          "page": 137
+        },
+        {
+          "summary": "Mantenerse en contacto con el pastor, el consejero y el director de Jóvenes de la asociación",
+          "page": 138
+        },
+        {
+          "summary": "Realizar las reuniones según las normas de la asociación y los manuales del club",
+          "page": 171
+        }
+      ]
     },
     {
       "id": "ministerio-de-universitarios",
       "name": "Coordinador del Ministerio de Universitarios",
       "page": 136,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Desarrollar un ministerio para los estudiantes de instituciones no adventistas cercanas",
+          "page": 136
+        },
+        {
+          "summary": "Discipular a los estudiantes en el blanco, la misión, el lema y el voto del MJA",
+          "page": 136
+        },
+        {
+          "summary": "Apoyar a los estudiantes y al personal adventista de los campus públicos adoptados",
+          "page": 136
+        },
+        {
+          "summary": "Organizar reuniones para los universitarios en apoyo de la comisión del Ministerio Joven",
+          "page": 171
+        }
+      ]
     },
     {
       "id": "ministerio-de-jovenes-adultos",
       "name": "Director del Ministerio de Jóvenes Adultos",
       "page": 135,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Formar con los demás dirigentes la comisión de Jóvenes Adultos y designar dirigentes para las actividades",
+          "page": 135
+        },
+        {
+          "summary": "Coordinar las actividades de los jóvenes adultos con la comisión del MJA",
+          "page": 135
+        },
+        {
+          "summary": "Gestionar las Sociedades de Jóvenes Sénior",
+          "page": 136
+        },
+        {
+          "summary": "Organizar reuniones periódicas del Ministerio Joven Sénior",
+          "page": 171
+        }
+      ]
     },
     {
       "id": "escuela-biblica",
       "name": "Coordinador de la Escuela Bíblica",
       "page": 129,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Organizar y coordinar el ministerio de la Escuela Bíblica para alcanzar a la comunidad",
+          "page": 129
+        },
+        {
+          "summary": "Trabajar con el pastor, el coordinador de interesados y el líder de Ministerio Personal",
+          "page": 129
+        }
+      ]
     },
     {
       "id": "ministerio-infantil",
       "name": "Coordinador del Ministerio Infantil",
       "page": 113,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Desarrollar ministerios que promuevan la fe de los niños",
+          "page": 113
+        },
+        {
+          "summary": "Establecer con el pastor y la junta la comisión de Ministerio Infantil",
+          "page": 113
+        },
+        {
+          "summary": "Dirigir la Escuela Cristiana de Vacaciones, las divisiones de niños de la Escuela Sabática y los demás programas infantiles",
+          "page": 113
+        },
+        {
+          "summary": "Velar por que quienes trabajan con niños cumplan la verificación de antecedentes",
+          "page": 113
+        }
+      ]
     },
     {
       "id": "musica",
       "name": "Coordinador de Música",
       "page": 121,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Proveer música adecuada para los servicios de adoración y las reuniones",
+          "page": 121
+        },
+        {
+          "summary": "Coordinar con el pastor o el anciano que la música armonice con el sermón",
+          "page": 121
+        },
+        {
+          "summary": "Consultar al pastor y a los ancianos sobre la música y quiénes la presentan",
+          "page": 121
+        },
+        {
+          "summary": "Escoger músicos que representen correctamente los principios de la iglesia",
+          "page": 122
+        },
+        {
+          "summary": "Fomentar la organización de coros infantiles",
+          "page": 122
+        }
+      ]
     },
     {
       "id": "comunicacion",
       "name": "Director del departamento de Comunicación",
       "page": 114,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Reunir y difundir noticias en los medios locales",
+          "page": 114
+        },
+        {
+          "summary": "Cooperar con el director de Comunicación de la asociación",
+          "page": 114
+        },
+        {
+          "summary": "Presentar informes periódicos en las reuniones administrativas",
+          "page": 114
+        },
+        {
+          "summary": "Presidir la comisión de Comunicación, donde la haya",
+          "page": 115
+        },
+        {
+          "summary": "Integrar la comisión central de Comunicación de la ciudad, si existe",
+          "page": 115
+        }
+      ]
     },
     {
       "id": "educacion",
       "name": "Director de Educación / director de la escuela de iglesia",
       "page": 116,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Promover y generar apoyo para la educación cristiana",
+          "page": 116
+        },
+        {
+          "summary": "Cooperar como miembro de la comisión de la Asociación Hogar y Escuela",
+          "page": 116
+        },
+        {
+          "summary": "Servir como secretario de la comisión escolar cuando se le elija",
+          "page": 117
+        },
+        {
+          "summary": "Informar a la reunión administrativa sobre la matrícula, el progreso y los bautismos de los alumnos",
+          "page": 234
+        }
+      ]
     },
     {
       "id": "ministerio-de-la-familia",
       "name": "Director del Ministerio de la Familia",
       "page": 119,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Brindar asesoramiento prematrimonial a las parejas",
+          "page": 119
+        },
+        {
+          "summary": "Fortalecer a los matrimonios con programas",
+          "page": 119
+        },
+        {
+          "summary": "Educar a los padres",
+          "page": 119
+        },
+        {
+          "summary": "Atender a las familias con padres solos, viudos o con padrastros",
+          "page": 119
+        },
+        {
+          "summary": "Instruir en el evangelismo de familia a familia",
+          "page": 119
+        },
+        {
+          "summary": "Guardar la confidencialidad y animar a buscar consejo profesional en situaciones críticas",
+          "page": 120
+        },
+        {
+          "summary": "Presidir la comisión del Ministerio de la Familia, si la junta la establece",
+          "page": 120
+        }
+      ]
     },
     {
       "id": "ministerio-de-la-salud",
       "name": "Director del Ministerio de la Salud",
       "page": 120,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Planificar e implementar el programa de salud de la iglesia",
+          "page": 120
+        },
+        {
+          "summary": "Promover las normas de vida saludable entre los miembros y la comunidad",
+          "page": 120
+        },
+        {
+          "summary": "Preparar programas e información acordes con la filosofía de la Iglesia",
+          "page": 120
+        },
+        {
+          "summary": "Organizar con Ministerio Personal planes para dejar de fumar, cursos de cocina y control del estrés",
+          "page": 121
+        }
+      ]
     },
     {
       "id": "hogar-y-escuela",
       "name": "Director de la Asociación Hogar y Escuela",
       "page": 116,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Proveer educación para los padres",
+          "page": 116
+        },
+        {
+          "summary": "Unir el hogar, la escuela y la iglesia en la educación cristiana de los hijos",
+          "page": 116
+        },
+        {
+          "summary": "Reunir mensualmente a la asociación y coordinar las actividades del hogar, la escuela y la iglesia",
+          "page": 170
+        },
+        {
+          "summary": "Ayudar a la escuela a obtener sala para padres, libros, materiales y equipos",
+          "page": 170
+        },
+        {
+          "summary": "Informar a la reunión administrativa sobre las actividades y necesidades de la asociación",
+          "page": 234
+        }
+      ]
     },
     {
       "id": "ministerio-personal",
       "name": "Director de Ministerio Personal",
       "page": 129,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Entrenar y conducir a los miembros en la evangelización",
+          "page": 129
+        },
+        {
+          "summary": "Dirigir la comisión de Ministerio Personal, que se reúne al menos una vez por mes",
+          "page": 128
+        },
+        {
+          "summary": "Organizar el ministerio de los grupos pequeños",
+          "page": 129
+        },
+        {
+          "summary": "Ayudar a los necesitados",
+          "page": 128
+        },
+        {
+          "summary": "Informar a la iglesia de las actividades misioneras en el sábado del departamento y en las reuniones administrativas",
+          "page": 129
+        }
+      ]
     },
     {
       "id": "secretario-ministerio-personal",
       "name": "Secretario de Ministerio Personal",
       "page": 129,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Representar al Servicio Educacional Hogar y Salud ante los departamentos",
+          "page": 129
+        },
+        {
+          "summary": "Colaborar con el director en los programas misioneros de la iglesia",
+          "page": 129
+        },
+        {
+          "summary": "Entregar las publicaciones a los miembros",
+          "page": 157
+        },
+        {
+          "summary": "Informar cada trimestre el estado de la cuenta con la agencia de publicaciones",
+          "page": 223
+        },
+        {
+          "summary": "Presentar su informe en la reunión administrativa",
+          "page": 233
+        }
+      ]
     },
     {
       "id": "publicaciones",
       "name": "Coordinador del Ministerio de las Publicaciones",
       "page": 123,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Liderar el evangelismo de las publicaciones de la iglesia",
+          "page": 123
+        },
+        {
+          "summary": "Asistir a los departamentos en la promoción, venta y distribución de publicaciones",
+          "page": 123
+        },
+        {
+          "summary": "Planificar con el pastor y los departamentos cómo involucrar a los miembros",
+          "page": 123
+        },
+        {
+          "summary": "Presidir la comisión del Ministerio de las Publicaciones",
+          "page": 124
+        }
+      ]
     },
     {
       "id": "libertad-religiosa",
       "name": "Director de Libertad Religiosa",
       "page": 122,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Promover y mantener la libertad religiosa y de conciencia",
+          "page": 122
+        },
+        {
+          "summary": "Cooperar con el pastor en todos los asuntos de Libertad Religiosa",
+          "page": 122
+        },
+        {
+          "summary": "Cooperar con el departamento de Libertad Religiosa de la asociación o de la unión",
+          "page": 122
+        }
+      ]
     },
     {
       "id": "escuela-sabatica",
       "name": "Director general de la Escuela Sabática",
       "page": 126,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Presidir la comisión de la Escuela Sabática",
+          "page": 125
+        },
+        {
+          "summary": "Convocar la comisión tras la elección para nombrar a los oficiales adicionales",
+          "page": 125
+        },
+        {
+          "summary": "Cooperar con los demás departamentos en las actividades misioneras y el evangelismo",
+          "page": 125
+        },
+        {
+          "summary": "Planificar el funcionamiento armonioso y eficaz de la Escuela Sabática",
+          "page": 126
+        },
+        {
+          "summary": "Apoyar los planes del departamento de Escuela Sabática de la asociación",
+          "page": 126
+        },
+        {
+          "summary": "Coordinar el programa de todas las divisiones y asegurar sus materiales",
+          "page": 126
+        },
+        {
+          "summary": "Animar a los miembros a estudiar la Palabra regular y sistemáticamente",
+          "page": 128
+        }
+      ]
     },
     {
       "id": "mayordomia-cristiana",
       "name": "Director de Mayordomía Cristiana",
       "page": 131,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Animar a los miembros a dedicar a Dios todo lo que tienen",
+          "page": 130
+        },
+        {
+          "summary": "Ayudar a los miembros a usar correctamente sus dones y recursos",
+          "page": 131
+        },
+        {
+          "summary": "Trabajar con el director de Mayordomía de la asociación, el pastor y la junta",
+          "page": 131
+        },
+        {
+          "summary": "Servir de vínculo entre el Ministerio de Mayordomía de la asociación y la congregación",
+          "page": 131
+        }
+      ]
     },
     {
       "id": "ministerio-de-la-mujer",
       "name": "Directora del Ministerio de la Mujer",
       "page": 132,
-      "board_member": true
+      "board_member": true,
+      "responsibilities": [
+        {
+          "summary": "Desarrollar ministerios que nutran a las mujeres y las capaciten para el servicio",
+          "page": 132
+        },
+        {
+          "summary": "Presidir la comisión del Ministerio de la Mujer",
+          "page": 132
+        },
+        {
+          "summary": "Promover planes que maximicen las contribuciones de las mujeres a la misión",
+          "page": 132
+        },
+        {
+          "summary": "Integrar las actividades de las mujeres en los planes de la iglesia",
+          "page": 132
+        },
+        {
+          "summary": "Mantener a la iglesia informada de la contribución del Ministerio de la Mujer",
+          "page": 132
+        },
+        {
+          "summary": "Capacitarse y obtener materiales con la directora de la asociación",
+          "page": 132
+        }
+      ]
     }
   ],
   "board_agenda": [
