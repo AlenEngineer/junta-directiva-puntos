@@ -2,4 +2,8 @@
 import type { AgendaSection } from "./AgendaSection";
 import type { CatalogOffice } from "./CatalogOffice";
 
-export type Catalog = { edition: string, offices: Array<CatalogOffice>, board_agenda: Array<AgendaSection>, };
+export type Catalog = { 
+/**
+ * Layer names in the order they were applied.
+ */
+layers: Array<string>, offices: Array<CatalogOffice>, board_agenda: Array<AgendaSection>, };

@@ -21,18 +21,18 @@ pub struct ChargeId(pub u32);
 #[ts(export)]
 pub struct Charge {
     pub id: ChargeId,
-    pub office: Office,
+    pub office: OfficeId,
     pub term: Term,
     pub responsibilities: Vec<Responsibility>,
 }
 
 impl Charge {
-    /// A charge for a catalog office, with the catalog's responsibilities.
+    /// A charge for an office in the catalog, with its responsibilities.
     /// A variant such as first elder also carries the base office's.
     pub fn from_catalog(catalog: &Catalog, id: ChargeId, office: &OfficeId, term: Term) -> Option<Self> {
         Some(Self {
             id,
-            office: Office::Manual { id: office.clone() },
+            office: office.clone(),
             term,
             responsibilities: catalog.default_responsibilities(office)?,
         })
@@ -41,16 +41,6 @@ impl Charge {
     pub fn modules(&self) -> impl Iterator<Item = Module> + '_ {
         self.responsibilities.iter().filter_map(|r| r.module)
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-#[ts(export)]
-pub enum Office {
-    /// An office described in the Church Manual catalog.
-    Manual { id: OfficeId },
-    /// An office this church created, with the vote that approved it.
-    Local { name: String, approved_by: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -68,8 +58,10 @@ pub struct Responsibility {
 #[ts(export)]
 pub struct Term {
     pub start_year: u16,
+    #[serde(default)]
     pub length: TermLength,
     /// The exceptional one-year extension agreed with the conference.
+    #[serde(default)]
     pub extended: bool,
 }
 
@@ -87,10 +79,11 @@ impl Term {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum TermLength {
+    #[default]
     OneYear,
     TwoYears,
 }

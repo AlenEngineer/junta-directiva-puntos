@@ -3,6 +3,6 @@ import type { SectionId } from "./SectionId";
 
 export type AgendaSection = { id: SectionId, title: string, 
 /**
- * Absent for sections that come from local practice, not the manual.
+ * Absent for sections that come from local practice, not a document.
  */
 page: number | null, };
