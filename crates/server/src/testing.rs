@@ -109,7 +109,8 @@ impl TestApp {
         assert_eq!(voted.0, StatusCode::CREATED, "{}", voted.1);
         let meeting = self.call(&dev, Method::POST, "/api/meetings", Some(json!({ "date": "2026-12-06", "kind": "regular" }))).await;
         assert_eq!(meeting.0, StatusCode::CREATED);
-        let item = json!({ "section": "finanzas", "title": "Informe de noviembre", "kind": "informative", "presenter": null });
+        let item = json!({ "section": "finanzas", "office": "tesorero", "title": "Informe de noviembre", "presenter": null,
+                           "request": "accept_report", "explanation": "", "received_on": null, "scans": [], "activity": null });
         assert_eq!(self.call(&dev, Method::POST, "/api/meetings/1/items", Some(item)).await.0, StatusCode::CREATED);
         let mut people = Vec::new();
         for email in ["nadie", "ana", "luis", "marta", "pedro", "olga"] {

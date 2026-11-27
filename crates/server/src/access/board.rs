@@ -1,6 +1,6 @@
 //! The board's meetings (the `agenda` module), behind `ReadBoard` and `RunBoard`.
 
-use domain::agenda::{AgendaError, ItemId, ItemStatus, Meeting, MeetingId, NewItem, NewMeeting};
+use domain::agenda::{AgendaError, ItemId, Meeting, MeetingId, NewItem, NewMeeting};
 
 use super::{ApiError, Can, ReadBoard, RunBoard};
 use crate::store::Store;
@@ -35,20 +35,17 @@ impl Can<RunBoard> {
         load(store, id).await
     }
 
-    /// Only into a known section of a draft.
+    /// Only into a known section of a draft. No scans are stored yet, so
+    /// a slip that names one names a scan that does not exist.
     pub async fn add_item(&self, id: MeetingId, item: &NewItem) -> Result<Meeting, ApiError> {
         let store = &self.app.store;
         let meeting = load(store, id).await?;
-        meeting.check_new_item(item)?;
+        meeting.check_new_item(item, &self.setup)?;
+        if let Some(scan) = item.scans.first() {
+            return Err(ApiError::Agenda(AgendaError::UnknownScan(*scan)));
+        }
         store.add_item(meeting.id, item).await?.ok_or(ApiError::Agenda(AgendaError::AgendaClosed))?;
         load(store, id).await
-    }
-
-    pub async fn set_item_status(&self, id: MeetingId, item: ItemId, status: ItemStatus) -> Result<Meeting, ApiError> {
-        if !self.app.store.set_item_status(id, item, status).await? {
-            return Err(ApiError::NotFound);
-        }
-        load(&self.app.store, id).await
     }
 
     /// Only from a draft.

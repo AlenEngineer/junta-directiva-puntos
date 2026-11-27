@@ -21,6 +21,10 @@ year_starts: Month, latest: EntryId, catalog: Catalog, places: Array<Place>,
  */
 services: Array<Service>, 
 /**
+ * None until the church sets one.
+ */
+board_quorum: number | null, 
+/**
  * Every charge held, including those a successor has replaced.
  */
 charges: Array<Charge>, 

@@ -95,6 +95,11 @@ pub struct Change {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub services: Option<Vec<Service>>,
+    /// How many board members present, in the room or by video, make a
+    /// quorum. The church sets it in a business meeting (p. 168).
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub board_quorum: Option<u16>,
     /// Officers elected. Each gets the next charge id.
     #[serde(default)]
     pub elect: Vec<NewCharge>,
@@ -105,12 +110,13 @@ pub struct Change {
 
 impl Change {
     pub fn is_empty(&self) -> bool {
-        let Self { church, year_starts, catalog, places, services, elect, release } = self;
+        let Self { church, year_starts, catalog, places, services, board_quorum, elect, release } = self;
         church.is_none()
             && year_starts.is_none()
             && catalog.is_empty()
             && places.is_none()
             && services.is_none()
+            && board_quorum.is_none()
             && elect.is_empty()
             && release.is_empty()
     }
@@ -126,11 +132,13 @@ impl Change {
             catalog: CatalogEdit { offices, hide, restore, board_agenda: _ },
             places: _,
             services: _,
+            board_quorum,
             elect,
             release,
         } = self;
         church.is_none()
             && year_starts.is_none()
+            && board_quorum.is_none()
             && offices.is_empty()
             && hide.is_empty()
             && restore.is_empty()
@@ -258,6 +266,11 @@ impl Setup {
     pub fn services(&self) -> &[Service] {
         &self.facts.services
     }
+
+    /// None until the church sets one.
+    pub fn board_quorum(&self) -> Option<u16> {
+        self.facts.board_quorum
+    }
 }
 
 impl Setup {
@@ -274,6 +287,7 @@ impl Setup {
             catalog: &self.catalog,
             places: self.places(),
             services: self.services(),
+            board_quorum: self.board_quorum(),
             charges: &self.charges,
             church_year,
             serving,
@@ -294,6 +308,8 @@ pub struct Served<'a> {
     places: &'a [Place],
     /// The services the church holds every week.
     services: &'a [Service],
+    /// None until the church sets one.
+    board_quorum: Option<u16>,
     /// Every charge held, including those a successor has replaced.
     charges: &'a [Charge],
     /// The church year today falls in.
@@ -313,6 +329,7 @@ struct Facts {
     edits: Vec<CatalogEdit>,
     places: Vec<Place>,
     services: Vec<Service>,
+    board_quorum: Option<u16>,
     /// The charges held, under the ids the history gave them.
     elected: Vec<(ChargeId, NewCharge)>,
     /// Charge ids handed out so far. A released id is never handed out again.
@@ -349,6 +366,9 @@ impl Facts {
             self.edits.push(edit);
         }
         self.reschedule(change)?;
+        if let Some(quorum) = change.board_quorum {
+            self.board_quorum = Some(quorum);
+        }
         for charge in &change.release {
             let Some(at) = self.elected.iter().position(|(id, _)| id == charge) else {
                 return Err(SetupError::UnknownCharge(*charge));
@@ -538,6 +558,18 @@ mod tests {
 
         let and_elect = Change { elect: vec![elect("secretario", "Ana Rojas")], ..moved };
         assert_eq!(decide(&scheduled(), Board, and_elect).unwrap_err(), SetupError::NeedsChurchVote);
+    }
+
+    #[test]
+    fn the_board_cannot_change_the_quorum_and_the_church_can() {
+        let quorum = Change { board_quorum: Some(6), ..Change::default() };
+        assert_eq!(church().board_quorum(), None);
+        assert_eq!(decide(&church(), Board, quorum.clone()).unwrap_err(), SetupError::NeedsChurchVote);
+        let set = decide(&church(), Church, quorum).unwrap();
+        assert_eq!(set.board_quorum(), Some(6));
+        assert_eq!(json(&set.on(Date { year: 2026, month: Month::JANUARY, day: 1 }))["board_quorum"], 6);
+        let renamed = decide(&set, Church, Change { church: Some("Iglesia Central".into()), ..Change::default() }).unwrap();
+        assert_eq!(renamed.board_quorum(), Some(6), "a later vote that does not name it keeps it");
     }
 
     #[test]

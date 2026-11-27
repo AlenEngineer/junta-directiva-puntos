@@ -4,6 +4,7 @@
 //! `web/src/generated`, so the web app never hand-copies a shape.
 
 pub mod access;
+pub mod acta;
 pub mod agenda;
 pub mod catalog;
 pub mod roster;
@@ -300,6 +301,79 @@ pub enum Module {
     Agenda,
 }
 
+/// Who recorded something.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum Actor {
+    Charge(ChargeId),
+    Developer,
+}
+
+/// A photographed or scanned page kept with a record. Only the id for now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ScanId(pub u32);
+
+/// How a record reached the app. Most of the board fills printed forms,
+/// and someone types them in on its behalf; the record says on whose
+/// behalf through its own office (a point) or its kind (an acta is the clerk's).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum Source {
+    /// Written in the app by whoever it belongs to.
+    InApp { by: Actor },
+    /// Typed from the paper form, whose pages are `scans`.
+    Paper { typist: Actor, scans: Vec<ScanId> },
+}
+
+/// An amount of balboas in whole centésimos. Written `480`, `480.5` or
+/// `480.50`; served as `"480.50"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, TS)]
+#[ts(export, type = "string")]
+pub struct Balboas(u64);
+
+impl Balboas {
+    pub fn centesimos(self) -> u64 {
+        self.0
+    }
+}
+
+impl TryFrom<&str> for Balboas {
+    type Error = String;
+
+    fn try_from(text: &str) -> Result<Self, String> {
+        let bad = || format!("{text} is not an amount; write it like 480 or 480.50");
+        let digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+        let (whole, cents) = text.split_once('.').unwrap_or((text, "00"));
+        if !digits(whole) || !digits(cents) || cents.len() > 2 {
+            return Err(bad());
+        }
+        let whole: u64 = whole.parse().map_err(|_| bad())?;
+        let cents: u64 = format!("{cents:0<2}").parse().map_err(|_| bad())?;
+        whole.checked_mul(100).and_then(|w| w.checked_add(cents)).map(Self).ok_or_else(bad)
+    }
+}
+
+impl fmt::Display for Balboas {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{:02}", self.0 / 100, self.0 % 100)
+    }
+}
+
+impl Serialize for Balboas {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for Balboas {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::try_from(String::deserialize(deserializer)?.as_str()).map_err(serde::de::Error::custom)
+    }
+}
+
 /// `YYYY-MM-DD`, by shape only. Meetings and votes share this one date rule.
 pub(crate) fn is_iso_date(date: &str) -> bool {
     date.len() == 10 && date.char_indices().all(|(i, c)| if i == 4 || i == 7 { c == '-' } else { c.is_ascii_digit() })
@@ -402,6 +476,18 @@ mod tests {
         assert_eq!(day(2026, 12, 5).weekday(), Weekday::Saturday);
         assert_eq!(day(1970, 1, 1).weekday(), Weekday::Thursday);
         assert_eq!(day(2026, 11, 29).weekday(), Weekday::Sunday);
+    }
+
+    #[test]
+    fn balboas_are_read_with_up_to_two_decimals_and_written_with_two() {
+        for (text, written) in [("480", "480.00"), ("480.5", "480.50"), ("480.50", "480.50"), ("0.05", "0.05")] {
+            let amount: Balboas = serde_json::from_str(&format!("\"{text}\"")).unwrap();
+            assert_eq!(serde_json::to_string(&amount).unwrap(), format!("\"{written}\""), "{text}");
+        }
+        assert_eq!(Balboas::try_from("480.5").unwrap().centesimos(), 48_050);
+        for bad in ["", "480.", ".50", "480.505", "-1", "1,000", "B/. 480", "48O", "99999999999999999999"] {
+            assert!(Balboas::try_from(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]

@@ -5,10 +5,11 @@
 use std::{fmt, str::FromStr};
 
 use domain::access::Person;
-use domain::agenda::{AgendaItem, ItemId, ItemStatus, Meeting, MeetingId, MeetingState, NewItem, NewMeeting};
-use domain::catalog::AgendaSection;
+use domain::agenda::{Activity, AgendaItem, ItemId, Meeting, MeetingId, MeetingState, NewItem, NewMeeting, Request};
+use domain::catalog::{AgendaSection, OfficeId};
+use domain::{Date, ScanId};
 use domain::setup::{Approval, Change, Entry, EntryId, NewEntry, Setup, SetupError, Vote};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
 use sqlx::{
     Row, SqlitePool,
@@ -80,14 +81,44 @@ fn parse<T: DeserializeOwned>(text: String) -> Result<T> {
     serde_json::from_value(serde_json::Value::String(text)).map_err(|e| sqlx::Error::Decode(e.into()))
 }
 
+/// What a point's slip asks beyond its section, title and presenter, as
+/// the `slip` column keeps it.
+#[derive(Serialize, Deserialize)]
+struct Slip {
+    office: Option<OfficeId>,
+    request: Request,
+    explanation: String,
+    received_on: Option<Date>,
+    scans: Vec<ScanId>,
+    activity: Option<Activity>,
+}
+
+impl Slip {
+    /// A point stored before slips: only its kind, read as a request.
+    fn legacy(kind: &str) -> Result<Self> {
+        let request = Request::from_legacy_kind(kind).ok_or_else(|| sqlx::Error::Decode(format!("unknown legacy kind {kind}").into()))?;
+        Ok(Self { office: None, request, explanation: String::new(), received_on: None, scans: Vec::new(), activity: None })
+    }
+}
+
 fn item_from(row: &SqliteRow) -> Result<AgendaItem> {
+    let slip = match row.try_get::<Option<String>, _>("slip")? {
+        Some(json) => serde_json::from_str(&json).map_err(|e| sqlx::Error::Decode(e.into()))?,
+        None => Slip::legacy(row.try_get("legacy_kind")?)?,
+    };
+    let Slip { office, request, explanation, received_on, scans, activity } = slip;
     Ok(AgendaItem {
         id: ItemId(row.try_get("id")?),
         section: domain::agenda::SectionId(row.try_get("section")?),
+        office,
         title: row.try_get("title")?,
-        kind: parse(row.try_get("kind")?)?,
-        status: parse(row.try_get("status")?)?,
         presenter: row.try_get("presenter")?,
+        request,
+        explanation,
+        received_on,
+        scans,
+        activity,
+        source: None,
     })
 }
 
@@ -210,9 +241,12 @@ impl Store {
             .collect::<Result<_>>()?;
         Ok(Some(Meeting {
             id,
-            date: row.try_get("date")?,
+            date: parse(row.try_get("date")?)?,
             kind: parse(row.try_get("kind")?)?,
             state: parse(row.try_get("state")?)?,
+            time: None,
+            place: None,
+            number: None,
             sections,
             items,
         }))
@@ -246,31 +280,28 @@ impl Store {
     /// Adds an item only while the meeting is still a draft. None when the
     /// agenda closed in the meantime.
     pub async fn add_item(&self, meeting: MeetingId, item: &NewItem) -> Result<Option<ItemId>> {
+        let slip = Slip {
+            office: item.office.clone(),
+            request: item.request,
+            explanation: item.explanation.trim().to_owned(),
+            received_on: item.received_on,
+            scans: item.scans.clone(),
+            activity: item.activity.clone(),
+        };
         let done = sqlx::query(
-            "INSERT INTO items (meeting_id, section, title, kind, status, presenter)
-             SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM meetings WHERE id = ? AND state = ?)",
+            "INSERT INTO items (meeting_id, section, title, presenter, slip)
+             SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM meetings WHERE id = ? AND state = ?)",
         )
         .bind(meeting.0)
         .bind(&item.section.0)
         .bind(item.title.trim())
-        .bind(name(&item.kind))
-        .bind(name(&ItemStatus::Proposed))
         .bind(item.presenter.as_deref().map(str::trim).filter(|p| !p.is_empty()))
+        .bind(serde_json::to_string(&slip).expect("a slip serializes"))
         .bind(meeting.0)
         .bind(name(&MeetingState::Draft))
         .execute(&self.pool)
         .await?;
         Ok((done.rows_affected() == 1).then(|| ItemId(done.last_insert_rowid())))
-    }
-
-    pub async fn set_item_status(&self, meeting: MeetingId, item: ItemId, status: ItemStatus) -> Result<bool> {
-        let done = sqlx::query("UPDATE items SET status = ? WHERE id = ? AND meeting_id = ?")
-            .bind(name(&status))
-            .bind(item.0)
-            .bind(meeting.0)
-            .execute(&self.pool)
-            .await?;
-        Ok(done.rows_affected() == 1)
     }
 
     /// Removes an item while the meeting is still a draft.
@@ -446,5 +477,44 @@ pub mod tests {
         let history = store.history().await.unwrap();
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].change.church.as_deref(), Some("Iglesia"));
+    }
+
+    #[tokio::test]
+    async fn points_stored_before_slips_read_their_kind_as_a_request() {
+        let database = TempDatabase::new("legacy-points");
+        let before = std::env::temp_dir().join(format!("mayordomo-migrations-before-slips-{}", std::process::id()));
+        std::fs::create_dir_all(&before).unwrap();
+        for file in ["0001_meetings.sql", "0002_setup_history.sql", "0003_sessions.sql"] {
+            std::fs::copy(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations").join(file), before.join(file)).unwrap();
+        }
+        let options = SqliteConnectOptions::from_str(&database.url()).unwrap().create_if_missing(true);
+        let pool = SqlitePool::connect_with(options).await.unwrap();
+        sqlx::migrate::Migrator::new(before.as_path()).await.unwrap().run(&pool).await.unwrap();
+        std::fs::remove_dir_all(&before).unwrap();
+        sqlx::raw_sql(
+            "INSERT INTO meetings (date, kind, state, sections) VALUES ('2026-12-06', 'regular', 'draft', '[]');
+             INSERT INTO items (meeting_id, section, title, kind, status, presenter) VALUES
+                 (1, 'finanzas', 'Informe', 'informative', 'discussed', NULL),
+                 (1, 'planes-de-departamentos', 'Campamento', 'vote', 'approved', 'Daniel'),
+                 (1, 'finanzas', 'Sillas', 'budget', 'proposed', NULL);",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        pool.close().await;
+
+        let store = Store::open(&database.url()).await.unwrap();
+        let meeting = store.meeting(MeetingId(1)).await.unwrap().unwrap();
+        let read: Vec<(&str, Request, Option<&str>)> =
+            meeting.items.iter().map(|i| (i.title.as_str(), i.request, i.presenter.as_deref())).collect();
+        assert_eq!(
+            read,
+            [
+                ("Informe", Request::Inform, None),
+                ("Campamento", Request::OtherDecision, Some("Daniel")),
+                ("Sillas", Request::ApproveExpense { amount: None }, None),
+            ]
+        );
+        assert!(meeting.items.iter().all(|i| i.office.is_none() && i.source.is_none()));
     }
 }

@@ -3,24 +3,30 @@
  * whoever runs the board prepares and calls them from their own desk.
  */
 
-import type { ItemKind } from "./generated/ItemKind";
-import type { ItemStatus } from "./generated/ItemStatus";
 import type { Meeting } from "./generated/Meeting";
 import type { NewItem } from "./generated/NewItem";
 import type { NewMeeting } from "./generated/NewMeeting";
+import type { Request } from "./generated/Request";
 import type { Viewer } from "./generated/Viewer";
 import { outsideDesks } from "./desk";
-import { api, button, dayDate, h, notify, stamp, today } from "./ui";
+import { api, button, dayDate, h, notify, today } from "./ui";
 
 const stateLabel = { draft: "Borrador, sin convocar", called: "Convocada", held: "Celebrada" } as const;
 const nextLabel = { draft: "Convocar", called: "Marcar como celebrada", held: null } as const;
-const kindLabel: Record<ItemKind, string> = { informative: "informativo", vote: "para votar", budget: "presupuesto" };
+type RequestKind = Extract<Request, string> | "approve_expense";
+const requestLabel: Record<RequestKind, string> = {
+  accept_report: "aceptar un informe",
+  approve_plan: "aprobar un plan o actividad",
+  approve_expense: "aprobar un gasto",
+  recommend_to_church: "recomendar a la iglesia",
+  other_decision: "otra decisión",
+  inform: "solo informar",
+};
 
-/** An approved item is a decision the board recorded, so it carries the stamp. */
-function status(s: ItemStatus): HTMLElement | null {
-  if (s === "approved") return stamp(["Aprobado"], { small: true });
-  if (s === "discussed") return h("span", { class: "muted small" }, "Tratado");
-  return null;
+function requestText(request: Request): string {
+  if (typeof request === "string") return requestLabel[request];
+  const amount = request.approve_expense.amount;
+  return amount === null ? requestLabel.approve_expense : `${requestLabel.approve_expense} de B/. ${amount}`;
 }
 
 /** Junta directiva in La iglesia: read-only, unless the viewer runs the board without a desk for it. */
@@ -65,8 +71,7 @@ export function meetingView(meeting: Meeting, runs: boolean, refresh: () => void
               "li",
               null,
               h("span", { class: "num" }, `${n + 1}.${m + 1}`),
-              h("div", { class: "grow" }, i.title, h("div", { class: "sub" }, [i.presenter, kindLabel[i.kind]].filter(Boolean).join(", "))),
-              status(i.status),
+              h("div", { class: "grow" }, i.title, h("div", { class: "sub" }, [i.presenter, requestText(i.request)].filter(Boolean).join(", "))),
               editable && button("Quitar", () => api(`/api/meetings/${meeting.id}/items/${i.id}`, "DELETE").then(refresh), "link"),
             ),
           ),
@@ -91,7 +96,7 @@ function addItemForm(meeting: Meeting, refresh: () => void): HTMLElement {
   const section = h("select", null, ...meeting.sections.map((s) => h("option", { value: s.id }, s.title)));
   const title = h("input", { required: true, autocomplete: "off" });
   const presenter = h("input", { placeholder: "Por ejemplo: Ministerio Joven", autocomplete: "off" });
-  const kind = h("select", null, ...(Object.keys(kindLabel) as ItemKind[]).map((k) => h("option", { value: k }, kindLabel[k])));
+  const kind = h("select", null, ...(Object.keys(requestLabel) as RequestKind[]).map((k) => h("option", { value: k }, requestLabel[k])));
   const form = h(
     "form",
     { class: "sheet" },
@@ -101,14 +106,26 @@ function addItemForm(meeting: Meeting, refresh: () => void): HTMLElement {
       { class: "form" },
       h("label", { class: "span2" }, "Punto", title),
       h("label", null, "Sección", section),
-      h("label", null, "Tipo", kind),
+      h("label", null, "Qué le pide a la junta", kind),
       h("label", { class: "span2" }, "Lo presenta (opcional)", presenter),
     ),
     h("button", null, "Agregar punto"),
   );
   form.onsubmit = (event) => {
     event.preventDefault();
-    const item: NewItem = { section: section.value, title: title.value.trim(), kind: kind.value as ItemKind, presenter: presenter.value.trim() || null };
+    const chosen = kind.value as RequestKind;
+    const request: Request = chosen === "approve_expense" ? { approve_expense: { amount: null } } : chosen;
+    const item: NewItem = {
+      section: section.value,
+      office: null,
+      title: title.value.trim(),
+      presenter: presenter.value.trim() || null,
+      request,
+      explanation: "",
+      received_on: null,
+      scans: [],
+      activity: null,
+    };
     api(`/api/meetings/${meeting.id}/items`, "POST", item).then(refresh, (e: Error) => notify(e.message, "error"));
   };
   return form;

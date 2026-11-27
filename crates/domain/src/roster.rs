@@ -24,7 +24,7 @@ use ts_rs::TS;
 use crate::catalog::OfficeId;
 use crate::schedule::{Service, ServiceId, ServiceKind};
 use crate::setup::Setup;
-use crate::{Charge, ChargeId, Date, Month, church_year, normalize_email};
+use crate::{Actor, Charge, ChargeId, Date, Month, church_year, normalize_email};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -439,15 +439,6 @@ impl<'de> Deserialize<'de> for Turn {
         members.extend(member);
         Ok(Self { program, period, members })
     }
-}
-
-/// Who recorded an event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "snake_case")]
-#[ts(export)]
-pub enum Actor {
-    Charge(ChargeId),
-    Developer,
 }
 
 /// One step of the roster's history, as stored.
