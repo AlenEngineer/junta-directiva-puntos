@@ -105,14 +105,15 @@ pub(super) fn session_token(headers: &HeaderMap) -> Option<&str> {
     cookie(headers, SESSION)
 }
 
-/// The value of cookie `name` across the request's `Cookie` headers.
+/// The value of cookie `name` across the request's `Cookie` headers. Reads
+/// them as bytes, because the browser also sends the cookies that other
+/// apps on this host keep, and their values need not be ASCII.
 fn cookie<'h>(headers: &'h HeaderMap, name: &str) -> Option<&'h str> {
     headers
         .get_all(header::COOKIE)
         .iter()
-        .filter_map(|value| value.to_str().ok())
-        .flat_map(|value| value.split(';'))
-        .find_map(|pair| pair.trim().strip_prefix(name)?.strip_prefix('='))
+        .flat_map(|value| value.as_bytes().split(|&b| b == b';'))
+        .find_map(|pair| std::str::from_utf8(pair.trim_ascii().strip_prefix(name.as_bytes())?.strip_prefix(b"=")?).ok())
 }
 
 /// 32 random bytes from the OS, base64url without padding.
