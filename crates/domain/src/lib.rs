@@ -3,6 +3,7 @@
 //! Types here are the single source of truth. `cargo test` exports them to
 //! `web/src/generated`, so the web app never hand-copies a shape.
 
+pub mod access;
 pub mod agenda;
 pub mod catalog;
 pub mod setup;
@@ -44,6 +45,18 @@ impl Charge {
     pub fn modules(&self) -> impl Iterator<Item = Module> + '_ {
         self.responsibilities.iter().filter_map(|r| r.module)
     }
+
+    /// Whether the holder serves in church year `year`. A charge serves
+    /// through its term, and after it until the church elects a successor:
+    /// a charge among `charges` for the same office whose term starts after
+    /// this one's last year. An officer stops when a successor is elected
+    /// (pp. 91-92), so a church that has not yet recorded its election
+    /// keeps its officers.
+    pub fn serves_in(&self, year: u16, charges: &[Charge]) -> bool {
+        let last = self.term.last_year();
+        let succeeded = charges.iter().any(|c| c.office == self.office && c.term.start_year > last);
+        self.term.start_year <= year && (year <= last || !succeeded)
+    }
 }
 
 /// A charge as a vote elects it, or as the setup file lists it.
@@ -55,8 +68,8 @@ pub struct NewCharge {
     pub term: Term,
 }
 
-/// Who holds a charge. Login will match a signed-in email to the charges
-/// held, so the setup keeps the email lowercased.
+/// Who holds a charge. Signing in matches the signed-in email to the
+/// charges held, so the setup keeps the email as `normalize_email` leaves it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Holder {
@@ -66,11 +79,14 @@ pub struct Holder {
 
 impl Holder {
     pub(crate) fn normalized(&self) -> Self {
-        Self {
-            name: self.name.trim().to_owned(),
-            email: self.email.as_deref().map(str::trim).filter(|e| !e.is_empty()).map(str::to_lowercase),
-        }
+        Self { name: self.name.trim().to_owned(), email: self.email.as_deref().map(normalize_email).filter(|e| !e.is_empty()) }
     }
+}
+
+/// How emails compare: trimmed and lowercased. Holders' emails are kept
+/// this way, and a signed-in email is matched this way.
+pub fn normalize_email(email: &str) -> String {
+    email.trim().to_lowercase()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -207,6 +223,32 @@ mod tests {
             office: OfficeId::from(office),
             holder: Holder { name: "Hermano de ejemplo".into(), email: None },
             term: Term::one_year(2026),
+        }
+    }
+
+    #[test]
+    fn a_charge_serves_through_its_term_and_until_a_successor_is_elected() {
+        let held = |office: &str, term: Term| Charge {
+            id: ChargeId(0),
+            office: OfficeId::from(office),
+            holder: Holder { name: "Hermano de ejemplo".into(), email: None },
+            term,
+            responsibilities: vec![],
+        };
+        let clerk = held("secretario", Term::one_year(2026));
+        let two_years = held("tesorero", Term { start_year: 2025, length: TermLength::TwoYears, extended: false });
+        for (case, charge, later, year, serves) in [
+            ("before its term starts", &clerk, None, 2025, false),
+            ("during its term", &clerk, None, 2026, true),
+            ("in the last year of a two-year term", &two_years, None, 2026, true),
+            ("after its term, with no successor elected", &clerk, None, 2027, true),
+            ("after its term, with a successor elected", &clerk, Some(held("secretario", Term::one_year(2027))), 2027, false),
+            ("before its successor's term starts", &clerk, Some(held("secretario", Term::one_year(2027))), 2026, true),
+            ("after its term, beside a later charge for another office", &clerk, Some(held("tesorero", Term::one_year(2027))), 2027, true),
+            ("after its term, beside a charge for the same years", &clerk, Some(held("secretario", Term::one_year(2026))), 2027, true),
+        ] {
+            let charges: Vec<Charge> = [charge.clone()].into_iter().chain(later).collect();
+            assert_eq!(charge.serves_in(year, &charges), serves, "{case}");
         }
     }
 
