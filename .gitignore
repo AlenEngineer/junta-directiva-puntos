@@ -1,6 +1,0 @@
-node_modules/
-tests/salida/
-dist/
-.clasp.json
-.clasprc.json
-.claude/settings.local.json
