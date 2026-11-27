@@ -12,13 +12,13 @@ Each layer can add an office, replace one by its id, hide offices the church doe
 
 ## A church's setup
 
-The setup changes only by a vote. The database keeps it as a history of entries that the server never edits or deletes. Entry 1 is the initial setup. Every later entry is one vote and what it decided: a new name for the church, offices added, replaced, hidden or restored, the board agenda, and charges elected or released. A vote records the body that voted, the date, and the minute (acta) when there is one. The board can vote only a new board agenda. Every other change, electing the officers included, needs a business meeting (Manual pp. 141-146, 163-164, 167). The catalog and the charges are the bundled manual with this history replayed over it. Nothing else stores them.
+The setup changes only by a vote. The database keeps it as a history of entries that the server never edits or deletes. Entry 1 is the initial setup. Every later entry is one vote and what it decided: a new name for the church, offices added, replaced, hidden or restored, the board agenda, and charges elected or released. A vote records the body that voted, the date, and the minute (acta) when there is one. The board can vote only a new board agenda. Every other change, electing the officers included, needs a vote of the church, taken during the Sabbath service or at a business meeting (Manual pp. 141-146, 163-164, 167). The catalog and the charges are the bundled manual with this history replayed over it. Nothing else stores them.
 
-Terms count church years. A church year starts in January unless the setup names another month in `year_starts`, a number from 1 to 12. The initial setup sets it, and a business meeting vote can change it. With October, church year 2026 runs from 2026-10-01 to 2027-09-30, and so does a one-year term that starts in 2026. The server takes today's date in UTC.
+Terms count church years. A church year starts in January unless the setup names another month in `year_starts`, a number from 1 to 12. The initial setup sets it, and a vote of the church can change it. With October, church year 2026 runs from 2026-10-01 to 2027-09-30, and so does a one-year term that starts in 2026. The server takes today's date in UTC.
 
 A new database has no setup. The developer signs in and enters it in the app: the church's name, the month its year starts, the offices it does not use, any office of its own, and the officers who serve today. It is stored as entry 1, with no vote, and can be entered only once. Until then the developer may do nothing else and nobody else may do anything.
 
-In the app, the clerk or the first elder records each later business meeting vote the same way: office by office, as the nominating committee reports it. Before saving, the page shows the change grouped by person, and after saving it offers one invitation per person elected with an email. A draft stays in the browser until it is saved. `examples/iglesia.json` shows a church's offices in the layer format a vote's `catalog` uses: it hides two offices and adds a local one.
+In the app, the clerk or the first elder records each later vote of the church the same way: office by office, as the nominating committee reports it. Before saving, the page shows the change grouped by person, and after saving it offers one invitation per person elected with an email. A draft stays in the browser until it is saved. `examples/iglesia.json` shows a church's offices in the layer format a vote's `catalog` uses: it hides two offices and adds a local one.
 
 | Request | What it does |
 |---|---|
@@ -34,7 +34,7 @@ A vote sends as `after` the `latest` entry it was decided against:
 ```json
 {
   "after": 1,
-  "vote": { "body": "business_meeting", "date": "2027-01-09", "minute": "Acta 4, voto 12" },
+  "vote": { "body": "church", "date": "2027-01-09", "minute": "Acta 4, voto 12" },
   "change": {
     "catalog": { "offices": [{ "id": "bienvenida", "name": "Coordinador de bienvenida", "board_member": false }] },
     "elect": [{ "office": "bienvenida", "holder": { "name": "Hermano de ejemplo" }, "term": { "start_year": 2027 } }]

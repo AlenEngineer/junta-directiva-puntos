@@ -1,6 +1,6 @@
 /**
  * Entering the church's setup: the first one, which the developer enters
- * with no vote, and every later business meeting vote, which the clerk or
+ * with no vote, and every later vote of the church, which the clerk or
  * the first elder records.
  *
  * The clerk usually reads from the nominating committee's report, which
@@ -159,7 +159,7 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
             "header",
             { class: "intro" },
             h("h1", null, "Registrar un voto"),
-            h("p", null, "Anota lo que votó la junta de negocios, oficio por oficio. Antes de guardar verás el resumen por persona."),
+            h("p", null, "Anota lo que votó la iglesia, oficio por oficio. Antes de guardar verás el resumen por persona."),
           ),
       churchPanel(),
       termPanel(),
@@ -494,7 +494,7 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
         }
         const entry: NewEntry = {
           after: base.latest,
-          vote: { body: "business_meeting", date: draft.date, minute: draft.minute.trim() || null },
+          vote: { body: "church", date: draft.date, minute: draft.minute.trim() || null },
           change,
         };
         await api("/api/setup/history", "POST", entry);
@@ -545,9 +545,9 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
             h(
               "p",
               { class: "muted span2" },
-              "La elección de oficiales y los cambios de oficios los vota la junta de negocios (Manual, pp. 141-146).",
+              "La elección de oficiales y los cambios de oficios los vota la iglesia, en el culto del sábado o en una reunión administrativa (Manual, p. 145).",
             ),
-            h("label", null, "Fecha de la junta de negocios", date),
+            h("label", null, "Fecha del voto de la iglesia", date),
             h("label", null, "Acta (opcional)", minute),
           ),
       h(

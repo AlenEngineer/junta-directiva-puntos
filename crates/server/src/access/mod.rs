@@ -271,7 +271,7 @@ mod tests {
         let app = TestApp::seeded().await;
         let dev = app.sign_in(DEVELOPER).await;
         let ana = json!({ "office": "secretario", "holder": { "name": "Ana Rojas", "email": "Ana@Example.org" }, "term": { "start_year": 2026 } });
-        let elected = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "business_meeting", json!({ "elect": [ana] }))).await;
+        let elected = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "church", json!({ "elect": [ana] }))).await;
         assert_eq!(elected.0, StatusCode::CREATED);
 
         let (status, me) = app.call(&app.sign_in("ana@example.org").await, Method::GET, "/api/me", None).await;
@@ -311,7 +311,7 @@ mod tests {
         let app = TestApp::seeded().await;
         let people = app.with_officers().await;
         let names = ["signed out", "nobody", "ana, clerk", "luis, treasurer", "marta, multimedia", "pedro, first elder", "olga, succeeded", "developer"];
-        let rename = vote(2, "business_meeting", json!({ "church": "Iglesia Central" }));
+        let rename = vote(2, "church", json!({ "church": "Iglesia Central" }));
         let new_meeting = Some(json!({ "date": "2027-01-10", "kind": "regular" }));
         let new_item = Some(json!({ "section": "finanzas", "title": "Diezmos", "kind": "informative", "presenter": null }));
         let approved = Some(json!({ "status": "approved" }));
@@ -342,9 +342,9 @@ mod tests {
     async fn a_vote_that_releases_the_clerk_takes_effect_on_her_next_request() {
         let app = TestApp::seeded().await;
         let [_, _, ana, .., dev] = app.with_officers().await;
-        let release_ana = vote(2, "business_meeting", json!({ "release": [2] }));
+        let release_ana = vote(2, "church", json!({ "release": [2] }));
         assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", release_ana).await.0, StatusCode::CREATED);
-        let rename = vote(3, "business_meeting", json!({ "church": "Iglesia Central" }));
+        let rename = vote(3, "church", json!({ "church": "Iglesia Central" }));
         let (status, body) = app.call(&ana, Method::POST, "/api/setup/history", rename).await;
         assert_eq!((status, body["error"].as_str()), (StatusCode::FORBIDDEN, Some("recording votes and inviting holders needs the clerk or the first elder")));
         assert_eq!(app.call(&ana, Method::GET, "/api/me", None).await.1["charges"], json!([]), "same session, new answer");
@@ -358,12 +358,12 @@ mod tests {
             json!({ "elect": [{ "office": "tesorero", "holder": { "name": name, "email": format!("{}@example.org", name.to_lowercase()) },
                                 "term": { "start_year": start_year } }] })
         };
-        let luis = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "business_meeting", treasurer("Luis", 2025))).await;
+        let luis = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "church", treasurer("Luis", 2025))).await;
         assert_eq!(luis.0, StatusCode::CREATED);
         let luis = app.sign_in("luis@example.org").await;
         assert_eq!(app.call(&luis, Method::GET, "/api/meetings", None).await.0, StatusCode::OK, "his 2025 term ended, but nobody succeeded him");
 
-        let rosa = app.call(&dev, Method::POST, "/api/setup/history", vote(2, "business_meeting", treasurer("Rosa", 2026))).await;
+        let rosa = app.call(&dev, Method::POST, "/api/setup/history", vote(2, "church", treasurer("Rosa", 2026))).await;
         assert_eq!(rosa.0, StatusCode::CREATED);
         assert_eq!(app.call(&luis, Method::GET, "/api/meetings", None).await.0, StatusCode::FORBIDDEN);
         let rosa = app.sign_in("rosa@example.org").await;

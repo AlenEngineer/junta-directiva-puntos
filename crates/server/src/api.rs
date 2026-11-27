@@ -239,7 +239,7 @@ mod tests {
                 (&json!("secretario"), &json!(true)),
                 "the same session, now the clerk"
             );
-            let rename = vote(1, "business_meeting", json!({ "church": "Iglesia Central" }));
+            let rename = vote(1, "church", json!({ "church": "Iglesia Central" }));
             assert_eq!(app.call(&ana, Method::POST, "/api/setup/history", rename).await.0, StatusCode::CREATED);
         }
         let app = TestApp::open(&database.url()).await;
@@ -252,7 +252,7 @@ mod tests {
         assert_eq!((&setup["church_year"], &setup["serving"]), (&json!(2026), &json!([1])), "December 2026 is in church year 2026");
         assert!(setup["catalog"]["hidden"].as_array().unwrap().iter().any(|o| o["id"] == "hogar-y-escuela"));
         let (_, history) = app.call(&dev, Method::GET, "/api/setup/history", None).await;
-        assert_eq!(history[1]["approval"], json!({ "kind": "vote", "body": "business_meeting", "date": "2026-03-07", "minute": "Acta 3/2026" }));
+        assert_eq!(history[1]["approval"], json!({ "kind": "vote", "body": "church", "date": "2026-03-07", "minute": "Acta 3/2026" }));
     }
 
     #[tokio::test]
@@ -265,7 +265,7 @@ mod tests {
             "elect": [{ "office": "bienvenida", "holder": { "name": "Carlos Díaz", "email": "Carlos@Example.org" },
                         "term": { "start_year": 2026 } }]
         });
-        let (status, entry) = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "business_meeting", change)).await;
+        let (status, entry) = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "church", change)).await;
         assert_eq!(status, StatusCode::CREATED, "{entry}");
         assert_eq!(entry["id"], 2);
 
@@ -273,7 +273,7 @@ mod tests {
         assert_eq!(setup["latest"], 2);
         let offices = setup["catalog"]["offices"].as_array().unwrap();
         let office = offices.iter().find(|o| o["id"] == "bienvenida").expect("the vote added it");
-        assert_eq!(office["approved_by"], "Reunión administrativa, 2026-03-07, Acta 3/2026");
+        assert_eq!(office["approved_by"], "Voto de la iglesia, 2026-03-07, Acta 3/2026");
         let charge = &setup["charges"][1];
         assert_eq!((charge["id"].as_i64(), charge["office"].as_str()), (Some(2), Some("bienvenida")));
         assert_eq!(charge["holder"], json!({ "name": "Carlos Díaz", "email": "carlos@example.org" }));
@@ -288,7 +288,7 @@ mod tests {
         let election = json!({ "elect": [{ "office": "secretario", "holder": { "name": "Ana Rojas" }, "term": { "start_year": 2026 } }] });
         let (status, body) = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "board", election)).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(body["error"], "the board can only change the board agenda; this change needs a business meeting vote");
+        assert_eq!(body["error"], "the board can only change the board agenda; this change needs a vote of the church");
 
         let agenda = json!({ "catalog": { "board_agenda": [{ "id": "oracion", "title": "Oración" }] } });
         assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", vote(1, "board", agenda)).await.0, StatusCode::CREATED);
@@ -299,14 +299,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_business_meeting_moves_the_start_of_the_church_year() {
+    async fn the_church_moves_the_start_of_the_church_year() {
         let app = TestApp::seeded().await;
         let dev = app.sign_in(DEVELOPER).await;
         assert_eq!(app.call(&dev, Method::GET, "/api/setup", None).await.1["year_starts"], 1);
-        let october = vote(1, "business_meeting", json!({ "year_starts": 10 }));
+        let october = vote(1, "church", json!({ "year_starts": 10 }));
         assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", october).await.0, StatusCode::CREATED);
         assert_eq!(app.call(&dev, Method::GET, "/api/setup", None).await.1["year_starts"], 10);
-        let thirteenth = vote(2, "business_meeting", json!({ "year_starts": 13 }));
+        let thirteenth = vote(2, "church", json!({ "year_starts": 13 }));
         assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", thirteenth).await.0, StatusCode::UNPROCESSABLE_ENTITY);
     }
 
@@ -315,13 +315,13 @@ mod tests {
         let app = TestApp::seeded().await;
         let dev = app.sign_in(DEVELOPER).await;
         let hide = json!({ "catalog": { "hide": ["club-de-aventureros"] } });
-        assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", vote(1, "business_meeting", hide)).await.0, StatusCode::CREATED);
+        assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", vote(1, "church", hide)).await.0, StatusCode::CREATED);
         let (_, setup) = app.call(&dev, Method::GET, "/api/setup", None).await;
         assert!(!ids(&setup, "offices").contains(&"club-de-aventureros".to_owned()));
         assert!(ids(&setup, "hidden").contains(&"club-de-aventureros".to_owned()));
 
         let restore = json!({ "catalog": { "restore": ["club-de-aventureros"] } });
-        assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", vote(2, "business_meeting", restore)).await.0, StatusCode::CREATED);
+        assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", vote(2, "church", restore)).await.0, StatusCode::CREATED);
         let (_, setup) = app.call(&dev, Method::GET, "/api/setup", None).await;
         assert!(ids(&setup, "offices").contains(&"club-de-aventureros".to_owned()));
         assert!(!ids(&setup, "hidden").contains(&"club-de-aventureros".to_owned()));
@@ -340,7 +340,7 @@ mod tests {
             ),
             (json!({}), "a vote has to change something"),
         ] {
-            let (status, body) = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "business_meeting", change)).await;
+            let (status, body) = app.call(&dev, Method::POST, "/api/setup/history", vote(1, "church", change)).await;
             assert_eq!((status, body["error"].as_str()), (StatusCode::UNPROCESSABLE_ENTITY, Some(reason)));
         }
         let (_, history) = app.call(&dev, Method::GET, "/api/setup/history", None).await;
@@ -351,9 +351,9 @@ mod tests {
     async fn a_stale_vote_is_refused_and_nothing_is_recorded() {
         let app = TestApp::seeded().await;
         let dev = app.sign_in(DEVELOPER).await;
-        let rename = vote(1, "business_meeting", json!({ "church": "Iglesia Central" }));
+        let rename = vote(1, "church", json!({ "church": "Iglesia Central" }));
         assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", rename.clone()).await.0, StatusCode::CREATED);
-        for stale in [rename, vote(5, "business_meeting", json!({ "church": "Iglesia Norte" }))] {
+        for stale in [rename, vote(5, "church", json!({ "church": "Iglesia Norte" }))] {
             let (status, body) = app.call(&dev, Method::POST, "/api/setup/history", stale).await;
             assert_eq!((status, body["error"].as_str()), (StatusCode::CONFLICT, Some("the church setup changed; reload and try again")));
         }
@@ -368,7 +368,7 @@ mod tests {
         let app = TestApp::unseeded().await;
         let dev = app.sign_in(DEVELOPER).await;
         assert_eq!(app.call(&dev, Method::GET, "/api/setup", None).await.0, StatusCode::SERVICE_UNAVAILABLE);
-        let rename = vote(0, "business_meeting", json!({ "church": "Iglesia" }));
+        let rename = vote(0, "church", json!({ "church": "Iglesia" }));
         assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", rename).await.0, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(app.call(&dev, Method::GET, "/api/setup/history", None).await.0, StatusCode::SERVICE_UNAVAILABLE);
     }

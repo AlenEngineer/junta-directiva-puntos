@@ -88,7 +88,7 @@ impl TestApp {
         self.send(get(&format!("{}?{}", back.path(), back.query().unwrap())).header(header::COOKIE, login_cookie)).await
     }
 
-    /// The developer records one business meeting vote that releases charge
+    /// The developer records one vote of the church that releases charge
     /// 1 and elects, for 2026, Ana as clerk (charge 2), Luis as treasurer
     /// (3), Marta in multimedia, an office off the board (4), and Pedro as
     /// first elder (5). The same vote elects Olga as clerk for 2025 (6), so
@@ -105,7 +105,7 @@ impl TestApp {
             elect("secretario", "Ana", 2026), elect("tesorero", "Luis", 2026), elect("multimedia", "Marta", 2026),
             elect("primer-anciano", "Pedro", 2026), elect("secretario", "Olga", 2025),
         ] });
-        let voted = self.call(&dev, Method::POST, "/api/setup/history", vote(1, "business_meeting", officers)).await;
+        let voted = self.call(&dev, Method::POST, "/api/setup/history", vote(1, "church", officers)).await;
         assert_eq!(voted.0, StatusCode::CREATED, "{}", voted.1);
         let meeting = self.call(&dev, Method::POST, "/api/meetings", Some(json!({ "date": "2026-12-06", "kind": "regular" }))).await;
         assert_eq!(meeting.0, StatusCode::CREATED);

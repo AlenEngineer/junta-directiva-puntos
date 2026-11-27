@@ -101,7 +101,7 @@ export async function history(setup: Setup): Promise<HTMLElement> {
   const entries = await api<Entry[]>("/api/setup/history");
   const offices = [...setup.catalog.offices, ...setup.catalog.hidden];
   const officeName = (id: string) => offices.find((o) => o.id === id)?.name ?? id;
-  const body = { business_meeting: "Junta de negocios", board: "Junta directiva" } as const;
+  const body = { church: "La iglesia", board: "Junta directiva" } as const;
   return h(
     "div",
     { class: "stack" },

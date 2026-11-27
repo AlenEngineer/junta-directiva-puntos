@@ -23,9 +23,11 @@ pub struct EntryId(pub i64);
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum VotingBody {
-    /// The church's highest authority. It elects the officers (pp. 141-146, 163-164).
-    BusinessMeeting,
-    /// Acts between business meetings and keeps its own agenda (p. 167).
+    /// The church as a whole, its members present voting. It elects the
+    /// officers, during the Sabbath service or at a business meeting called
+    /// for it (p. 145), and decides everything the board may not (pp. 163-164).
+    Church,
+    /// Acts between the church's votes and keeps its own agenda (p. 167).
     Board,
 }
 
@@ -41,10 +43,10 @@ pub struct Vote {
 
 impl fmt::Display for Vote {
     /// The `approved_by` of an office the vote adds or replaces, in Spanish
-    /// like the manual: "Reunión administrativa, 2026-03-07, Acta 3/2026".
+    /// like the manual: "Voto de la iglesia, 2026-03-07, Acta 3/2026".
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let body = match self.body {
-            VotingBody::BusinessMeeting => "Reunión administrativa",
+            VotingBody::Church => "Voto de la iglesia",
             VotingBody::Board => "Junta directiva",
         };
         write!(f, "{body}, {}", self.date)?;
@@ -97,7 +99,7 @@ impl Change {
     }
 
     /// Whether the board may vote the change. The board keeps its own agenda,
-    /// and the church decides everything else in a business meeting.
+    /// and the church votes everything else.
     /// Destructured in full so a new kind of change does not reach the board
     /// by default.
     fn is_agenda_only(&self) -> bool {
@@ -155,7 +157,7 @@ impl NewEntry {
             return Err(SetupError::EmptyChange);
         }
         if self.vote.body == VotingBody::Board && !self.change.is_agenda_only() {
-            return Err(SetupError::NeedsBusinessMeeting);
+            return Err(SetupError::NeedsChurchVote);
         }
         self.change.check()
     }
@@ -346,8 +348,8 @@ pub enum SetupError {
     EmptyChange,
     BadDate(String),
     BlankHolder,
-    /// The board voted something only a business meeting can decide.
-    NeedsBusinessMeeting,
+    /// The board voted something only the church can decide.
+    NeedsChurchVote,
     UnknownCharge(ChargeId),
     /// A charge whose office is not in the catalog, because it was elected
     /// into an unknown office or its office was hidden while it was held.
@@ -369,8 +371,8 @@ impl fmt::Display for SetupError {
             Self::EmptyChange => write!(f, "a vote has to change something"),
             Self::BadDate(date) => write!(f, "{date} is not a YYYY-MM-DD date"),
             Self::BlankHolder => write!(f, "a charge needs a holder with a name"),
-            Self::NeedsBusinessMeeting => {
-                write!(f, "the board can only change the board agenda; this change needs a business meeting vote")
+            Self::NeedsChurchVote => {
+                write!(f, "the board can only change the board agenda; this change needs a vote of the church")
             }
             Self::UnknownCharge(id) => {
                 write!(f, "charge {} is not held, so it cannot be released", id.0)
@@ -387,7 +389,7 @@ impl fmt::Display for SetupError {
 
 #[cfg(test)]
 mod tests {
-    use super::VotingBody::{Board, BusinessMeeting};
+    use super::VotingBody::{Board, Church};
     use super::*;
     use crate::{Holder, Term};
 
@@ -426,11 +428,11 @@ mod tests {
                          "responsibilities":[{"summary":"Recibir a las visitas"}]}]}"#;
         let holder = Holder { name: " Carlos Díaz ".into(), email: Some(" Carlos@Example.org ".into()) };
         let change = Change { catalog: catalog(office), elect: vec![NewCharge { holder, ..elect("bienvenida", "") }], ..Change::default() };
-        let next = decide(&church(), BusinessMeeting, change).unwrap();
+        let next = decide(&church(), Church, change).unwrap();
 
         assert_eq!(next.latest(), EntryId(2));
         let office = next.catalog().office(&"bienvenida".into()).expect("the vote added it");
-        assert_eq!(office.approved_by.as_deref(), Some("Reunión administrativa, 2026-03-07, Acta 3/2026"));
+        assert_eq!(office.approved_by.as_deref(), Some("Voto de la iglesia, 2026-03-07, Acta 3/2026"));
         assert_eq!(office.layer, "Iglesia");
         let charge = next.charges().last().unwrap();
         assert_eq!((charge.id, charge.office.0.as_str()), (ChargeId(2), "bienvenida"));
@@ -442,7 +444,7 @@ mod tests {
     fn the_board_votes_only_its_agenda() {
         let setup = church();
         let agenda = Change { catalog: catalog(r#"{"board_agenda":[{"id":"oracion","title":"Oración"}]}"#), ..Change::default() };
-        for body in [Board, BusinessMeeting] {
+        for body in [Board, Church] {
             assert_eq!(decide(&setup, body, agenda.clone()).unwrap().catalog().board_agenda.len(), 1);
         }
         let election = Change { elect: vec![elect("secretario", "Ana Rojas")], ..Change::default() };
@@ -453,18 +455,18 @@ mod tests {
             Change { catalog: catalog(r#"{"hide":["club-de-aventureros"]}"#), ..Change::default() },
             Change { release: vec![ChargeId(1)], ..Change::default() },
         ] {
-            assert_eq!(decide(&setup, Board, change).unwrap_err(), SetupError::NeedsBusinessMeeting);
+            assert_eq!(decide(&setup, Board, change).unwrap_err(), SetupError::NeedsChurchVote);
         }
-        assert!(decide(&setup, BusinessMeeting, election).is_ok());
+        assert!(decide(&setup, Church, election).is_ok());
     }
 
     #[test]
-    fn the_church_year_starts_in_january_until_a_business_meeting_moves_it() {
+    fn the_church_year_starts_in_january_until_the_church_moves_it() {
         let october = Month::try_from(10).unwrap();
         let first = church();
         assert_eq!(first.year_starts(), Month::JANUARY);
-        let moved = decide(&first, BusinessMeeting, Change { year_starts: Some(october), ..Change::default() }).unwrap();
-        let renamed = decide(&moved, BusinessMeeting, Change { church: Some("Iglesia Central".into()), ..Change::default() }).unwrap();
+        let moved = decide(&first, Church, Change { year_starts: Some(october), ..Change::default() }).unwrap();
+        let renamed = decide(&moved, Church, Change { church: Some("Iglesia Central".into()), ..Change::default() }).unwrap();
         assert_eq!(renamed.year_starts(), october, "a later vote that does not mention it keeps it");
         assert_eq!(json(&renamed.on(Date { year: 2026, month: october, day: 1 }))["year_starts"], 10);
     }
@@ -502,12 +504,12 @@ mod tests {
     fn a_hidden_office_is_restored_by_a_later_vote() {
         let hide = Change { catalog: catalog(r#"{"hide":["club-de-aventureros"]}"#), ..Change::default() };
         let restore = Change { catalog: catalog(r#"{"restore":["club-de-aventureros"]}"#), ..Change::default() };
-        let hidden = decide(&church(), BusinessMeeting, hide).unwrap();
+        let hidden = decide(&church(), Church, hide).unwrap();
         assert!(hidden.catalog().office(&"club-de-aventureros".into()).is_none());
 
-        let restored = decide(&hidden, BusinessMeeting, restore.clone()).unwrap();
+        let restored = decide(&hidden, Church, restore.clone()).unwrap();
         assert_eq!(restored.catalog().office(&"club-de-aventureros".into()).and_then(|o| o.page), Some(138));
-        let err = decide(&restored, BusinessMeeting, restore).unwrap_err();
+        let err = decide(&restored, Church, restore).unwrap_err();
         assert_eq!(err.to_string(), "Iglesia: cannot restore office club-de-aventureros, which is not hidden");
     }
 
@@ -515,10 +517,10 @@ mod tests {
     fn one_vote_can_release_a_holder_and_hide_the_office() {
         let first = church();
         let hide = Change { catalog: catalog(r#"{"hide":["tesorero"]}"#), ..Change::default() };
-        let err = decide(&first, BusinessMeeting, hide.clone()).unwrap_err();
+        let err = decide(&first, Church, hide.clone()).unwrap_err();
         assert_eq!(err.to_string(), "charge 1 is for unknown office tesorero");
 
-        let next = decide(&first, BusinessMeeting, Change { release: vec![ChargeId(1)], ..hide }).unwrap();
+        let next = decide(&first, Church, Change { release: vec![ChargeId(1)], ..hide }).unwrap();
         assert!(next.charges().is_empty() && next.catalog().office(&"tesorero".into()).is_none());
     }
 
@@ -533,7 +535,7 @@ mod tests {
                 "Iglesia: office a appears twice",
             ),
         ] {
-            let err = decide(&setup, BusinessMeeting, Change { catalog: catalog(edit), ..Change::default() }).unwrap_err();
+            let err = decide(&setup, Church, Change { catalog: catalog(edit), ..Change::default() }).unwrap_err();
             assert_eq!(err.to_string(), message);
         }
     }
@@ -541,9 +543,9 @@ mod tests {
     #[test]
     fn a_vote_counts_only_against_the_history_it_was_decided_on() {
         let rename = Change { church: Some("Iglesia Central".into()), ..Change::default() };
-        let next = decide(&church(), BusinessMeeting, rename.clone()).unwrap();
+        let next = decide(&church(), Church, rename.clone()).unwrap();
         for after in [EntryId(1), EntryId(3)] {
-            let new = NewEntry { after, vote: vote(BusinessMeeting), change: rename.clone() };
+            let new = NewEntry { after, vote: vote(Church), change: rename.clone() };
             assert_eq!(next.apply(&new).unwrap_err(), SetupError::Stale, "after {after:?}");
         }
     }
@@ -551,26 +553,26 @@ mod tests {
     #[test]
     fn a_vote_decides_something_on_a_date_and_names_who_it_elects() {
         let setup = church();
-        assert_eq!(decide(&setup, BusinessMeeting, Change::default()).unwrap_err(), SetupError::EmptyChange);
+        assert_eq!(decide(&setup, Church, Change::default()).unwrap_err(), SetupError::EmptyChange);
         let undated = NewEntry {
             after: setup.latest(),
-            vote: Vote { date: "07/03/2026".into(), ..vote(BusinessMeeting) },
+            vote: Vote { date: "07/03/2026".into(), ..vote(Church) },
             change: Change { church: Some("Iglesia Central".into()), ..Change::default() },
         };
         assert_eq!(setup.apply(&undated).unwrap_err(), SetupError::BadDate("07/03/2026".into()));
         let nameless = Change { elect: vec![elect("secretario", "  ")], ..Change::default() };
-        assert_eq!(decide(&setup, BusinessMeeting, nameless).unwrap_err(), SetupError::BlankHolder);
+        assert_eq!(decide(&setup, Church, nameless).unwrap_err(), SetupError::BlankHolder);
     }
 
     #[test]
     fn charge_ids_are_never_reused_and_duties_follow_the_office() {
         let swap = Change { release: vec![ChargeId(1)], elect: vec![elect("tesorero", "Ana Rojas")], ..Change::default() };
-        let swapped = decide(&church(), BusinessMeeting, swap).unwrap();
+        let swapped = decide(&church(), Church, swap).unwrap();
         assert_eq!(swapped.charges().iter().map(|c| c.id).collect::<Vec<_>>(), [ChargeId(2)]);
 
         let duties = r#"{"offices":[{"id":"tesorero","name":"Tesorero","board_member":true,
                          "responsibilities":[{"summary":"Informe mensual a la junta"}]}]}"#;
-        let next = decide(&swapped, BusinessMeeting, Change { catalog: catalog(duties), ..Change::default() }).unwrap();
+        let next = decide(&swapped, Church, Change { catalog: catalog(duties), ..Change::default() }).unwrap();
         let summaries: Vec<_> = next.charges()[0].responsibilities.iter().map(|r| r.summary.as_str()).collect();
         assert_eq!(summaries, ["Informe mensual a la junta"]);
     }
@@ -594,8 +596,8 @@ mod tests {
         let mut stepped = Setup::initial(&initial).unwrap();
         let mut history = vec![entry(1, Approval::Initial, initial)];
         for change in votes {
-            stepped = decide(&stepped, BusinessMeeting, change.clone()).unwrap();
-            history.push(entry(stepped.latest().0, Approval::Vote(vote(BusinessMeeting)), change));
+            stepped = decide(&stepped, Church, change.clone()).unwrap();
+            history.push(entry(stepped.latest().0, Approval::Vote(vote(Church)), change));
         }
 
         let replayed = Setup::replay(&history).unwrap();
@@ -641,8 +643,8 @@ mod tests {
         assert_eq!(Setup::replay(&[]).unwrap_err(), SetupError::NoSetup);
         for history in [
             vec![initial.clone(), entry(2, Approval::Initial, election.clone())],
-            vec![initial, entry(3, Approval::Vote(vote(BusinessMeeting)), election.clone())],
-            vec![entry(1, Approval::Vote(vote(BusinessMeeting)), election)],
+            vec![initial, entry(3, Approval::Vote(vote(Church)), election.clone())],
+            vec![entry(1, Approval::Vote(vote(Church)), election)],
         ] {
             assert!(matches!(Setup::replay(&history), Err(SetupError::Malformed(_))), "{history:?}");
         }

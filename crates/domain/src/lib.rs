@@ -99,7 +99,7 @@ pub struct Responsibility {
     pub module: Option<Module>,
 }
 
-/// One year by default; two when the business meeting votes it (p. 91).
+/// One year by default; two when the church votes it (p. 91).
 /// Years are church years, so with a church year that starts in October,
 /// a one-year term from 2026 runs from 2026-10-01 to 2027-09-30.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
