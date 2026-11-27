@@ -2,6 +2,6 @@
 import type { ChargeId } from "./ChargeId";
 
 /**
- * Who recorded an event.
+ * Who recorded something.
  */
 export type Actor = { "charge": ChargeId } | "developer";

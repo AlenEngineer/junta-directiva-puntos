@@ -15,13 +15,18 @@ read_setup: boolean,
  */
 record_votes: boolean, 
 /**
- * See the board's meetings. A board member, or whoever runs the board.
+ * See the board's meetings and their actas. A board member, or whoever runs the board.
  */
 read_board: boolean, 
 /**
- * Create board meetings, edit their items, call them and mark them held.
+ * Create board meetings, enter their points (typed in or from paper
+ * slips), call them and mark them held.
  */
 run_board: boolean, 
+/**
+ * Enter and correct the actas of held meetings. Whoever records votes.
+ */
+record_actas: boolean, 
 /**
  * Enter the church's first setup: the developer, while the church has none.
  */

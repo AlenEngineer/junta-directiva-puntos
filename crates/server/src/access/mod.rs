@@ -279,7 +279,7 @@ mod tests {
         assert_eq!((me["email"].as_str(), me["name"].as_str()), (Some("ana@example.org"), Some("ana Prueba")));
         assert_eq!((me["desks"][0]["charge"]["id"].as_i64(), me["desks"][0]["charge"]["office"].as_str()), (Some(2), Some("secretario")));
         assert_eq!(me["desks"].as_array().map(Vec::len), Some(1));
-        assert_eq!(me["may"], json!({ "read_setup": true, "record_votes": true, "read_board": true, "run_board": false, "start_setup": false }));
+        assert_eq!(me["may"], json!({ "read_setup": true, "record_votes": true, "read_board": true, "run_board": false, "record_actas": true, "start_setup": false }));
 
         let (_, developer) = app.call(&dev, Method::GET, "/api/me", None).await;
         assert_eq!((&developer["desks"], &developer["may"]["run_board"]), (&json!([]), &json!(true)));
@@ -287,7 +287,7 @@ mod tests {
         assert_eq!(nobody["desks"], json!([]));
         assert_eq!(
             nobody["may"],
-            json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false, "start_setup": false })
+            json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false, "record_actas": false, "start_setup": false })
         );
     }
 
@@ -299,7 +299,7 @@ mod tests {
         assert_eq!((status, &me["desks"]), (StatusCode::OK, &json!([])));
         assert_eq!(
             me["may"],
-            json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false, "start_setup": true })
+            json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false, "record_actas": false, "start_setup": true })
         );
         let (_, ana) = app.call(&app.sign_in("ana@example.org").await, Method::GET, "/api/me", None).await;
         assert_eq!(ana["may"]["start_setup"], false);
@@ -313,8 +313,8 @@ mod tests {
         let names = ["signed out", "nobody", "ana, clerk", "luis, treasurer", "marta, multimedia", "pedro, first elder", "olga, succeeded", "developer"];
         let rename = vote(2, "church", json!({ "church": "Iglesia Central" }));
         let new_meeting = Some(json!({ "date": "2027-01-10", "kind": "regular" }));
-        let new_item = Some(json!({ "section": "finanzas", "title": "Diezmos", "kind": "informative", "presenter": null }));
-        let approved = Some(json!({ "status": "approved" }));
+        let new_item = Some(json!({ "section": "finanzas", "office": "tesorero", "title": "Diezmos", "presenter": null,
+                                    "request": "accept_report", "explanation": "", "received_on": null, "scans": [], "activity": null }));
         let table = [
             (Method::GET, "/api/me", None, [S, A, A, A, A, A, A, A]),
             (Method::GET, "/api/setup", None, [S, F, A, A, A, A, F, A]),
@@ -325,7 +325,6 @@ mod tests {
             (Method::GET, "/api/meetings/1", None, [S, F, A, A, F, A, F, A]),
             (Method::POST, "/api/meetings", new_meeting, [S, F, F, F, F, A, F, A]),
             (Method::POST, "/api/meetings/1/items", new_item, [S, F, F, F, F, A, F, A]),
-            (Method::PUT, "/api/meetings/1/items/1/status", approved, [S, F, F, F, F, A, F, A]),
             (Method::DELETE, "/api/meetings/1/items/1", None, [S, F, F, F, F, A, F, A]),
             (Method::POST, "/api/meetings/1/advance", None, [S, F, F, F, F, A, F, A]),
         ];

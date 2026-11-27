@@ -5,16 +5,15 @@ use axum::{
     extract::Path,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{any, delete, get, post, put},
+    routing::{any, delete, get, post},
 };
 use domain::{
     ChargeId,
     access::{Invitation, Viewer},
-    agenda::{AgendaError, ItemId, ItemStatus, Meeting, MeetingId, NewItem, NewMeeting},
+    agenda::{AgendaError, ItemId, Meeting, MeetingId, NewItem, NewMeeting},
     catalog::Catalog,
     setup::{Change, Entry, NewEntry, SetupError},
 };
-use serde::Deserialize;
 use serde_json::json;
 
 use crate::access::{self, ApiError, App, Can, FirstSetup, Me, ReadBoard, ReadSetup, RecordVotes, RunBoard, WorkosError};
@@ -65,7 +64,6 @@ pub fn router(app: App) -> Router {
         .route("/api/meetings/{id}/advance", post(advance))
         .route("/api/meetings/{id}/items", post(add_item))
         .route("/api/meetings/{id}/items/{item}", delete(remove_item))
-        .route("/api/meetings/{id}/items/{item}/status", put(set_item_status))
         // Otherwise main's page fallback would answer a mistyped API path with the page.
         .route("/api/{*rest}", any(|| async { ApiError::NotFound }))
         .with_state(Arc::new(app))
@@ -119,15 +117,6 @@ async fn add_item(can: Can<RunBoard>, Path(id): Path<i64>, Json(item): Json<NewI
     Ok((StatusCode::CREATED, Json(can.add_item(MeetingId(id), &item).await?)))
 }
 
-#[derive(Deserialize)]
-struct StatusBody {
-    status: ItemStatus,
-}
-
-async fn set_item_status(can: Can<RunBoard>, Path((id, item)): Path<(i64, i64)>, Json(body): Json<StatusBody>) -> ApiResult<Meeting> {
-    Ok(Json(can.set_item_status(MeetingId(id), ItemId(item), body.status).await?))
-}
-
 async fn remove_item(can: Can<RunBoard>, Path((id, item)): Path<(i64, i64)>) -> ApiResult<Meeting> {
     Ok(Json(can.remove_item(MeetingId(id), ItemId(item)).await?))
 }
@@ -142,7 +131,8 @@ mod tests {
     use crate::testing::{DEVELOPER, TestApp, vote};
 
     fn item(section: &str, title: &str) -> Option<Value> {
-        Some(json!({ "section": section, "title": title, "kind": "informative", "presenter": null }))
+        Some(json!({ "section": section, "office": "tesorero", "title": title, "presenter": null, "request": "accept_report",
+                     "explanation": "", "received_on": null, "scans": [], "activity": null }))
     }
 
     fn ids(setup: &Value, list: &str) -> Vec<String> {
@@ -160,10 +150,7 @@ mod tests {
 
         let (status, meeting) = app.call(&dev, Method::POST, "/api/meetings/1/items", item("finanzas", "Informe de noviembre")).await;
         assert_eq!(status, StatusCode::CREATED);
-        assert_eq!(meeting["items"][0]["status"], "proposed");
-
-        let (_, meeting) = app.call(&dev, Method::PUT, "/api/meetings/1/items/1/status", Some(json!({ "status": "approved" }))).await;
-        assert_eq!(meeting["items"][0]["status"], "approved");
+        assert_eq!((&meeting["items"][0]["request"], &meeting["items"][0]["office"]), (&json!("accept_report"), &json!("tesorero")));
 
         let (_, meeting) = app.call(&dev, Method::POST, "/api/meetings/1/advance", None).await;
         assert_eq!(meeting["state"], "called");
@@ -189,6 +176,10 @@ mod tests {
         app.call(&dev, Method::POST, "/api/meetings", Some(json!({ "date": "2026-12-06", "kind": "regular" }))).await;
         let (status, _) = app.call(&dev, Method::POST, "/api/meetings/1/items", item("no-existe", "X")).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        let mut with_a_scan = item("finanzas", "X").unwrap();
+        with_a_scan["scans"] = json!([1]);
+        let (status, body) = app.call(&dev, Method::POST, "/api/meetings/1/items", Some(with_a_scan)).await;
+        assert_eq!((status, body["error"].as_str()), (StatusCode::UNPROCESSABLE_ENTITY, Some("there is no scan 1")));
         let (status, _) = app.call(&dev, Method::POST, "/api/meetings/9/items", item("finanzas", "X")).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         let (status, _) = app.call(&dev, Method::DELETE, "/api/meetings/1/items/9", None).await;

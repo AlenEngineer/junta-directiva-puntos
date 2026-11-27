@@ -35,6 +35,11 @@ places?: Array<Place> | null,
  */
 services?: Array<Service> | null, 
 /**
+ * How many board members present, in the room or by video, make a
+ * quorum. The church sets it in a business meeting (p. 168).
+ */
+board_quorum?: number | null, 
+/**
  * Officers elected. Each gets the next charge id.
  */
 elect: Array<NewCharge>, 

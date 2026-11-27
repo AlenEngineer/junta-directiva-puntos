@@ -10,8 +10,8 @@ use crate::catalog::Catalog;
 use crate::setup::Setup;
 use crate::{Charge, ChargeId, Date, Module, church_year, normalize_email};
 
-/// The offices whose holder records the church's votes and invites holders
-/// to sign in. The clerk records the church's decisions (pp. 103-104, 167),
+/// The offices whose holder records the church's votes and the board's
+/// actas, and invites holders to sign in. The clerk records the church's decisions (pp. 103-104, 167),
 /// and the first elder chairs the board when the pastor asks (p. 167).
 /// Named by id, so no catalog edit can take this away.
 const RECORDERS: [&str; 2] = ["secretario", "primer-anciano"];
@@ -92,10 +92,13 @@ pub struct May {
     pub read_setup: bool,
     /// Record the church's votes, and invite a charge's holder to sign in.
     pub record_votes: bool,
-    /// See the board's meetings. A board member, or whoever runs the board.
+    /// See the board's meetings and their actas. A board member, or whoever runs the board.
     pub read_board: bool,
-    /// Create board meetings, edit their items, call them and mark them held.
+    /// Create board meetings, enter their points (typed in or from paper
+    /// slips), call them and mark them held.
     pub run_board: bool,
+    /// Enter and correct the actas of held meetings. Whoever records votes.
+    pub record_actas: bool,
     /// Enter the church's first setup: the developer, while the church has none.
     pub start_setup: bool,
 }
@@ -104,18 +107,21 @@ impl May {
     /// The developer's exception, once the church has a setup. A struct
     /// literal, so a new field does not compile until it is listed here.
     /// A setup exists, so there is none left to start.
-    pub const EVERYTHING: Self = Self { read_setup: true, record_votes: true, read_board: true, run_board: true, start_setup: false };
+    pub const EVERYTHING: Self =
+        Self { read_setup: true, record_votes: true, read_board: true, run_board: true, record_actas: true, start_setup: false };
 
     /// What one serving charge allows. A struct literal for the same reason:
     /// a new field does not compile until it has its rule.
     fn of(charge: &Charge, catalog: &Catalog) -> Self {
         let runs_board = charge.modules().any(|m| m == Module::Agenda);
         let on_board = catalog.office(&charge.office).is_some_and(|o| o.board_member);
+        let recorder = RECORDERS.contains(&charge.office.0.as_str());
         Self {
             read_setup: true,
-            record_votes: RECORDERS.contains(&charge.office.0.as_str()),
+            record_votes: recorder,
             read_board: on_board || runs_board,
             run_board: runs_board,
+            record_actas: recorder,
             start_setup: false,
         }
     }
@@ -123,12 +129,13 @@ impl May {
     /// Everything either allows. Destructured in full, so a new field
     /// cannot be left out of the merge.
     fn or(self, other: Self) -> Self {
-        let Self { read_setup, record_votes, read_board, run_board, start_setup } = self;
+        let Self { read_setup, record_votes, read_board, run_board, record_actas, start_setup } = self;
         Self {
             read_setup: read_setup || other.read_setup,
             record_votes: record_votes || other.record_votes,
             read_board: read_board || other.read_board,
             run_board: run_board || other.run_board,
+            record_actas: record_actas || other.record_actas,
             start_setup: start_setup || other.start_setup,
         }
     }
@@ -196,10 +203,13 @@ mod tests {
     }
 
     #[test]
-    fn the_clerk_and_the_first_elder_record_votes_and_nobody_else_does() {
+    fn the_clerk_and_the_first_elder_record_votes_and_actas_and_nobody_else_does() {
         let setup = officers();
-        let recorders = ["ana", "luis", "marta", "pedro", "elena"].map(|who| may(&setup, &format!("{who}@example.org")).record_votes);
-        assert_eq!(recorders, [true, false, false, true, false]);
+        let recorders = ["ana", "luis", "marta", "pedro", "elena"].map(|who| {
+            let may = may(&setup, &format!("{who}@example.org"));
+            (may.record_votes, may.record_actas)
+        });
+        assert_eq!(recorders, [(true, true), (false, false), (false, false), (true, true), (false, false)]);
     }
 
     #[test]
