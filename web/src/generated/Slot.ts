@@ -4,11 +4,11 @@ import type { PastorApproval } from "./PastorApproval";
 import type { Role } from "./Role";
 
 /**
- * One role on one date of a program, as the roster reads it.
+ * One role of one service on one date of a program, as the roster reads it.
  */
 export type Slot = { role: Role, 
 /**
- * Added for this date only, not in the program's roles.
+ * Added for this service and date only, not in the service's roles.
  */
 extra: boolean, filler: Filler | null, 
 /**

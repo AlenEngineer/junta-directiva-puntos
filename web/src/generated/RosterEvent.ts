@@ -7,6 +7,7 @@ import type { Month } from "./Month";
 import type { OfficeId } from "./OfficeId";
 import type { Period } from "./Period";
 import type { ProgramId } from "./ProgramId";
+import type { ProgramService } from "./ProgramService";
 import type { Role } from "./Role";
 import type { ServiceId } from "./ServiceId";
 import type { Split } from "./Split";
@@ -15,4 +16,4 @@ import type { Split } from "./Split";
  * A change to the roster. Edits carry the whole new value, so the event
  * before it in the history is the previous value.
  */
-export type RosterEvent = { "kind": "add_helper", office: OfficeId, name: string, email: string | null, } | { "kind": "edit_helper", helper: HelperId, name: string, email: string | null, active: boolean, } | { "kind": "add_program", office: OfficeId, name: string, service: ServiceId, split: Split, roles: Array<Role>, } | { "kind": "edit_program", program: ProgramId, name: string, service: ServiceId, split: Split, roles: Array<Role>, } | { "kind": "assign_turn", program: ProgramId, period: Period, member: Member | null, } | { "kind": "fill_slot", program: ProgramId, date: CalendarDate, role: string, filler: Filler | null, } | { "kind": "add_extra_role", program: ProgramId, date: CalendarDate, role: Role, } | { "kind": "send_to_pastor", program: ProgramId, year: number, month: Month, } | { "kind": "record_pastor_answer", program: ProgramId, date: CalendarDate, role: string, approved: boolean, note: string | null, };
+export type RosterEvent = { "kind": "add_helper", office: OfficeId, name: string, email: string | null, } | { "kind": "edit_helper", helper: HelperId, name: string, email: string | null, active: boolean, } | { "kind": "add_program", office: OfficeId, name: string, split: Split, services: Array<ProgramService>, } | { "kind": "edit_program", program: ProgramId, name: string, split: Split, services: Array<ProgramService>, } | { "kind": "assign_turn", program: ProgramId, period: Period, member: Member | null, } | { "kind": "fill_slot", program: ProgramId, service: ServiceId, date: CalendarDate, role: string, filler: Filler | null, } | { "kind": "add_extra_role", program: ProgramId, service: ServiceId, date: CalendarDate, role: Role, } | { "kind": "send_to_pastor", program: ProgramId, year: number, month: Month, } | { "kind": "record_pastor_answer", program: ProgramId, service: ServiceId, date: CalendarDate, role: string, approved: boolean, note: string | null, };

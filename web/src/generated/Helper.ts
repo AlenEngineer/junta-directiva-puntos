@@ -4,10 +4,12 @@ import type { OfficeId } from "./OfficeId";
 
 /**
  * Someone an office names itself, such as a Sabbath School teacher or a
- * club counselor. A helper holds turns and never gets a desk or signs in.
+ * club counselor. A helper starts as a name and holds turns. The office
+ * may add an email later and invite them; an invited helper sees only
+ * their own turns and roles ("Mi semana"), never the desk.
  */
 export type Helper = { id: HelperId, office: OfficeId, name: string, 
 /**
- * Kept for a later reminder; nothing signs in with it.
+ * Where the office invites the helper.
  */
 email: string | null, active: boolean, };
