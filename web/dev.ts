@@ -9,7 +9,11 @@ const server = Bun.serve({
     "/": index,
     "/api/*": (req) => {
       const url = new URL(req.url);
-      return fetch(new URL(url.pathname + url.search, api), req);
+      const headers = new Headers(req.headers);
+      // The server names the sign-in callback after the host the browser used.
+      headers.set("x-forwarded-host", url.host);
+      // Signing in and out are redirects for the browser to follow, not this proxy.
+      return fetch(new URL(url.pathname + url.search, api), { method: req.method, headers, body: req.body, redirect: "manual" });
     },
   },
 });
