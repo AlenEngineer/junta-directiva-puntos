@@ -237,6 +237,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn another_apps_cookie_with_accents_hides_neither_the_login_nor_the_session() {
+        let app = TestApp::seeded().await;
+        let beside_ours = |ours: &str| format!("texto=Una canción; {ours}; idioma=español");
+        let login = app.send(get("/api/auth/login")).await;
+        let state = query(&location(&login), "state");
+        let login_cookie = cookie_pair(&set_cookie(&login, "mayordomo_login").unwrap());
+        let callback = get(&format!("/api/auth/callback?code=ana%40example.org&state={state}"));
+        let back = app.send(callback.header(header::COOKIE, beside_ours(&login_cookie))).await;
+        assert_eq!(location(&back), "/", "another app on this host keeps accented text in a cookie, and the browser sends it here too");
+        let session = cookie_pair(&set_cookie(&back, "mayordomo_session").unwrap());
+        let me = app.send(get("/api/me").header(header::COOKIE, beside_ours(&session))).await;
+        assert_eq!(me.status(), StatusCode::OK, "the session cookie is read beside it too");
+    }
+
+    #[tokio::test]
     async fn authkit_hints_go_on_to_authorize() {
         let app = TestApp::seeded().await;
         let login = app.send(get("/api/auth/login?invitation_token=inv_01&login_hint=pedro%40example.org")).await;
