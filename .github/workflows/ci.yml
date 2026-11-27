@@ -19,3 +19,5 @@ jobs:
         working-directory: web
       - run: bun run typecheck
         working-directory: web
+      - run: bun run build
+        working-directory: web
