@@ -41,6 +41,7 @@ export async function home(me: Viewer, setup: Setup | null, refresh: () => void)
         });
     }
   }
+  const clerk = me.desks.find((d) => d.may.record_votes);
   if (me.may.record_votes && setup) {
     const without = setup.charges.filter((c) => setup.serving.includes(c.id) && !c.holder.email);
     const names = [...new Set(without.map((c) => c.holder.name))];
@@ -48,7 +49,7 @@ export async function home(me: Viewer, setup: Setup | null, refresh: () => void)
       todos.push({
         title: names.length === 1 ? "Un oficial sin correo" : `${names.length} oficiales sin correo`,
         detail: `${andList(names.slice(0, 3))}${names.length > 3 ? " y otros" : ""} ${names.length === 1 ? "no puede" : "no pueden"} entrar`,
-        action: linkButton("#/iglesia", "Ver oficiales"),
+        action: linkButton(clerk ? `#/cargo/${clerk.charge.id}` : "#/iglesia", "Ver oficiales"),
       });
   }
 
@@ -98,11 +99,11 @@ export async function home(me: Viewer, setup: Setup | null, refresh: () => void)
       "section",
       { "aria-labelledby": "cargos" },
       h("h2", { id: "cargos", class: "label" }, "Mis cargos"),
-      me.charges.length > 0
+      me.desks.length > 0
         ? h(
             "div",
             null,
-            ...me.charges.map((c) =>
+            ...me.desks.map(({ charge: c }) =>
               h("a", { href: `#/cargo/${c.id}`, class: "desk-link" }, h("span", null, officeName(c.office)), h("span", null, `desde ${c.term.start_year}`)),
             ),
           )

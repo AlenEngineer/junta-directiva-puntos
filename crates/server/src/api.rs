@@ -235,7 +235,7 @@ mod tests {
 
             let (_, me) = app.call(&ana, Method::GET, "/api/me", None).await;
             assert_eq!(
-                (&me["charges"][0]["office"], &me["may"]["record_votes"]),
+                (&me["desks"][0]["charge"]["office"], &me["may"]["record_votes"]),
                 (&json!("secretario"), &json!(true)),
                 "the same session, now the clerk"
             );

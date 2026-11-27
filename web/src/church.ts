@@ -17,13 +17,21 @@ function churchTabs(current: "oficiales" | "votos"): HTMLElement {
   return h("nav", { class: "tabs", "aria-label": "Iglesia" }, link("oficiales", "#/iglesia", "Oficiales"), link("votos", "#/iglesia/votos", "Votos"));
 }
 
+/**
+ * Recording votes and inviting officers live in the desk whose charge allows
+ * them. Only someone allowed with no such desk, the developer, does them here.
+ */
+function recordsHere(me: Viewer): boolean {
+  return me.may.record_votes && !me.desks.some((d) => d.may.record_votes);
+}
+
 function intro(me: Viewer, setup: Setup): HTMLElement {
   return h(
     "header",
     { class: "intro" },
     h("h1", null, setup.church),
     h("p", null, `Año eclesiástico ${setup.church_year}: ${churchYearSpan(setup.church_year, setup.year_starts)}.`),
-    me.may.record_votes && h("p", { class: "act" }, h("a", { href: "#/votar", class: "button primary" }, "Registrar un voto")),
+    recordsHere(me) && h("p", { class: "act" }, h("a", { href: "#/votar", class: "button primary" }, "Registrar un voto")),
   );
 }
 
@@ -31,14 +39,14 @@ export function directory(me: Viewer, setup: Setup, byPerson: boolean): HTMLElem
   const serving = setup.charges.filter((c) => setup.serving.includes(c.id));
   const officeName = (id: string) => setup.catalog.offices.find((o) => o.id === id)?.name ?? id;
   const invite = (c: Charge) =>
-    me.may.record_votes &&
+    recordsHere(me) &&
     c.holder.email &&
     c.holder.email !== me.email &&
     button("Invitar", async () => {
       await api(`/api/setup/charges/${c.id}/invitation`, "POST");
       notify(`Invitación enviada a ${c.holder.email}`);
     }, "link");
-  const email = (c: Charge) => (c.holder.email ? h("span", { class: "muted small" }, c.holder.email) : h("span", { class: me.may.record_votes ? "warn small" : "muted small" }, "sin correo"));
+  const email = (c: Charge) => (c.holder.email ? h("span", { class: "muted small" }, c.holder.email) : h("span", { class: recordsHere(me) ? "warn small" : "muted small" }, "sin correo"));
 
   const filter = h("input", { type: "search", placeholder: byPerson ? "Buscar persona" : "Buscar oficio o persona", "aria-label": "Buscar" });
   const list = h("div", { class: "ledger" });
