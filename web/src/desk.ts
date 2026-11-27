@@ -4,14 +4,16 @@
  * the votes decided before them.
  */
 
+import { meetingView, newMeetingForm } from "./board";
 import { entryRow, stampLines } from "./church";
 import type { Charge } from "./generated/Charge";
 import type { Desk } from "./generated/Desk";
 import type { Entry } from "./generated/Entry";
 import type { May } from "./generated/May";
+import type { Meeting } from "./generated/Meeting";
 import type { Setup } from "./generated/Setup";
 import type { Viewer } from "./generated/Viewer";
-import { andList, api, button, churchYearSpan, dayDate, h, notify, stamp } from "./ui";
+import { andList, api, button, churchYearSpan, dayDate, dayMonth, h, notify, stamp, today } from "./ui";
 
 export type DeskTab = "plan" | "responsabilidades" | "historial";
 
@@ -22,16 +24,25 @@ type Plan = { needs: HTMLElement[]; main: HTMLElement[]; aside: HTMLElement[] };
  * The work a desk's Plan shows, one entry per permission a charge can carry.
  * A desk whose charge carries none of them has no Plan tab.
  */
-const plans: { carries: (may: May) => boolean; build: (me: Viewer, setup: Setup, entries: Entry[]) => Plan }[] = [
+const plans: { carries: (may: May) => boolean; build: (me: Viewer, setup: Setup, refresh: () => void) => Promise<Plan> }[] = [
+  { carries: (may) => may.run_board, build: boardPlan },
   { carries: (may) => may.record_votes, build: votesPlan },
 ];
+
+/**
+ * Whether the viewer may do `what` and no desk of theirs carries it: the
+ * developer, who holds nothing. Only then does the work appear outside a desk.
+ */
+export function outsideDesks(me: Viewer, what: keyof May): boolean {
+  return me.may[what] && !me.desks.some((d) => d.may[what]);
+}
 
 /** Whether the desk has a Plan, so the route can open it by default. */
 export function hasPlan(desk: Desk): boolean {
   return plans.some((p) => p.carries(desk.may));
 }
 
-export async function deskView(me: Viewer, setup: Setup, desk: Desk, tab: DeskTab): Promise<HTMLElement> {
+export async function deskView(me: Viewer, setup: Setup, desk: Desk, tab: DeskTab, refresh: () => void): Promise<HTMLElement> {
   const charge = desk.charge;
   const office = setup.catalog.offices.find((o) => o.id === charge.office);
   const name = office?.name ?? charge.office;
@@ -46,8 +57,7 @@ export async function deskView(me: Viewer, setup: Setup, desk: Desk, tab: DeskTa
 
   let body: HTMLElement;
   if (tab === "plan" && own.length > 0) {
-    const entries = await api<Entry[]>("/api/setup/history");
-    const built = own.map((p) => p.build(me, setup, entries));
+    const built = await Promise.all(own.map((p) => p.build(me, setup, refresh)));
     const needs = built.flatMap((b) => b.needs);
     body = h(
       "div",
@@ -123,7 +133,43 @@ function summary(e: Entry): string {
 }
 
 /** The clerk's work with the church's votes: record the next one, see the last ones, and get officers signed in. */
-function votesPlan(me: Viewer, setup: Setup, entries: Entry[]): Plan {
+/** The board's work for whoever runs it: prepare the agenda, call the meeting, mark it held. */
+async function boardPlan(_me: Viewer, _setup: Setup, refresh: () => void): Promise<Plan> {
+  const meetings = await api<Meeting[]>("/api/meetings");
+  const now = today();
+  const advance = (m: Meeting, label: string) => button(label, () => api(`/api/meetings/${m.id}/advance`, "POST").then(refresh));
+  const points = (m: Meeting) => (m.items.length === 1 ? "1 punto" : `${m.items.length} puntos`);
+  const needs = meetings.flatMap((m) => {
+    if (m.state === "draft")
+      return [h("li", null, h("div", { class: "grow" }, h("strong", null, `Junta del ${dayMonth(m.date)}`), h("div", { class: "sub" }, `Sin convocar, con ${points(m)}`)), advance(m, "Convocar"))];
+    if (m.state === "called" && m.date < now)
+      return [h("li", null, h("div", { class: "grow" }, h("strong", null, `Junta del ${dayMonth(m.date)}`), h("div", { class: "sub" }, "Ya pasó y sigue convocada")), advance(m, "Marcar como celebrada"))];
+    return [];
+  });
+  const open = meetings.filter((m) => m.state !== "held");
+  return {
+    needs,
+    main: [
+      h(
+        "section",
+        { class: "stack" },
+        h(
+          "div",
+          { class: "intro" },
+          h("h2", null, "Junta directiva"),
+          h("p", null, "Prepara la agenda, convoca la junta y márcala como celebrada. Los miembros de la junta la leen en Junta directiva."),
+        ),
+        newMeetingForm(refresh),
+        ...open.map((m) => meetingView(m, true, refresh)),
+        h("p", null, h("a", { href: "#/junta" }, "Ver todas las juntas")),
+      ),
+    ],
+    aside: [],
+  };
+}
+
+async function votesPlan(me: Viewer, setup: Setup): Promise<Plan> {
+  const entries = await api<Entry[]>("/api/setup/history");
   const recent = entries.slice(-3).reverse();
   const serving = setup.charges.filter((c) => setup.serving.includes(c.id));
   const officeName = (id: string) => setup.catalog.offices.find((o) => o.id === id)?.name ?? id;

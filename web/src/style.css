@@ -398,7 +398,7 @@ main.wide {
   flex: 1;
   min-width: 0;
 }
-.rows .sub {
+.sub {
   font-size: 0.88rem;
   color: var(--ink-soft);
 }
@@ -844,30 +844,35 @@ details.unused summary {
 .meeting ol.agenda {
   list-style: none;
   padding: 0;
-  counter-reset: section;
 }
 .meeting ol.agenda > li {
-  counter-increment: section;
-  padding: 0.6rem 0;
+  padding: 0.75rem 0 0.25rem;
+}
+.meeting ol.agenda h3 {
+  font-weight: 600;
+}
+.meeting ol.items {
+  list-style: none;
+  padding: 0;
+}
+.meeting ol.items li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: 44px;
+  padding: 0.5rem 0;
   border-bottom: 1px solid var(--rule);
 }
-.meeting ol.agenda > li > .section::before {
-  content: counter(section) ". ";
+.meeting ol.items .num {
+  flex: none;
+  width: 2.25rem;
   color: var(--ink-soft);
 }
-.meeting ul.items {
-  list-style: none;
-  padding: 0 0 0 1.4rem;
+.meeting form.sheet {
+  margin-top: 1rem;
 }
-.meeting ul.items li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 0.6rem;
-  min-height: 44px;
-}
-.meeting ul.items li > :first-child {
-  flex: 1 1 10rem;
+.meeting + .meeting {
+  margin-top: 1rem;
 }
 
 .toast {
