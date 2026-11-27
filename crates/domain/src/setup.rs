@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::catalog::{Catalog, CatalogEdit, Layer, OfficeId};
-use crate::{Charge, ChargeId, NewCharge};
+use crate::{Charge, ChargeId, Month, NewCharge};
 
 /// Position in the history, from 1, without gaps. A SQLite row id, far below
 /// 2^53, so a JSON number in the browser.
@@ -67,14 +67,17 @@ pub enum Approval {
 
 /// What a vote decides. Every part is optional and an absent part changes
 /// nothing. The parts apply in this order, so one vote can create an office
-/// and fill it, or release a holder and hide the office: rename, catalog,
-/// release, elect.
+/// and fill it, or release a holder and hide the office: rename, church
+/// year, catalog, release, elect.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Change {
     /// A new name for the church.
     #[serde(default)]
     pub church: Option<String>,
+    /// The month the church year starts in. January until a change says otherwise.
+    #[serde(default)]
+    pub year_starts: Option<Month>,
     /// Offices added, replaced, hidden or restored, and the board agenda, in
     /// the terms of a layer file. The church's name names the layer.
     #[serde(default)]
@@ -89,8 +92,8 @@ pub struct Change {
 
 impl Change {
     pub fn is_empty(&self) -> bool {
-        let Self { church, catalog, elect, release } = self;
-        church.is_none() && catalog.is_empty() && elect.is_empty() && release.is_empty()
+        let Self { church, year_starts, catalog, elect, release } = self;
+        church.is_none() && year_starts.is_none() && catalog.is_empty() && elect.is_empty() && release.is_empty()
     }
 
     /// Whether the board may vote the change. The board keeps its own agenda,
@@ -98,8 +101,14 @@ impl Change {
     /// Destructured in full so a new kind of change does not reach the board
     /// by default.
     fn is_agenda_only(&self) -> bool {
-        let Self { church, catalog: CatalogEdit { offices, hide, restore, board_agenda: _ }, elect, release } = self;
-        church.is_none() && offices.is_empty() && hide.is_empty() && restore.is_empty() && elect.is_empty() && release.is_empty()
+        let Self { church, year_starts, catalog: CatalogEdit { offices, hide, restore, board_agenda: _ }, elect, release } = self;
+        church.is_none()
+            && year_starts.is_none()
+            && offices.is_empty()
+            && hide.is_empty()
+            && restore.is_empty()
+            && elect.is_empty()
+            && release.is_empty()
     }
 
     /// Checked when a change is recorded and never on replay, so a rule
@@ -203,6 +212,10 @@ impl Setup {
         &self.facts.church
     }
 
+    pub fn year_starts(&self) -> Month {
+        self.facts.year_starts
+    }
+
     pub fn catalog(&self) -> &Catalog {
         &self.catalog
     }
@@ -214,7 +227,14 @@ impl Setup {
 
 impl Serialize for Setup {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        Served { church: self.church(), latest: self.latest(), catalog: &self.catalog, charges: &self.charges }.serialize(serializer)
+        Served {
+            church: self.church(),
+            year_starts: self.year_starts(),
+            latest: self.latest(),
+            catalog: &self.catalog,
+            charges: &self.charges,
+        }
+        .serialize(serializer)
     }
 }
 
@@ -224,6 +244,8 @@ impl Serialize for Setup {
 #[ts(export, rename = "Setup")]
 struct Served<'a> {
     church: &'a str,
+    /// The month the church year starts in.
+    year_starts: Month,
     latest: EntryId,
     catalog: &'a Catalog,
     charges: &'a [Charge],
@@ -234,6 +256,7 @@ struct Served<'a> {
 struct Facts {
     latest: EntryId,
     church: String,
+    year_starts: Month,
     /// The catalog part of every entry that changed the catalog, in order,
     /// with each office a vote added stamped with that vote.
     edits: Vec<CatalogEdit>,
@@ -255,6 +278,9 @@ impl Facts {
         }
         if let Some(name) = &change.church {
             self.church = name.trim().to_owned();
+        }
+        if let Some(month) = change.year_starts {
+            self.year_starts = month;
         }
         if !change.catalog.is_empty() {
             let mut edit = change.catalog.clone();
@@ -403,6 +429,7 @@ mod tests {
         let election = Change { elect: vec![elect("secretario", "Ana Rojas")], ..Change::default() };
         for change in [
             election.clone(),
+            Change { year_starts: Some(Month::try_from(10).unwrap()), ..Change::default() },
             Change { church: Some("Iglesia Central".into()), ..agenda },
             Change { catalog: catalog(r#"{"hide":["club-de-aventureros"]}"#), ..Change::default() },
             Change { release: vec![ChargeId(1)], ..Change::default() },
@@ -410,6 +437,17 @@ mod tests {
             assert_eq!(decide(&setup, Board, change).unwrap_err(), SetupError::NeedsBusinessMeeting);
         }
         assert!(decide(&setup, BusinessMeeting, election).is_ok());
+    }
+
+    #[test]
+    fn the_church_year_starts_in_january_until_a_business_meeting_moves_it() {
+        let october = Month::try_from(10).unwrap();
+        let first = church();
+        assert_eq!(first.year_starts(), Month::JANUARY);
+        let moved = decide(&first, BusinessMeeting, Change { year_starts: Some(october), ..Change::default() }).unwrap();
+        let renamed = decide(&moved, BusinessMeeting, Change { church: Some("Iglesia Central".into()), ..Change::default() }).unwrap();
+        assert_eq!(renamed.year_starts(), october, "a later vote that does not mention it keeps it");
+        assert_eq!(json(&renamed)["year_starts"], 10);
     }
 
     #[test]
@@ -542,6 +580,7 @@ mod tests {
         assert_eq!(setup.charges()[0].holder.email.as_deref(), Some("ana@example.org"));
         assert_eq!(setup.catalog().board_agenda.len(), 1);
         assert!(setup.catalog().office(&"hogar-y-escuela".into()).is_none());
+        assert_eq!(setup.year_starts(), Month::JANUARY);
     }
 
     #[test]

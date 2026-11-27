@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use domain::{
-    NewCharge,
+    Month, NewCharge,
     catalog::Layer,
     setup::{Change, Setup},
 };
@@ -14,6 +14,9 @@ use crate::store::Store;
 #[derive(Deserialize)]
 struct SetupFile {
     church: String,
+    /// The month the church year starts in. January when absent.
+    #[serde(default)]
+    year_starts: Option<Month>,
     /// The church's own layer file, relative to the setup file. At most one,
     /// because the church's setup is one layer, named for the church.
     #[serde(default)]
@@ -49,7 +52,7 @@ fn read(path: &Path) -> Result<Change, String> {
         }
         many => return Err(format!("{}: lists {} layer files; a church's setup has one", path.display(), many.len())),
     };
-    Ok(Change { church: Some(file.church), catalog, elect: file.charges, release: Vec::new() })
+    Ok(Change { church: Some(file.church), year_starts: file.year_starts, catalog, elect: file.charges, release: Vec::new() })
 }
 
 #[cfg(test)]
@@ -67,7 +70,7 @@ mod tests {
     async fn the_setup_file_seeds_an_empty_database_and_is_ignored_after() {
         let database = TempDatabase::new("seed-once");
         let setup = ensure(&Store::open(&database.url()).await.unwrap(), &examples().join("setup.json")).await.unwrap();
-        assert_eq!((setup.church(), setup.latest()), ("Iglesia de ejemplo", EntryId(1)));
+        assert_eq!((setup.church(), setup.latest(), setup.year_starts()), ("Iglesia de ejemplo", EntryId(1), Month::JANUARY));
         assert_eq!(setup.catalog().layers.len(), 2);
         let multimedia = setup.catalog().office(&OfficeId::from("multimedia")).expect("the church layer adds it");
         assert_eq!(multimedia.layer, "Iglesia de ejemplo");
@@ -78,5 +81,14 @@ mod tests {
         let restarted = ensure(&store, &examples().join("no-such-file.json")).await.unwrap();
         assert_eq!((restarted.church(), restarted.latest()), ("Iglesia de ejemplo", EntryId(1)));
         assert_eq!(store.history().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_setup_file_starts_the_church_year_in_the_month_it_names() {
+        let file = std::env::temp_dir().join(format!("mayordomo-setup-october-{}.json", std::process::id()));
+        std::fs::write(&file, r#"{ "church": "Iglesia de Panamá", "year_starts": 10 }"#).unwrap();
+        let setup = ensure(&Store::open("sqlite::memory:").await.unwrap(), &file).await;
+        std::fs::remove_file(&file).unwrap();
+        assert_eq!(setup.unwrap().year_starts(), Month::try_from(10).unwrap());
     }
 }

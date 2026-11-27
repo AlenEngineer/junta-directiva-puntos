@@ -3,8 +3,14 @@ import type { TermLength } from "./TermLength";
 
 /**
  * One year by default; two when the business meeting votes it (p. 91).
+ * Years are church years, so with a church year that starts in October,
+ * a one-year term from 2026 runs from 2026-10-01 to 2027-09-30.
  */
-export type Term = { start_year: number, length: TermLength, 
+export type Term = { 
+/**
+ * The church year the term starts in, named for the calendar year it begins in.
+ */
+start_year: number, length: TermLength, 
 /**
  * The exceptional one-year extension agreed with the conference.
  */

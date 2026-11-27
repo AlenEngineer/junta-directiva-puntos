@@ -1,12 +1,15 @@
-//! Meetings, agenda items and the church setup's history in SQLite. Enums
-//! are stored as their serde names so the database reads the same as the API.
+//! Meetings, agenda items, the church setup's history and the sessions of
+//! those signed in, in SQLite. Enums are stored as their serde names so the
+//! database reads the same as the API.
 
 use std::{fmt, str::FromStr};
 
+use domain::access::Person;
 use domain::agenda::{AgendaItem, ItemId, ItemStatus, Meeting, MeetingId, MeetingState, NewItem, NewMeeting};
 use domain::catalog::AgendaSection;
 use domain::setup::{Approval, Change, Entry, EntryId, NewEntry, Setup, SetupError, Vote};
 use serde::{Serialize, de::DeserializeOwned};
+use sha2::{Digest, Sha256};
 use sqlx::{
     Row, SqlitePool,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteRow},
@@ -46,6 +49,24 @@ impl fmt::Display for RecordError {
             Self::Storage(e) => e.fmt(f),
         }
     }
+}
+
+/// A browser's sign-in as WorkOS vouched for it: who signed in, and
+/// nothing about what they may do.
+#[derive(Debug)]
+pub struct Session {
+    pub workos_user: String,
+    /// Verified by WorkOS.
+    pub email: String,
+    pub name: String,
+    /// The `sid` of WorkOS's access token, so logout can end the WorkOS session too.
+    pub workos_session: String,
+}
+
+/// Sessions are kept by the SHA-256 of their token, so a copy of the
+/// database signs nobody in.
+fn token_hash(token: &str) -> Vec<u8> {
+    Sha256::digest(token.as_bytes()).to_vec()
 }
 
 fn name<T: Serialize>(value: &T) -> String {
@@ -266,6 +287,45 @@ impl Store {
         .await?;
         Ok(done.rows_affected() == 1)
     }
+
+    /// Keeps `session` under `token` until `expires_at`, and deletes every
+    /// session expired at `now`, so the table holds only live ones without
+    /// a background task.
+    pub async fn open_session(&self, token: &str, session: &Session, now: i64, expires_at: i64) -> Result<()> {
+        sqlx::query("DELETE FROM sessions WHERE expires_at <= ?").bind(now).execute(&self.pool).await?;
+        sqlx::query(
+            "INSERT INTO sessions (token_hash, workos_user, email, name, workos_session, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(token_hash(token))
+        .bind(&session.workos_user)
+        .bind(&session.email)
+        .bind(&session.name)
+        .bind(&session.workos_session)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Who is signed in under `token`, if that session is live at `now`.
+    pub async fn signed_in(&self, token: &str, now: i64) -> Result<Option<Person>> {
+        let row = sqlx::query("SELECT email, name FROM sessions WHERE token_hash = ? AND expires_at > ?")
+            .bind(token_hash(token))
+            .bind(now)
+            .fetch_optional(&self.pool)
+            .await?;
+        row.map(|row| Ok(Person { email: row.try_get("email")?, name: row.try_get("name")? })).transpose()
+    }
+
+    /// Ends the session `token` names and returns its WorkOS session id.
+    /// None when it had already ended, so signing out twice is harmless.
+    pub async fn close_session(&self, token: &str) -> Result<Option<String>> {
+        sqlx::query_scalar("DELETE FROM sessions WHERE token_hash = ? RETURNING workos_session")
+            .bind(token_hash(token))
+            .fetch_optional(&self.pool)
+            .await
+    }
 }
 
 #[cfg(test)]
@@ -295,6 +355,52 @@ pub mod tests {
 
     fn church(name: &str) -> Change {
         Change { church: Some(name.into()), ..Change::default() }
+    }
+
+    fn session(email: &str) -> Session {
+        Session {
+            workos_user: format!("user_for_{email}"),
+            email: email.into(),
+            name: "Ana Rojas".into(),
+            workos_session: format!("session_for_{email}"),
+        }
+    }
+
+    async fn emails_signed_in(store: &Store, tokens: &[&str], now: i64) -> Vec<Option<String>> {
+        let mut emails = Vec::new();
+        for token in tokens {
+            emails.push(store.signed_in(token, now).await.unwrap().map(|person| person.email));
+        }
+        emails
+    }
+
+    #[tokio::test]
+    async fn a_session_is_kept_by_the_hash_of_its_token_until_it_expires() {
+        let store = Store::open("sqlite::memory:").await.unwrap();
+        store.open_session("token-a", &session("ana@example.org"), 100, 200).await.unwrap();
+        assert_eq!(emails_signed_in(&store, &["token-a", "token-b"], 199).await, [Some("ana@example.org".into()), None]);
+        assert_eq!(emails_signed_in(&store, &["token-a"], 200).await, [None], "it ends at expires_at");
+        let kept: Vec<u8> = sqlx::query_scalar("SELECT token_hash FROM sessions").fetch_one(&store.pool).await.unwrap();
+        assert_eq!(kept, Sha256::digest(b"token-a").to_vec());
+    }
+
+    #[tokio::test]
+    async fn closing_a_session_twice_returns_its_workos_session_once() {
+        let store = Store::open("sqlite::memory:").await.unwrap();
+        store.open_session("token-a", &session("ana@example.org"), 100, 200).await.unwrap();
+        assert_eq!(store.close_session("token-a").await.unwrap().as_deref(), Some("session_for_ana@example.org"));
+        assert_eq!(store.close_session("token-a").await.unwrap(), None);
+        assert_eq!(emails_signed_in(&store, &["token-a"], 150).await, [None]);
+    }
+
+    #[tokio::test]
+    async fn opening_a_session_deletes_the_expired_ones() {
+        let store = Store::open("sqlite::memory:").await.unwrap();
+        store.open_session("expired", &session("ana@example.org"), 100, 200).await.unwrap();
+        store.open_session("live", &session("luis@example.org"), 100, 900).await.unwrap();
+        store.open_session("new", &session("ana@example.org"), 300, 1_000).await.unwrap();
+        let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM sessions").fetch_one(&store.pool).await.unwrap();
+        assert_eq!(rows, 2);
     }
 
     #[tokio::test]

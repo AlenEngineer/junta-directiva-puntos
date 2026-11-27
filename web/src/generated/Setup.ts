@@ -2,9 +2,14 @@
 import type { Catalog } from "./Catalog";
 import type { Charge } from "./Charge";
 import type { EntryId } from "./EntryId";
+import type { Month } from "./Month";
 
 /**
  * The church's setup as its votes leave it, and `latest`, the entry the
  * next vote names as `after`.
  */
-export type Setup = { church: string, latest: EntryId, catalog: Catalog, charges: Array<Charge>, };
+export type Setup = { church: string, 
+/**
+ * The month the church year starts in.
+ */
+year_starts: Month, latest: EntryId, catalog: Catalog, charges: Array<Charge>, };
