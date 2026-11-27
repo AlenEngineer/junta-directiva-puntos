@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::Path,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{any, get, post, put},
+    routing::{any, delete, get, post, put},
 };
 use domain::{
     access::Viewer,
@@ -15,12 +15,13 @@ use domain::{
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::access::{self, ApiError, App, AppState, Me};
+use crate::access::{self, ApiError, App, Can, Me, ReadBoard, ReadSetup, RecordVotes, RunBoard};
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, message) = match self {
             Self::SignedOut => (StatusCode::UNAUTHORIZED, "sign in first".to_owned()),
+            Self::Forbidden(needs) => (StatusCode::FORBIDDEN, needs.to_owned()),
             Self::NotFound => (StatusCode::NOT_FOUND, "not found".to_owned()),
             Self::Conflict => (StatusCode::CONFLICT, "the meeting changed; reload and try again".to_owned()),
             Self::Agenda(e @ (AgendaError::AgendaClosed | AgendaError::AlreadyHeld)) => (StatusCode::CONFLICT, e.to_string()),
@@ -39,18 +40,21 @@ impl IntoResponse for ApiError {
 
 type ApiResult<T> = Result<Json<T>, ApiError>;
 
+/// Every route. A handler takes `Me` or a `Can<…>` first, so a caller who
+/// may not pass gets 401 or 403 before any path or body is read. Nothing
+/// in this file can reach the store any other way.
 pub fn router(app: App) -> Router {
     Router::new()
         .route("/api/health", get(|| async { "ok" }))
         .merge(access::sign_in_routes())
         .route("/api/me", get(me))
         .route("/api/setup", get(setup))
-        .route("/api/setup/history", get(history).post(record_change))
+        .route("/api/setup/history", get(history).post(record_vote))
         .route("/api/meetings", get(meetings).post(create_meeting))
         .route("/api/meetings/{id}", get(meeting))
         .route("/api/meetings/{id}/advance", post(advance))
         .route("/api/meetings/{id}/items", post(add_item))
-        .route("/api/meetings/{id}/items/{item}", axum::routing::delete(remove_item))
+        .route("/api/meetings/{id}/items/{item}", delete(remove_item))
         .route("/api/meetings/{id}/items/{item}/status", put(set_item_status))
         // Otherwise main's page fallback would answer a mistyped API path with the page.
         .route("/api/{*rest}", any(|| async { ApiError::NotFound }))
@@ -61,51 +65,36 @@ async fn me(Me(viewer): Me) -> Json<Viewer> {
     Json(viewer)
 }
 
-async fn setup(State(app): State<AppState>) -> ApiResult<Setup> {
-    Ok(Json(app.setup().await?))
+async fn setup(can: Can<ReadSetup>) -> Json<Setup> {
+    Json(can.setup())
 }
 
-async fn history(State(app): State<AppState>) -> ApiResult<Vec<Entry>> {
-    Ok(Json(app.store.history().await?))
+async fn history(can: Can<ReadSetup>) -> ApiResult<Vec<Entry>> {
+    Ok(Json(can.history().await?))
 }
 
-async fn record_change(State(app): State<AppState>, Json(new): Json<NewEntry>) -> Result<(StatusCode, Json<Entry>), ApiError> {
-    Ok((StatusCode::CREATED, Json(app.store.record(&new).await?)))
+async fn record_vote(can: Can<RecordVotes>, Json(new): Json<NewEntry>) -> Result<(StatusCode, Json<Entry>), ApiError> {
+    Ok((StatusCode::CREATED, Json(can.record(&new).await?)))
 }
 
-async fn meetings(State(app): State<AppState>) -> ApiResult<Vec<Meeting>> {
-    Ok(Json(app.store.meetings().await?))
+async fn meetings(can: Can<ReadBoard>) -> ApiResult<Vec<Meeting>> {
+    Ok(Json(can.meetings().await?))
 }
 
-async fn load(app: &App, id: i64) -> Result<Meeting, ApiError> {
-    app.store.meeting(MeetingId(id)).await?.ok_or(ApiError::NotFound)
+async fn meeting(can: Can<ReadBoard>, Path(id): Path<i64>) -> ApiResult<Meeting> {
+    Ok(Json(can.meeting(MeetingId(id)).await?))
 }
 
-async fn meeting(State(app): State<AppState>, Path(id): Path<i64>) -> ApiResult<Meeting> {
-    Ok(Json(load(&app, id).await?))
+async fn create_meeting(can: Can<RunBoard>, Json(new): Json<NewMeeting>) -> Result<(StatusCode, Json<Meeting>), ApiError> {
+    Ok((StatusCode::CREATED, Json(can.create_meeting(&new).await?)))
 }
 
-async fn create_meeting(State(app): State<AppState>, Json(new): Json<NewMeeting>) -> Result<(StatusCode, Json<Meeting>), ApiError> {
-    new.validate()?;
-    let setup = app.setup().await?;
-    let id = app.store.create_meeting(&new, &setup.catalog().board_agenda).await?;
-    Ok((StatusCode::CREATED, Json(load(&app, id.0).await?)))
+async fn advance(can: Can<RunBoard>, Path(id): Path<i64>) -> ApiResult<Meeting> {
+    Ok(Json(can.advance(MeetingId(id)).await?))
 }
 
-async fn advance(State(app): State<AppState>, Path(id): Path<i64>) -> ApiResult<Meeting> {
-    let meeting = load(&app, id).await?;
-    let next = meeting.next_state()?;
-    if !app.store.set_state(meeting.id, meeting.state, next).await? {
-        return Err(ApiError::Conflict);
-    }
-    Ok(Json(load(&app, id).await?))
-}
-
-async fn add_item(State(app): State<AppState>, Path(id): Path<i64>, Json(item): Json<NewItem>) -> Result<(StatusCode, Json<Meeting>), ApiError> {
-    let meeting = load(&app, id).await?;
-    meeting.check_new_item(&item)?;
-    app.store.add_item(meeting.id, &item).await?.ok_or(ApiError::Agenda(AgendaError::AgendaClosed))?;
-    Ok((StatusCode::CREATED, Json(load(&app, id).await?)))
+async fn add_item(can: Can<RunBoard>, Path(id): Path<i64>, Json(item): Json<NewItem>) -> Result<(StatusCode, Json<Meeting>), ApiError> {
+    Ok((StatusCode::CREATED, Json(can.add_item(MeetingId(id), &item).await?)))
 }
 
 #[derive(Deserialize)]
@@ -113,26 +102,12 @@ struct StatusBody {
     status: ItemStatus,
 }
 
-async fn set_item_status(
-    State(app): State<AppState>,
-    Path((id, item)): Path<(i64, i64)>,
-    Json(body): Json<StatusBody>,
-) -> ApiResult<Meeting> {
-    if !app.store.set_item_status(MeetingId(id), ItemId(item), body.status).await? {
-        return Err(ApiError::NotFound);
-    }
-    Ok(Json(load(&app, id).await?))
+async fn set_item_status(can: Can<RunBoard>, Path((id, item)): Path<(i64, i64)>, Json(body): Json<StatusBody>) -> ApiResult<Meeting> {
+    Ok(Json(can.set_item_status(MeetingId(id), ItemId(item), body.status).await?))
 }
 
-async fn remove_item(State(app): State<AppState>, Path((id, item)): Path<(i64, i64)>) -> ApiResult<Meeting> {
-    let meeting = load(&app, id).await?;
-    if !meeting.items.iter().any(|i| i.id.0 == item) {
-        return Err(ApiError::NotFound);
-    }
-    if !app.store.remove_item(meeting.id, ItemId(item)).await? {
-        return Err(ApiError::Agenda(AgendaError::AgendaClosed));
-    }
-    Ok(Json(load(&app, id).await?))
+async fn remove_item(can: Can<RunBoard>, Path((id, item)): Path<(i64, i64)>) -> ApiResult<Meeting> {
+    Ok(Json(can.remove_item(MeetingId(id), ItemId(item)).await?))
 }
 
 #[cfg(test)]
@@ -353,6 +328,6 @@ mod tests {
         assert_eq!(app.call(&dev, Method::GET, "/api/setup", None).await.0, StatusCode::SERVICE_UNAVAILABLE);
         let rename = vote(0, "business_meeting", json!({ "church": "Iglesia" }));
         assert_eq!(app.call(&dev, Method::POST, "/api/setup/history", rename).await.0, StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(app.call(&dev, Method::GET, "/api/setup/history", None).await, (StatusCode::OK, json!([])));
+        assert_eq!(app.call(&dev, Method::GET, "/api/setup/history", None).await.0, StatusCode::SERVICE_UNAVAILABLE);
     }
 }

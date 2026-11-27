@@ -24,15 +24,6 @@ async fn main() {
     let addr: SocketAddr = env("API_ADDR", "127.0.0.1:3000")
         .parse()
         .unwrap_or_else(|e| fail(format!("API_ADDR: {e}")));
-    // The board and setup routes do not check charges yet, so anything
-    // beyond this machine needs an explicit opt-in instead of exposing the
-    // church's data.
-    if !addr.ip().is_loopback() && env("MAYORDOMO_PUBLIC_WITHOUT_LOGIN", "") != "1" {
-        fail(format!(
-            "refusing to listen on {addr}: the routes do not check charges yet. Use a loopback address, \
-             or set MAYORDOMO_PUBLIC_WITHOUT_LOGIN=1 on a network you trust."
-        ));
-    }
     let config = login_settings(|name| std::env::var(name).ok()).unwrap_or_else(|e| fail(e));
 
     let database = env("DATABASE_URL", "sqlite://mayordomo.db");

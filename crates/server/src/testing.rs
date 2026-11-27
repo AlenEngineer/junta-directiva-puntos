@@ -80,6 +80,37 @@ impl TestApp {
         self.send(get(&format!("{}?{}", back.path(), back.query().unwrap())).header(header::COOKIE, login_cookie)).await
     }
 
+    /// The developer records one business meeting vote that releases charge
+    /// 1 and elects, for 2026, Ana as clerk (charge 2), Luis as treasurer
+    /// (3), Marta in multimedia, an office off the board (4), and Pedro as
+    /// first elder (5). The same vote elects Olga as clerk for 2025 (6), so
+    /// Ana is her successor. Then the developer prepares meeting 1 with
+    /// item 1. Returns, in this order, someone signed out, someone the
+    /// setup does not name, Ana, Luis, Marta, Pedro, Olga and the developer.
+    pub async fn with_officers(&self) -> [Cookie; 8] {
+        let dev = self.sign_in(DEVELOPER).await;
+        let elect = |office: &str, name: &str, start_year: u16| {
+            json!({ "office": office, "holder": { "name": name, "email": format!("{}@example.org", name.to_lowercase()) },
+                    "term": { "start_year": start_year } })
+        };
+        let officers = json!({ "release": [1], "elect": [
+            elect("secretario", "Ana", 2026), elect("tesorero", "Luis", 2026), elect("multimedia", "Marta", 2026),
+            elect("primer-anciano", "Pedro", 2026), elect("secretario", "Olga", 2025),
+        ] });
+        let voted = self.call(&dev, Method::POST, "/api/setup/history", vote(1, "business_meeting", officers)).await;
+        assert_eq!(voted.0, StatusCode::CREATED, "{}", voted.1);
+        let meeting = self.call(&dev, Method::POST, "/api/meetings", Some(json!({ "date": "2026-12-06", "kind": "regular" }))).await;
+        assert_eq!(meeting.0, StatusCode::CREATED);
+        let item = json!({ "section": "finanzas", "title": "Informe de noviembre", "kind": "informative", "presenter": null });
+        assert_eq!(self.call(&dev, Method::POST, "/api/meetings/1/items", Some(item)).await.0, StatusCode::CREATED);
+        let mut people = Vec::new();
+        for email in ["nadie", "ana", "luis", "marta", "pedro", "olga"] {
+            people.push(self.sign_in(&format!("{email}@example.org")).await);
+        }
+        let [nobody, ana, luis, marta, pedro, olga] = <[Cookie; 6]>::try_from(people).unwrap();
+        [Cookie::none(), nobody, ana, luis, marta, pedro, olga, dev]
+    }
+
     /// A JSON request as `who`, from a browser on localhost:3000.
     pub async fn call(&self, who: &Cookie, method: Method, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
         let mut request = Request::builder().method(method).uri(uri).header(header::CONTENT_TYPE, "application/json");
@@ -121,6 +152,26 @@ impl Cookie {
     /// `mayordomo_session=…`, for a `Cookie` header.
     pub fn header(&self) -> &str {
         self.0.as_deref().expect("signed in")
+    }
+}
+
+/// Where a caller stops at the door: let past it (any answer but 401, 403
+/// or a server error), stopped signed out (401), or stopped by their
+/// charges (403).
+#[derive(Debug, Clone, Copy)]
+pub enum Expect {
+    Allowed,
+    SignedOut,
+    Forbidden,
+}
+
+impl Expect {
+    pub fn matches(self, status: StatusCode) -> bool {
+        match self {
+            Self::Allowed => ![StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN].contains(&status) && !status.is_server_error(),
+            Self::SignedOut => status == StatusCode::UNAUTHORIZED,
+            Self::Forbidden => status == StatusCode::FORBIDDEN,
+        }
     }
 }
 
