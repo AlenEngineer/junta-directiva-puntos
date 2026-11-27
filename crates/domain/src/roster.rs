@@ -125,8 +125,6 @@ pub struct TemplateService {
     pub songs: bool,
 }
 
-/// Singers each service of the singing template starts with.
-pub const DEFAULT_SINGERS: u8 = 3;
 
 impl ProgramTemplate {
     /// The program this template makes on the church's `services`: each
@@ -164,7 +162,8 @@ pub fn templates() -> Vec<ProgramTemplate> {
         ("Música especial", RoleKind::Normal),
     ]);
     let on = |kind, roles, songs| TemplateService { kind, roles, songs };
-    let sing = |kind, songs| on(kind, singers(DEFAULT_SINGERS), songs);
+    // As on the operator's sample sheet: three at Sabbath School, two elsewhere.
+    let sing = |kind, n, songs| on(kind, singers(n), songs);
     vec![
         ProgramTemplate {
             name: "Cultos del anciano".into(),
@@ -181,10 +180,10 @@ pub fn templates() -> Vec<ProgramTemplate> {
             office: "musica".into(),
             split: Split::ByMonth,
             services: vec![
-                sing(ServiceKind::SabbathSchool, true),
-                sing(ServiceKind::DivineService, false),
-                sing(ServiceKind::SundayNight, false),
-                sing(ServiceKind::PrayerMeeting, false),
+                sing(ServiceKind::SabbathSchool, 3, true),
+                sing(ServiceKind::DivineService, 2, false),
+                sing(ServiceKind::SundayNight, 2, false),
+                sing(ServiceKind::PrayerMeeting, 2, false),
             ],
         },
     ]
@@ -1512,14 +1511,14 @@ mod tests {
         church.by(DANIEL, template("musica").add_program(church.setup.services()));
         let singing = church.roster.program(NEXT).unwrap();
         assert_eq!((singing.name.as_str(), singing.office.0.as_str()), ("Servicio de canto", "musica"));
-        let three = vec!["Cantante 1", "Cantante 2", "Cantante 3"];
+        let (three, two) = (vec!["Cantante 1", "Cantante 2", "Cantante 3"], vec!["Cantante 1", "Cantante 2"]);
         assert_eq!(
             shape(singing),
             [
-                (SABBATH_SCHOOL, three.clone(), true),
-                (SABBATH, three.clone(), false),
-                (SUNDAY, three.clone(), false),
-                (WEDNESDAY, three, false),
+                (SABBATH_SCHOOL, three, true),
+                (SABBATH, two.clone(), false),
+                (SUNDAY, two.clone(), false),
+                (WEDNESDAY, two, false),
             ],
             "the youth society is not the singers'"
         );
@@ -1546,7 +1545,7 @@ mod tests {
         church.by(DANIEL, RosterEvent::EditProgram { program: NEXT, name, split, services });
         let five: Vec<String> = (1..=5).map(|i| format!("Cantante {i}")).collect();
         assert_eq!(church.role_names(NEXT, SABBATH, day(2026, 12, 5)), five);
-        assert_eq!(church.role_names(NEXT, SUNDAY, day(2026, 12, 6)).len(), 3, "other services keep three");
+        assert_eq!(church.role_names(NEXT, SUNDAY, day(2026, 12, 6)).len(), 2, "other services keep their two");
         assert_eq!(church.record(Actor::Charge(DANIEL), fill(NEXT, SABBATH, day(2026, 12, 5), "Cantante 5", guest("Ana"))), Ok(()));
     }
 
