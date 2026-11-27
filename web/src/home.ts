@@ -28,11 +28,12 @@ export async function home(me: Viewer, setup: Setup | null, refresh: () => void)
   const now = today();
   const todos: Todo[] = [];
 
+  const board = me.desks.find((d) => d.may.run_board);
   if (me.may.run_board) {
     for (const m of meetings) {
       const points = m.items.length === 1 ? "1 punto" : `${m.items.length} puntos`;
       if (m.state === "draft")
-        todos.push({ title: `Junta del ${dayMonth(m.date)}`, detail: `Sin convocar, con ${points}`, action: linkButton("#/junta", "Ver la agenda") });
+        todos.push({ title: `Junta del ${dayMonth(m.date)}`, detail: `Sin convocar, con ${points}`, action: linkButton(board ? `#/cargo/${board.charge.id}` : "#/junta", "Ver la agenda") });
       else if (m.state === "called" && m.date < now)
         todos.push({
           title: `Junta del ${dayMonth(m.date)}`,

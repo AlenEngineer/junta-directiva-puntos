@@ -143,7 +143,7 @@ async function route() {
     page = await invitations(setup, r.from, me.email, () => location.assign("#/iglesia"));
   else if (setup && r.page === "cargo" && me.desks.some((d) => d.charge.id === r.charge)) {
     const d = me.desks.find((d) => d.charge.id === r.charge)!;
-    page = await deskView(me, setup, d, r.tab ?? (hasPlan(d) ? "plan" : "responsabilidades"));
+    page = await deskView(me, setup, d, r.tab ?? (hasPlan(d) ? "plan" : "responsabilidades"), route);
     wide = true;
   }
   else page = await home(me, setup, route);

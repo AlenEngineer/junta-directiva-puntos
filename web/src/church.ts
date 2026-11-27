@@ -5,6 +5,7 @@ import type { Charge } from "./generated/Charge";
 import type { Entry } from "./generated/Entry";
 import type { Setup } from "./generated/Setup";
 import type { Viewer } from "./generated/Viewer";
+import { outsideDesks } from "./desk";
 import { andList, api, button, churchYearSpan, fold, h, longDate, monthName, notify, stamp } from "./ui";
 
 /** Oficiales and Votos, the two pages of the church's shared area. */
@@ -17,12 +18,8 @@ function churchTabs(current: "oficiales" | "votos"): HTMLElement {
   return h("nav", { class: "tabs", "aria-label": "Iglesia" }, link("oficiales", "#/iglesia", "Oficiales"), link("votos", "#/iglesia/votos", "Votos"));
 }
 
-/**
- * Recording votes and inviting officers live in the desk whose charge allows
- * them. Only someone allowed with no such desk, the developer, does them here.
- */
 function recordsHere(me: Viewer): boolean {
-  return me.may.record_votes && !me.desks.some((d) => d.may.record_votes);
+  return outsideDesks(me, "record_votes");
 }
 
 function intro(me: Viewer, setup: Setup): HTMLElement {
