@@ -41,12 +41,7 @@ async fn main() {
     });
     println!("{}: setup history at entry {}", setup.church(), setup.latest().0);
 
-    let mut router = api::router(api::App {
-        church: setup.church().to_owned(),
-        catalog: setup.catalog().clone(),
-        charges: setup.charges().to_vec(),
-        store,
-    });
+    let mut router = api::router(api::App { store });
     if let Ok(dir) = std::env::var("WEB_DIR") {
         let index = PathBuf::from(&dir).join("index.html");
         router = router.fallback_service(ServeDir::new(&dir).fallback(ServeFile::new(index)));

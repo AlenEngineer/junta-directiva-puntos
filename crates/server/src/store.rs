@@ -5,7 +5,7 @@ use std::{fmt, str::FromStr};
 
 use domain::agenda::{AgendaItem, ItemId, ItemStatus, Meeting, MeetingId, MeetingState, NewItem, NewMeeting};
 use domain::catalog::AgendaSection;
-use domain::setup::{Approval, Change, Entry, EntryId, Setup, SetupError, Vote};
+use domain::setup::{Approval, Change, Entry, EntryId, NewEntry, Setup, SetupError, Vote};
 use serde::{Serialize, de::DeserializeOwned};
 use sqlx::{
     Row, SqlitePool,
@@ -19,7 +19,7 @@ pub struct Store {
 
 pub type Result<T> = std::result::Result<T, sqlx::Error>;
 
-/// Why `seed` wrote nothing.
+/// Why `seed` or `record` wrote nothing.
 #[derive(Debug)]
 pub enum RecordError {
     /// The domain refused the entry.
@@ -121,6 +121,17 @@ impl Store {
     pub async fn seed(&self, initial: &Change) -> std::result::Result<bool, RecordError> {
         Setup::initial(initial)?;
         Ok(self.insert(EntryId(1), &Approval::Initial, initial).await?.is_some())
+    }
+
+    /// Records a vote, the only way the history grows after the seed. It
+    /// replays the history, lets the domain accept or refuse the vote, and
+    /// appends it in one call, so no caller can append an unchecked change.
+    pub async fn record(&self, new: &NewEntry) -> std::result::Result<Entry, RecordError> {
+        let setup = self.setup().await?.ok_or(SetupError::NoSetup)?;
+        setup.apply(new)?;
+        self.insert(EntryId(new.after.0 + 1), &Approval::Vote(new.vote.clone()), &new.change)
+            .await?
+            .ok_or(RecordError::Rejected(SetupError::Stale))
     }
 
     /// Inserts entry `id` only while the history still ends at `id - 1`. One
@@ -284,6 +295,27 @@ pub mod tests {
 
     fn church(name: &str) -> Change {
         Change { church: Some(name.into()), ..Change::default() }
+    }
+
+    #[tokio::test]
+    async fn two_votes_on_the_same_entry_record_exactly_one() {
+        let database = TempDatabase::new("vote-race");
+        let store = Store::open(&database.url()).await.unwrap();
+        store.seed(&church("Iglesia")).await.unwrap();
+        let rename = |name: &str| NewEntry {
+            after: EntryId(1),
+            vote: Vote { body: domain::setup::VotingBody::BusinessMeeting, date: "2026-04-11".into(), minute: None },
+            change: church(name),
+        };
+        let (central, north) = (rename("Iglesia Central"), rename("Iglesia Norte"));
+        // Two open connections let both votes read entry 1 before either
+        // writes. With one, the second vote would only see the first one's row.
+        let (warm, _) = tokio::join!(store.history(), store.history());
+        warm.unwrap();
+        let (a, b) = tokio::join!(store.record(&central), store.record(&north));
+        assert_eq!([a.is_ok(), b.is_ok()].iter().filter(|ok| **ok).count(), 1, "{a:?} {b:?}");
+        assert!(matches!(a.err().or(b.err()), Some(RecordError::Rejected(SetupError::Stale))));
+        assert_eq!(store.history().await.unwrap().len(), 2);
     }
 
     #[tokio::test]

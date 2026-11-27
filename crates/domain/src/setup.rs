@@ -212,6 +212,23 @@ impl Setup {
     }
 }
 
+impl Serialize for Setup {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Served { church: self.church(), latest: self.latest(), catalog: &self.catalog, charges: &self.charges }.serialize(serializer)
+    }
+}
+
+/// The church's setup as its votes leave it, and `latest`, the entry the
+/// next vote names as `after`.
+#[derive(Serialize, TS)]
+#[ts(export, rename = "Setup")]
+struct Served<'a> {
+    church: &'a str,
+    latest: EntryId,
+    catalog: &'a Catalog,
+    charges: &'a [Charge],
+}
+
 /// What the history says, folded but not yet checked as a whole.
 #[derive(Debug, Clone, Default)]
 struct Facts {
