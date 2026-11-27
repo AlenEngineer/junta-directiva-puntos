@@ -165,7 +165,7 @@ mod tests {
     async fn app_with(database: &str) -> Router {
         let setup = crate::setup::load(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/setup.json")).unwrap();
         let store = Store::open(database).await.unwrap();
-        router(App { church: setup.church, catalog: setup.catalog, charges: setup.charges, store })
+        router(App { church: setup.church().to_owned(), catalog: setup.catalog().clone(), charges: setup.charges().to_vec(), store })
     }
 
     async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (StatusCode, Value) {

@@ -37,7 +37,12 @@ async fn main() {
         .await
         .unwrap_or_else(|e| fail(format!("cannot open {database}: {e}")));
 
-    let mut router = api::router(api::App { church: setup.church, catalog: setup.catalog, charges: setup.charges, store });
+    let mut router = api::router(api::App {
+        church: setup.church().to_owned(),
+        catalog: setup.catalog().clone(),
+        charges: setup.charges().to_vec(),
+        store,
+    });
     if let Ok(dir) = std::env::var("WEB_DIR") {
         let index = PathBuf::from(&dir).join("index.html");
         router = router.fallback_service(ServeDir::new(&dir).fallback(ServeFile::new(index)));
