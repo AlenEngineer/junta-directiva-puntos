@@ -6,13 +6,17 @@
 pub mod access;
 pub mod agenda;
 pub mod catalog;
+pub mod roster;
 pub mod schedule;
 pub mod setup;
+
+use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use catalog::{Catalog, OfficeId};
+use schedule::Weekday;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -139,7 +143,7 @@ pub enum TermLength {
 }
 
 /// A month of the year, from 1 (January) to 12 (December).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, TS)]
 #[ts(export, type = "number")]
 pub struct Month(u8);
 
@@ -170,8 +174,10 @@ impl<'de> Deserialize<'de> for Month {
     }
 }
 
-/// A calendar day.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A calendar day, `YYYY-MM-DD` in JSON. Exported as `CalendarDate` so
+/// the web's generated types never shadow JavaScript's `Date`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, TS)]
+#[ts(export, rename = "CalendarDate", type = "string")]
 pub struct Date {
     pub year: u16,
     pub month: Month,
@@ -179,9 +185,57 @@ pub struct Date {
 }
 
 impl Date {
-    /// The UTC day of a Unix time: Howard Hinnant's `civil_from_days`.
+    /// The UTC day of a Unix time.
     pub fn from_unix_seconds(seconds: i64) -> Self {
-        let z = seconds.div_euclid(86_400) + 719_468;
+        Self::from_days(seconds.div_euclid(86_400))
+    }
+
+    /// Days since 1970-01-01: Howard Hinnant's `days_from_civil`.
+    fn days(self) -> i64 {
+        let (month, day) = (i64::from(self.month.0), i64::from(self.day));
+        let year = i64::from(self.year) - i64::from(month <= 2);
+        let era = year.div_euclid(400);
+        let yoe = year.rem_euclid(400);
+        let doy = (153 * (if month > 2 { month - 3 } else { month + 9 }) + 2) / 5 + day - 1;
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        era * 146_097 + doe - 719_468
+    }
+
+    pub fn plus_days(self, days: i64) -> Self {
+        Self::from_days(self.days() + days)
+    }
+
+    pub fn weekday(self) -> Weekday {
+        const FROM_THURSDAY: [Weekday; 7] = [
+            Weekday::Thursday,
+            Weekday::Friday,
+            Weekday::Saturday,
+            Weekday::Sunday,
+            Weekday::Monday,
+            Weekday::Tuesday,
+            Weekday::Wednesday,
+        ];
+        FROM_THURSDAY[self.days().rem_euclid(7) as usize]
+    }
+
+    pub fn first_of(year: u16, month: Month) -> Self {
+        Self { year, month, day: 1 }
+    }
+
+    pub fn last_of(year: u16, month: Month) -> Self {
+        let leap = year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));
+        let day = match month.0 {
+            2 if leap => 29,
+            2 => 28,
+            4 | 6 | 9 | 11 => 30,
+            _ => 31,
+        };
+        Self { year, month, day }
+    }
+
+    /// The day `days` after 1970-01-01: Howard Hinnant's `civil_from_days`.
+    fn from_days(days: i64) -> Self {
+        let z = days + 719_468;
         let era = z.div_euclid(146_097);
         let doe = z.rem_euclid(146_097);
         let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
@@ -191,6 +245,42 @@ impl Date {
         let month = if mp < 10 { mp + 3 } else { mp - 9 };
         let year = era * 400 + yoe + i64::from(month <= 2);
         Self { year: year as u16, month: Month(month as u8), day: day as u8 }
+    }
+}
+
+impl TryFrom<&str> for Date {
+    type Error = String;
+
+    fn try_from(text: &str) -> Result<Self, String> {
+        let bad = || format!("{text} is not a date; write it as YYYY-MM-DD");
+        if !is_iso_date(text) {
+            return Err(bad());
+        }
+        let year = text[0..4].parse().map_err(|_| bad())?;
+        let month = Month::try_from(text[5..7].parse::<u8>().map_err(|_| bad())?).map_err(|_| bad())?;
+        let day = text[8..10].parse().map_err(|_| bad())?;
+        if day == 0 || day > Self::last_of(year, month).day {
+            return Err(bad());
+        }
+        Ok(Self { year, month, day })
+    }
+}
+
+impl fmt::Display for Date {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:04}-{:02}-{:02}", self.year, self.month.0, self.day)
+    }
+}
+
+impl Serialize for Date {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for Date {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::try_from(String::deserialize(deserializer)?.as_str()).map_err(serde::de::Error::custom)
     }
 }
 
@@ -292,6 +382,26 @@ mod tests {
         ] {
             assert_eq!(Date::from_unix_seconds(seconds), expected, "{seconds}");
         }
+    }
+
+    #[test]
+    fn a_date_is_written_yyyy_mm_dd_and_must_exist() {
+        for good in ["2026-12-05", "2028-02-29", "2027-01-31"] {
+            let date: Date = serde_json::from_str(&format!("\"{good}\"")).unwrap();
+            assert_eq!(serde_json::to_string(&date).unwrap(), format!("\"{good}\""));
+        }
+        for bad in ["2026-02-29", "2026-04-31", "2026-13-01", "2026-12-00", "2026-12-5", "05/12/2026", ""] {
+            assert!(serde_json::from_str::<Date>(&format!("\"{bad}\"")).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn dates_count_forward_across_months_and_know_their_weekday() {
+        assert_eq!(day(2026, 12, 26).plus_days(7), day(2027, 1, 2));
+        assert_eq!(day(2028, 2, 28).plus_days(1), day(2028, 2, 29));
+        assert_eq!(day(2026, 12, 5).weekday(), Weekday::Saturday);
+        assert_eq!(day(1970, 1, 1).weekday(), Weekday::Thursday);
+        assert_eq!(day(2026, 11, 29).weekday(), Weekday::Sunday);
     }
 
     #[test]

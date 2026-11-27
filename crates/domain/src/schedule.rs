@@ -36,7 +36,7 @@ pub enum PlaceKind {
     External,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct ServiceId(pub String);
 
@@ -53,9 +53,27 @@ impl From<&str> for ServiceId {
 pub struct Service {
     pub id: ServiceId,
     pub name: String,
+    #[serde(default)]
+    #[ts(as = "Option<ServiceKind>", optional)]
+    pub kind: ServiceKind,
     pub weekday: Weekday,
     pub time: ServiceTime,
     pub place: PlaceId,
+}
+
+/// What a service is, so a program's suggestions find it among the
+/// several services of one weekday.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ServiceKind {
+    SabbathSchool,
+    DivineService,
+    YouthSociety,
+    SundayNight,
+    PrayerMeeting,
+    #[default]
+    Other,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -136,5 +154,13 @@ mod tests {
         };
         assert_eq!(service("15:30").unwrap().time.to_string(), "15:30");
         assert!(service("25:30").is_err());
+    }
+
+    #[test]
+    fn a_service_stored_without_a_kind_reads_as_other() {
+        let stored = r#"{"id":"jovenes","name":"Sociedad de Jóvenes","weekday":"saturday","time":"15:30","place":"templo"}"#;
+        assert_eq!(serde_json::from_str::<Service>(stored).unwrap().kind, ServiceKind::Other);
+        let kinded = stored.replace(r#""weekday""#, r#""kind":"youth_society","weekday""#);
+        assert_eq!(serde_json::from_str::<Service>(&kinded).unwrap().kind, ServiceKind::YouthSociety);
     }
 }
