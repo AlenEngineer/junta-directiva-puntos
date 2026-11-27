@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::catalog::{Catalog, CatalogEdit, Layer, OfficeId};
-use crate::{Charge, ChargeId, Month, NewCharge};
+use crate::{Charge, ChargeId, Date, Month, NewCharge, church_year};
 
 /// Position in the history, from 1, without gaps. A SQLite row id, far below
 /// 2^53, so a JSON number in the browser.
@@ -55,8 +55,8 @@ impl fmt::Display for Vote {
     }
 }
 
-/// What approved an entry. `Initial` is the developer's exception, loaded
-/// once from the setup file with no vote, and only ever entry 1.
+/// What approved an entry. `Initial` is the developer's exception, entered
+/// once in the app with no vote, and only ever entry 1.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[ts(export)]
@@ -225,16 +225,22 @@ impl Setup {
     }
 }
 
-impl Serialize for Setup {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+impl Setup {
+    /// The setup as `GET /api/setup` serves it on `today`: with the church
+    /// year and the charges that serve in it, so the page shows who serves
+    /// without a copy of the holdover rule.
+    pub fn on(&self, today: Date) -> Served<'_> {
+        let church_year = church_year(today, self.year_starts());
+        let serving = self.charges.iter().filter(|c| c.serves_in(church_year, &self.charges)).map(|c| c.id).collect();
         Served {
             church: self.church(),
             year_starts: self.year_starts(),
             latest: self.latest(),
             catalog: &self.catalog,
             charges: &self.charges,
+            church_year,
+            serving,
         }
-        .serialize(serializer)
     }
 }
 
@@ -242,13 +248,18 @@ impl Serialize for Setup {
 /// next vote names as `after`.
 #[derive(Serialize, TS)]
 #[ts(export, rename = "Setup")]
-struct Served<'a> {
+pub struct Served<'a> {
     church: &'a str,
     /// The month the church year starts in.
     year_starts: Month,
     latest: EntryId,
     catalog: &'a Catalog,
+    /// Every charge held, including those a successor has replaced.
     charges: &'a [Charge],
+    /// The church year today falls in.
+    church_year: u16,
+    /// The charges that serve in `church_year`.
+    serving: Vec<ChargeId>,
 }
 
 /// What the history says, folded but not yet checked as a whole.
@@ -272,8 +283,12 @@ impl Facts {
             return Err(SetupError::Malformed(format!("entry {} follows entry {}", id.0, self.latest.0)));
         }
         match (id.0, vote) {
-            (1, Some(_)) => return Err(SetupError::Malformed("entry 1 has a vote, but the initial setup has none".into())),
-            (2.., None) => return Err(SetupError::Malformed(format!("entry {} has no vote", id.0))),
+            (1, Some(_)) => {
+                return Err(SetupError::Malformed("entry 1 has a vote, but the initial setup has none".into()));
+            }
+            (2.., None) => {
+                return Err(SetupError::Malformed(format!("entry {} has no vote", id.0)));
+            }
             _ => {}
         }
         if let Some(name) = &change.church {
@@ -357,10 +372,14 @@ impl fmt::Display for SetupError {
             Self::NeedsBusinessMeeting => {
                 write!(f, "the board can only change the board agenda; this change needs a business meeting vote")
             }
-            Self::UnknownCharge(id) => write!(f, "charge {} is not held, so it cannot be released", id.0),
-            Self::ChargeWithoutOffice { charge, office } => write!(f, "charge {} is for unknown office {}", charge.0, office.0),
+            Self::UnknownCharge(id) => {
+                write!(f, "charge {} is not held, so it cannot be released", id.0)
+            }
+            Self::ChargeWithoutOffice { charge, office } => {
+                write!(f, "charge {} is for unknown office {}", charge.0, office.0)
+            }
             Self::Stale => write!(f, "the church setup changed; reload and try again"),
-            Self::NoSetup => write!(f, "the church has no setup yet; start the server with SETUP_FILE"),
+            Self::NoSetup => write!(f, "the church has no setup yet; the developer enters it after signing in"),
             Self::Malformed(why) => write!(f, "the stored setup history is malformed: {why}"),
         }
     }
@@ -447,7 +466,36 @@ mod tests {
         let moved = decide(&first, BusinessMeeting, Change { year_starts: Some(october), ..Change::default() }).unwrap();
         let renamed = decide(&moved, BusinessMeeting, Change { church: Some("Iglesia Central".into()), ..Change::default() }).unwrap();
         assert_eq!(renamed.year_starts(), october, "a later vote that does not mention it keeps it");
-        assert_eq!(json(&renamed)["year_starts"], 10);
+        assert_eq!(json(&renamed.on(Date { year: 2026, month: october, day: 1 }))["year_starts"], 10);
+    }
+
+    #[test]
+    fn the_served_setup_names_the_church_year_and_who_serves_in_it() {
+        let october = Month::try_from(10).unwrap();
+        let initial = Change {
+            church: Some("Iglesia".into()),
+            year_starts: Some(october),
+            elect: vec![
+                NewCharge { term: Term::one_year(2025), ..elect("tesorero", "Luis Pérez") },
+                NewCharge { term: Term::one_year(2026), ..elect("tesorero", "Rosa Díaz") },
+                NewCharge { term: Term::one_year(2024), ..elect("secretario", "Ana Rojas") },
+            ],
+            ..Change::default()
+        };
+        let setup = Setup::initial(&initial).unwrap();
+        let served = |year, month| json(&setup.on(Date { year, month: Month::try_from(month).unwrap(), day: 15 }));
+        let september = served(2026, 9);
+        assert_eq!(
+            (&september["church_year"], &september["serving"]),
+            (&serde_json::json!(2025), &serde_json::json!([1, 3])),
+            "Luis until Rosa's year starts"
+        );
+        let october = served(2026, 10);
+        assert_eq!(
+            (&october["church_year"], &october["serving"]),
+            (&serde_json::json!(2026), &serde_json::json!([2, 3])),
+            "Ana holds over with no successor"
+        );
     }
 
     #[test]

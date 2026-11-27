@@ -21,4 +21,8 @@ read_board: boolean,
 /**
  * Create board meetings, edit their items, call them and mark them held.
  */
-run_board: boolean, };
+run_board: boolean, 
+/**
+ * Enter the church's first setup: the developer, while the church has none.
+ */
+start_setup: boolean, };

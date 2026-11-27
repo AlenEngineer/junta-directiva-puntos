@@ -90,7 +90,9 @@ fn refuse(origin: &Origin, why: &str) -> Response {
 /// Signing out twice just goes back to the page. A post without the
 /// session cookie, as a form on another site sends it, changes nothing.
 async fn logout(State(app): State<AppState>, headers: HeaderMap) -> Response {
-    let Some(token) = session_token(&headers) else { return Redirect::to("/").into_response() };
+    let Some(token) = session_token(&headers) else {
+        return Redirect::to("/").into_response();
+    };
     let origin = Origin::of(&headers);
     let forget = AppendHeaders([origin.cookie(SESSION, "", "/api", 0)]);
     match app.store.close_session(token).await {
@@ -307,8 +309,8 @@ mod tests {
     #[tokio::test]
     async fn a_session_survives_a_restart() {
         let database = TempDatabase::new("session-restart");
-        let ana = TestApp::open(&database.url(), "setup.json").await.sign_in("ana@example.org").await;
-        let app = TestApp::open(&database.url(), "no-such-file.json").await;
+        let ana = TestApp::open(&database.url()).await.sign_in("ana@example.org").await;
+        let app = TestApp::open(&database.url()).await;
         assert_eq!(app.call(&ana, Method::GET, "/api/me", None).await.0, StatusCode::OK);
     }
 }

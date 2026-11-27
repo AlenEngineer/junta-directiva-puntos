@@ -14,13 +14,17 @@ Each layer can add an office, replace one by its id, hide offices the church doe
 
 The setup changes only by a vote. The database keeps it as a history of entries that the server never edits or deletes. Entry 1 is the initial setup. Every later entry is one vote and what it decided: a new name for the church, offices added, replaced, hidden or restored, the board agenda, and charges elected or released. A vote records the body that voted, the date, and the minute (acta) when there is one. The board can vote only a new board agenda. Every other change, electing the officers included, needs a business meeting (Manual pp. 141-146, 163-164, 167). The catalog and the charges are the bundled manual with this history replayed over it. Nothing else stores them.
 
-Terms count church years. A church year starts in January unless the setup names another month in `year_starts`, a number from 1 to 12. The setup file sets it, and a business meeting vote can change it. With October, church year 2026 runs from 2026-10-01 to 2027-09-30, and so does a one-year term that starts in 2026. The server takes today's date in UTC.
+Terms count church years. A church year starts in January unless the setup names another month in `year_starts`, a number from 1 to 12. The initial setup sets it, and a business meeting vote can change it. With October, church year 2026 runs from 2026-10-01 to 2027-09-30, and so does a one-year term that starts in 2026. The server takes today's date in UTC.
 
-The first time the server starts with an empty database, it reads `SETUP_FILE` and stores it as entry 1, with no vote. After that it never reads the file again. `examples/setup.json` and `examples/iglesia.json` show a church that hides two offices and adds a local one. A setup file names at most one layer file, the church's own, and each of its charges names the holder.
+A new database has no setup. The developer signs in and enters it in the app: the church's name, the month its year starts, the offices it does not use, any office of its own, and the officers who serve today. It is stored as entry 1, with no vote, and can be entered only once. Until then the developer may do nothing else and nobody else may do anything.
+
+In the app, the clerk or the first elder records each later business meeting vote the same way: office by office, as the nominating committee reports it. Before saving, the page shows the change grouped by person, and after saving it offers one invitation per person elected with an email. A draft stays in the browser until it is saved. `examples/iglesia.json` shows a church's offices in the layer format a vote's `catalog` uses: it hides two offices and adds a local one.
 
 | Request | What it does |
 |---|---|
-| `GET /api/setup` | The church's name, `year_starts`, catalog and charges, and `latest`, the last entry applied |
+| `GET /api/setup/initial` | Before the church has a setup, the developer gets the bundled manual's catalog to start from |
+| `POST /api/setup/initial` | The developer's first setup, a `Change` with no vote. 201 with entry 1, 409 once a setup exists |
+| `GET /api/setup` | The church's name, `year_starts`, catalog and charges, `latest` (the last entry applied), `church_year` (today's) and `serving` (the charges that serve in it) |
 | `GET /api/setup/history` | Every entry, oldest first, with the vote that approved it and what it changed |
 | `POST /api/setup/history` | Records a vote and answers 201 with the new entry |
 | `POST /api/setup/charges/{id}/invitation` | Asks WorkOS to invite the holder of charge `id` to sign in. See "Invite a holder" |
@@ -86,20 +90,20 @@ Open the app at `localhost`, not `127.0.0.1`, because WorkOS knows only the orig
 
 ```sh
 export WORKOS_CLIENT_ID=client_… WORKOS_API_KEY=sk_test_… MAYORDOMO_DEVELOPER_EMAIL=you@example.org
-SETUP_FILE=examples/setup.json cargo run -p server   # API on localhost:3000, data in ./mayordomo.db
+cargo run -p server                                  # API on localhost:3000, data in ./mayordomo.db
 cd web && bun install && bun run dev                 # open http://localhost:5173, which proxies /api
 ```
 
 The two WorkOS values come from the staging environment. `cargo test` needs none of them, because the tests sign in against a stand-in for WorkOS.
 
-`SETUP_FILE` seeds only an empty `mayordomo.db`. To start again from the file, delete `mayordomo.db`.
+On a new `mayordomo.db`, sign in as the developer to enter the first setup. To start again, delete `mayordomo.db`.
 
 After changing a domain type, run `cargo test` to regenerate the TypeScript types and commit them. CI fails if they drift.
 
 ## Extending
 
 - A new charge is an election, recorded with its vote through `POST /api/setup/history`. So is any other change to a church's setup.
-- A new edition or a supplement is a layer file. `cargo test` validates the bundled manual and the example setup.
+- A new edition or a supplement is a layer file. `cargo test` validates the bundled manual and the example church.
 - A new kind of work is a new `Module` variant with its own module in `crates/domain`, a `May` field and its rule in `domain::access`, a permission and the operations it opens in `crates/server/src/access`, routes in `crates/server/src/api.rs` and a view in `web`. Responsibilities point at the module that carries them out. A route reaches the church's data only through a `Can<…>`, so it cannot skip the check.
 
 ## Hosting
@@ -113,12 +117,11 @@ docker run -p 8080:8080 -v /path/to/church:/data \
   mayordomo
 ```
 
-`/data` holds `mayordomo.db` and, for the first start, the church's `setup.json` and its layer file. The server reads these settings:
+`/data` holds `mayordomo.db`. The server reads these settings:
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `API_ADDR` | `127.0.0.1:3000` (`0.0.0.0:8080` in the image) | Address to listen on |
-| `SETUP_FILE` | `setup.json` | The church's initial setup, read only while the database has none |
 | `DATABASE_URL` | `sqlite://mayordomo.db` | SQLite database, created and migrated on start |
 | `WEB_DIR` | unset | Built page (`web/dist`) to serve beside the API |
 | `WORKOS_CLIENT_ID` | required | The WorkOS environment's client id. The server does not start without it |

@@ -1,6 +1,5 @@
 mod access;
 mod api;
-mod seed;
 mod store;
 #[cfg(test)]
 mod testing;
@@ -27,16 +26,11 @@ async fn main() {
     let config = login_settings(|name| std::env::var(name).ok()).unwrap_or_else(|e| fail(e));
 
     let database = env("DATABASE_URL", "sqlite://mayordomo.db");
-    let store = store::Store::open(&database)
-        .await
-        .unwrap_or_else(|e| fail(format!("cannot open {database}: {e}")));
-    let setup_path = PathBuf::from(env("SETUP_FILE", "setup.json"));
-    let setup = seed::ensure(&store, &setup_path).await.unwrap_or_else(|e| {
-        fail(format!(
-            "cannot load the church setup: {e}\nSet SETUP_FILE to seed an empty database, or start from examples/setup.json."
-        ))
-    });
-    println!("{}: setup history at entry {}", setup.church(), setup.latest().0);
+    let store = store::Store::open(&database).await.unwrap_or_else(|e| fail(format!("cannot open {database}: {e}")));
+    match store.setup().await.unwrap_or_else(|e| fail(format!("cannot read the church setup: {e}"))) {
+        Some(setup) => println!("{}: setup history at entry {}", setup.church(), setup.latest().0),
+        None => println!("no church setup yet: the developer enters it after signing in"),
+    }
     match &config.developer {
         Some(email) => println!("{email} is the developer and may do everything"),
         None => println!("MAYORDOMO_DEVELOPER_EMAIL is not set, so nobody may do everything"),

@@ -75,6 +75,28 @@ impl FromRequestParts<AppState> for Me {
     }
 }
 
+/// The developer, before the church has a setup: the one way to write
+/// entry 1. Extracting it answers 401 without a live session, 409 once a
+/// setup exists, and 403 for anyone else.
+pub struct FirstSetup {
+    app: AppState,
+}
+
+impl FromRequestParts<AppState> for FirstSetup {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, app: &AppState) -> Result<Self, ApiError> {
+        let Signed { viewer, setup } = signed(parts, app).await?;
+        if setup.is_some() {
+            return Err(ApiError::Setup(SetupError::Stale));
+        }
+        if !viewer.may.start_setup {
+            return Err(ApiError::Forbidden("only the developer enters the church's first setup"));
+        }
+        Ok(Self { app: Arc::clone(app) })
+    }
+}
+
 /// The person asking may do `P`. Every operation on the church's data is a
 /// method of the `Can<P>` whose permission it needs, and only extraction
 /// makes one, so holding a `Can<P>` proves the check passed.
@@ -137,6 +159,7 @@ impl<P: Permission> FromRequestParts<AppState> for Can<P> {
     /// 403 when no charge that serves today grants `P`.
     async fn from_request_parts(parts: &mut Parts, app: &AppState) -> Result<Self, ApiError> {
         let Signed { viewer, setup } = signed(parts, app).await?;
+        let setup = setup.ok_or(ApiError::Setup(SetupError::NoSetup))?;
         if !P::granted(&viewer.may) {
             return Err(ApiError::Forbidden(P::NEEDS));
         }
@@ -144,10 +167,11 @@ impl<P: Permission> FromRequestParts<AppState> for Can<P> {
     }
 }
 
-/// Who is asking, with the setup their permissions were read from.
+/// Who is asking, with the setup their permissions were read from, if
+/// the church has one yet.
 struct Signed {
     viewer: Viewer,
-    setup: Setup,
+    setup: Option<Setup>,
 }
 
 /// Read once per request: the session cookie, the live session it names,
@@ -156,8 +180,11 @@ async fn signed(parts: &Parts, app: &App) -> Result<Signed, ApiError> {
     let now = app.clock.now();
     let token = sign_in::session_token(&parts.headers).ok_or(ApiError::SignedOut)?;
     let person = app.store.signed_in(token, now.unix).await?.ok_or(ApiError::SignedOut)?;
-    let setup = app.store.setup().await?.ok_or(ApiError::Setup(SetupError::NoSetup))?;
-    let viewer = Viewer::new(&setup, person, now.today, app.developer.as_deref());
+    let setup = app.store.setup().await?;
+    let viewer = match &setup {
+        Some(setup) => Viewer::new(setup, person, now.today, app.developer.as_deref()),
+        None => Viewer::before_setup(person, app.developer.as_deref()),
+    };
     Ok(Signed { viewer, setup })
 }
 
@@ -252,20 +279,30 @@ mod tests {
         assert_eq!((me["email"].as_str(), me["name"].as_str()), (Some("ana@example.org"), Some("ana Prueba")));
         assert_eq!((me["charges"][0]["id"].as_i64(), me["charges"][0]["office"].as_str()), (Some(2), Some("secretario")));
         assert_eq!(me["charges"].as_array().map(Vec::len), Some(1));
-        assert_eq!(me["may"], json!({ "read_setup": true, "record_votes": true, "read_board": true, "run_board": false }));
+        assert_eq!(me["may"], json!({ "read_setup": true, "record_votes": true, "read_board": true, "run_board": false, "start_setup": false }));
 
         let (_, developer) = app.call(&dev, Method::GET, "/api/me", None).await;
         assert_eq!((&developer["charges"], &developer["may"]["run_board"]), (&json!([]), &json!(true)));
         let (_, nobody) = app.call(&app.sign_in("nadie@example.org").await, Method::GET, "/api/me", None).await;
         assert_eq!(nobody["charges"], json!([]));
-        assert_eq!(nobody["may"], json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false }));
+        assert_eq!(
+            nobody["may"],
+            json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false, "start_setup": false })
+        );
     }
 
     #[tokio::test]
-    async fn before_the_church_has_a_setup_nobody_can_be_told_what_they_may_do() {
+    async fn before_the_church_has_a_setup_only_the_developer_may_start_one() {
         let app = TestApp::unseeded().await;
         let dev = app.sign_in(DEVELOPER).await;
-        assert_eq!(app.call(&dev, Method::GET, "/api/me", None).await.0, StatusCode::SERVICE_UNAVAILABLE);
+        let (status, me) = app.call(&dev, Method::GET, "/api/me", None).await;
+        assert_eq!((status, &me["charges"]), (StatusCode::OK, &json!([])));
+        assert_eq!(
+            me["may"],
+            json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false, "start_setup": true })
+        );
+        let (_, ana) = app.call(&app.sign_in("ana@example.org").await, Method::GET, "/api/me", None).await;
+        assert_eq!(ana["may"]["start_setup"], false);
     }
 
     #[tokio::test]
