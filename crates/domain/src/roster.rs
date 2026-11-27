@@ -1,16 +1,19 @@
 //! A department's recurring work. A program repeats on one or more of the
 //! church's regular services and is split into turns (by month or by
-//! service date) among the office's team. Whoever holds a turn leads every
-//! service of the program in it and fills each service's roles.
+//! service date) among the office's team. Whoever holds a turn, alone or
+//! with others, leads every service of the program in it and fills each
+//! service's roles.
 //!
 //! The roster is never stored. Its history is: one `Recorded` event per
 //! change, and `Roster` replays it. The process is never blocked: a turn
 //! left empty, a preacher filled before the pastor answers, an answer
 //! recorded out of order or a speaker from outside the district the pastor
 //! has not heard about is a state the queries report, not a refusal, and so
-//! is a role two programs both assign, or songs written for a service that
-//! keeps no song list. Only input that names something that does not exist,
-//! or a program that lists one service twice, is refused.
+//! is a role two programs both assign, songs written for a service that
+//! keeps no song list, a turn with more or fewer holders than the program
+//! expects, or an off role someone fills. Only input that names something
+//! that does not exist, or a program that lists one service twice, is
+//! refused.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -56,6 +59,12 @@ pub struct Program {
     pub office: OfficeId,
     pub name: String,
     pub split: Split,
+    /// How many people each turn expects, such as the two a cargo of a
+    /// Sabbath at Sabbath School.
+    #[serde(default = "one")]
+    pub holders: u8,
+    #[serde(default)]
+    pub period: SheetPeriod,
     /// Each service at most once.
     pub services: Vec<ProgramService>,
 }
@@ -88,11 +97,48 @@ pub enum Split {
     ByDate,
 }
 
+/// What one printed sheet of a program covers.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum SheetPeriod {
+    #[default]
+    Month,
+    /// A calendar quarter: January to March, April to June, July to
+    /// September, October to December.
+    Quarter,
+}
+
+impl SheetPeriod {
+    /// The first and last day of the sheet `date` falls on.
+    pub fn range(self, date: Date) -> (Date, Date) {
+        match self {
+            Self::Month => (Date::first_of(date.year, date.month), Date::last_of(date.year, date.month)),
+            Self::Quarter => {
+                let first = (date.month.0 - 1) / 3 * 3 + 1;
+                (Date::first_of(date.year, Month(first)), Date::last_of(date.year, Month(first + 2)))
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Role {
     pub name: String,
     pub kind: RoleKind,
+    /// An off role stays in the list for the office to turn on again; it
+    /// asks nobody to fill it and has no row on the sheet.
+    #[serde(default = "yes")]
+    pub on: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+fn one() -> u8 {
+    1
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -114,6 +160,8 @@ pub struct ProgramTemplate {
     pub name: String,
     pub office: OfficeId,
     pub split: Split,
+    pub holders: u8,
+    pub period: SheetPeriod,
     pub services: Vec<TemplateService>,
 }
 
@@ -142,13 +190,23 @@ impl ProgramTemplate {
                 })
             })
             .collect();
-        RosterEvent::AddProgram { office: self.office.clone(), name: self.name.clone(), split: self.split, services }
+        RosterEvent::AddProgram {
+            office: self.office.clone(),
+            name: self.name.clone(),
+            split: self.split,
+            holders: self.holders,
+            period: self.period,
+            services,
+        }
     }
 }
 
 /// The programs offered to start from. Nobody leads by role, the turn's
-/// holder does. The elders' divine service follows the order of worship in
+/// holders do, so the singers have no leader and Sabbath School's "A cargo"
+/// is its turn. The elders' divine service follows the order of worship in
 /// the Church Manual, p. 229; its "Música especial" is the elder's to choose.
+/// At Sabbath School only those a cargo are named and they hand out the
+/// rest, so only the mission story and Nuevo Horizonte start on.
 pub fn templates() -> Vec<ProgramTemplate> {
     let speaker = RoleKind::Pulpit { pastor_approves: false };
     let reflection = || roles(&[("Reflexión", speaker)]);
@@ -162,6 +220,17 @@ pub fn templates() -> Vec<ProgramTemplate> {
         ("Música especial", RoleKind::Normal),
     ]);
     let on = |kind, roles, songs| TemplateService { kind, roles, songs };
+    let mut sabbath_school = roles(&[
+        ("Misionero", RoleKind::Normal),
+        ("Nuevo Horizonte", RoleKind::Normal),
+        ("Oración", RoleKind::Normal),
+        ("Lectura bíblica", RoleKind::Normal),
+        ("Himno", RoleKind::Normal),
+        ("Especial", RoleKind::Normal),
+    ]);
+    for role in &mut sabbath_school[2..] {
+        role.on = false;
+    }
     // As on the operator's sample sheet: three at Sabbath School, two elsewhere.
     let sing = |kind, n, songs| on(kind, singers(n), songs);
     vec![
@@ -169,6 +238,8 @@ pub fn templates() -> Vec<ProgramTemplate> {
             name: "Cultos del anciano".into(),
             office: "anciano".into(),
             split: Split::ByMonth,
+            holders: 1,
+            period: SheetPeriod::Month,
             services: vec![
                 on(ServiceKind::DivineService, divine_service, false),
                 on(ServiceKind::SundayNight, reflection(), false),
@@ -179,6 +250,8 @@ pub fn templates() -> Vec<ProgramTemplate> {
             name: "Servicio de canto".into(),
             office: "musica".into(),
             split: Split::ByMonth,
+            holders: 1,
+            period: SheetPeriod::Month,
             services: vec![
                 sing(ServiceKind::SabbathSchool, 3, true),
                 sing(ServiceKind::DivineService, 2, false),
@@ -186,17 +259,25 @@ pub fn templates() -> Vec<ProgramTemplate> {
                 sing(ServiceKind::PrayerMeeting, 2, false),
             ],
         },
+        ProgramTemplate {
+            name: "Escuela Sabática".into(),
+            office: "escuela-sabatica".into(),
+            split: Split::ByDate,
+            holders: 2,
+            period: SheetPeriod::Quarter,
+            services: vec![on(ServiceKind::SabbathSchool, sabbath_school, false)],
+        },
     ]
 }
 
 /// "Cantante 1" through "Cantante `n`". The head changes how many sing on a
 /// service by editing its roles.
 pub fn singers(n: u8) -> Vec<Role> {
-    (1..=n).map(|i| Role { name: format!("Cantante {i}"), kind: RoleKind::Normal }).collect()
+    (1..=n).map(|i| Role { name: format!("Cantante {i}"), kind: RoleKind::Normal, on: true }).collect()
 }
 
 fn roles(roles: &[(&str, RoleKind)]) -> Vec<Role> {
-    roles.iter().map(|&(name, kind)| Role { name: name.into(), kind }).collect()
+    roles.iter().map(|&(name, kind)| Role { name: name.into(), kind, on: true }).collect()
 }
 
 /// Who holds a turn: a charge of the team, or a helper.
@@ -276,11 +357,27 @@ pub enum RosterEvent {
     AddHelper { office: OfficeId, name: String, email: Option<String> },
     EditHelper { helper: HelperId, name: String, email: Option<String>, active: bool },
     /// Gets the next program id.
-    AddProgram { office: OfficeId, name: String, split: Split, services: Vec<ProgramService> },
-    EditProgram { program: ProgramId, name: String, split: Split, services: Vec<ProgramService> },
-    /// One turn covers every service of the program in `period`. `None`
-    /// leaves the period without anyone.
-    AssignTurn { program: ProgramId, period: Period, member: Option<Member> },
+    AddProgram {
+        office: OfficeId,
+        name: String,
+        split: Split,
+        #[serde(default = "one")]
+        holders: u8,
+        #[serde(default)]
+        period: SheetPeriod,
+        services: Vec<ProgramService>,
+    },
+    EditProgram {
+        program: ProgramId,
+        name: String,
+        split: Split,
+        #[serde(default = "one")]
+        holders: u8,
+        #[serde(default)]
+        period: SheetPeriod,
+        services: Vec<ProgramService>,
+    },
+    AssignTurn(Turn),
     /// `None` empties the role. Filling a pulpit role proposes it again,
     /// whatever the pastor said about the one before, and forgets any
     /// notice to the pastor.
@@ -312,6 +409,36 @@ pub enum RosterEvent {
     /// What is sung on the service that date, replacing the list before;
     /// an empty list clears it.
     SetSongs { program: ProgramId, service: ServiceId, date: Date, songs: Vec<String> },
+}
+
+/// One turn covers every service of the program in `period`, held by
+/// `members` together. No members leaves the period without anyone.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct Turn {
+    pub program: ProgramId,
+    pub period: Period,
+    pub members: Vec<Member>,
+}
+
+/// Also reads a turn stored before it had several holders, whose one
+/// holder or null is under `member`. Written by hand because ts-rs cannot
+/// parse the serde attributes that would say so.
+impl<'de> Deserialize<'de> for Turn {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Stored {
+            program: ProgramId,
+            period: Period,
+            #[serde(default)]
+            members: Vec<Member>,
+            #[serde(default)]
+            member: Option<Member>,
+        }
+        let Stored { program, period, mut members, member } = Stored::deserialize(deserializer)?;
+        members.extend(member);
+        Ok(Self { program, period, members })
+    }
 }
 
 /// Who recorded an event.
@@ -354,7 +481,7 @@ pub struct Roster {
     helpers: Vec<Helper>,
     programs: Vec<Program>,
     /// A period with no entry has nobody.
-    turns: BTreeMap<(ProgramId, Period), Member>,
+    turns: BTreeMap<(ProgramId, Period), Vec<Member>>,
     slots: BTreeMap<(ProgramId, ServiceId, Date, String), SlotState>,
     extras: BTreeMap<(ProgramId, ServiceId, Date), Vec<Role>>,
     songs: BTreeMap<(ProgramId, ServiceId, Date), Vec<String>>,
@@ -402,7 +529,7 @@ impl Roster {
                 found.email = clean_email(email);
                 found.active = *active;
             }
-            RosterEvent::AddProgram { office, name, split, services } => {
+            RosterEvent::AddProgram { office, name, split, holders, period, services } => {
                 listed_once(services)?;
                 let id = ProgramId(self.programs.len() as u32 + 1);
                 self.programs.push(Program {
@@ -410,25 +537,35 @@ impl Roster {
                     office: office.clone(),
                     name: name.trim().to_owned(),
                     split: *split,
+                    holders: *holders,
+                    period: *period,
                     services: services.clone(),
                 });
             }
-            RosterEvent::EditProgram { program, name, split, services } => {
+            RosterEvent::EditProgram { program, name, split, holders, period, services } => {
                 listed_once(services)?;
                 let found =
                     self.programs.iter_mut().find(|p| p.id == *program).ok_or(RosterError::UnknownProgram(*program))?;
                 found.name = name.trim().to_owned();
                 found.split = *split;
+                found.holders = *holders;
+                found.period = *period;
                 found.services = services.clone();
             }
-            RosterEvent::AssignTurn { program, period, member } => {
+            RosterEvent::AssignTurn(Turn { program, period, members }) => {
                 self.known(*program)?;
-                if let Some(Member::Helper(helper)) = member {
-                    self.known_helper(*helper)?;
+                let mut held: Vec<Member> = Vec::new();
+                for member in members {
+                    if let Member::Helper(helper) = member {
+                        self.known_helper(*helper)?;
+                    }
+                    if !held.contains(member) {
+                        held.push(*member);
+                    }
                 }
-                match member {
-                    Some(member) => self.turns.insert((*program, *period), *member),
-                    None => self.turns.remove(&(*program, *period)),
+                match held.is_empty() {
+                    true => self.turns.remove(&(*program, *period)),
+                    false => self.turns.insert((*program, *period), held),
                 };
                 touched.push(Touched::Turn(*program, *period));
             }
@@ -544,14 +681,17 @@ impl Roster {
         self.programs.iter().find(|p| p.id == id)
     }
 
-    pub fn turn(&self, program: ProgramId, period: &Period) -> Option<&Member> {
-        self.turns.get(&(program, *period))
+    /// Who holds the turn, in the order assigned; empty when nobody does.
+    pub fn turn(&self, program: ProgramId, period: &Period) -> &[Member] {
+        self.turns.get(&(program, *period)).map_or(&[], Vec::as_slice)
     }
 
     /// Who holds the turn `date` falls in.
-    pub fn turn_on(&self, program: ProgramId, date: Date) -> Option<&Member> {
-        let split = self.program(program)?.split;
-        self.turn(program, &Period::of(split, date))
+    pub fn turn_on(&self, program: ProgramId, date: Date) -> &[Member] {
+        match self.program(program) {
+            Some(found) => self.turn(program, &Period::of(found.split, date)),
+            None => &[],
+        }
     }
 
     /// The roles of `service` on `date` in the program: the service's
@@ -604,15 +744,27 @@ impl Roster {
     pub fn unassigned(&self, setup: &Setup, program: ProgramId, today: Date, window_days: u16) -> Vec<Period> {
         self.periods(setup, program, today, today.plus_days(window_days.into()))
             .into_iter()
-            .filter(|period| self.turn(program, period).is_none())
+            .filter(|period| self.turn(program, period).is_empty())
             .collect()
     }
 
-    /// Roles nobody fills on the services of held turns in the next
-    /// `window_days`: the turn holder's "Para hacer".
+    /// Turns with a service in the next `window_days` that someone holds,
+    /// but fewer than the program expects: the office's "Para hacer".
+    pub fn short_turns(&self, setup: &Setup, program: ProgramId, today: Date, window_days: u16) -> Vec<Period> {
+        let expected = self.program(program).map_or(0, |p| usize::from(p.holders));
+        self.periods(setup, program, today, today.plus_days(window_days.into()))
+            .into_iter()
+            .filter(|period| (1..expected).contains(&self.turn(program, period).len()))
+            .collect()
+    }
+
+    /// Roles that are on and nobody fills, on the services of held turns
+    /// in the next `window_days`: the turn holders' "Para hacer".
     pub fn empty_slots(&self, setup: &Setup, program: ProgramId, today: Date, window_days: u16) -> Vec<(ServiceId, Date, Role)> {
         self.window(setup, program, today, window_days)
-            .filter(|(_, date, slot)| slot.filler.is_none() && self.turn_on(program, *date).is_some())
+            .filter(|(_, date, slot)| {
+                slot.role.on && slot.filler.is_none() && !self.turn_on(program, *date).is_empty()
+            })
             .map(|(service, date, slot)| (service, date, slot.role))
             .collect()
     }
@@ -692,7 +844,7 @@ impl Roster {
         self.recorded(&Touched::Songs(program, service.clone(), date))
     }
 
-    /// Each role, by service and name, that more than one program assigns,
+    /// Each role that is on, by service and name, that more than one program assigns,
     /// with those programs in order, such as a "Música especial" both the
     /// elders and Sabbath School list on the divine service. Reported for
     /// the offices to settle, never refused.
@@ -700,7 +852,7 @@ impl Roster {
         let mut assigners: BTreeMap<(ServiceId, String), Vec<ProgramId>> = BTreeMap::new();
         for program in &self.programs {
             for listed in &program.services {
-                for role in &listed.roles {
+                for role in listed.roles.iter().filter(|r| r.on) {
                     let by = assigners.entry((listed.service.clone(), role.name.clone())).or_default();
                     if !by.contains(&program.id) {
                         by.push(program.id);
@@ -722,7 +874,7 @@ impl Roster {
     /// Whether `actor` may record `event` on `today`. The developer may
     /// record anything. A charge serving today in the office that owns the
     /// work, or in a variant of it such as first elder for the elders, may
-    /// record anything about it. Whoever holds a turn may also fill its
+    /// record anything about it. Each holder of a turn may also fill its
     /// roles, add roles to its dates and write its songs. A charge that
     /// does not serve today may record nothing. This function is the whole
     /// rule.
@@ -738,16 +890,18 @@ impl Roster {
         let in_office = |office: &OfficeId| holds(setup, charge, office);
         let runs = |program: &ProgramId| self.program(*program).is_some_and(|p| in_office(&p.office));
         let in_turn = |program: &ProgramId, date: &Date| {
-            runs(program) || self.turn_on(*program, *date) == Some(&Member::Charge(charge.id))
+            runs(program) || self.turn_on(*program, *date).contains(&Member::Charge(charge.id))
         };
         match event {
             RosterEvent::AddHelper { office, name: _, email: _ } => in_office(office),
             RosterEvent::EditHelper { helper, name: _, email: _, active: _ } => {
                 self.helper(*helper).is_some_and(|h| in_office(&h.office))
             }
-            RosterEvent::AddProgram { office, name: _, split: _, services: _ } => in_office(office),
-            RosterEvent::EditProgram { program, name: _, split: _, services: _ }
-            | RosterEvent::AssignTurn { program, period: _, member: _ }
+            RosterEvent::AddProgram { office, name: _, split: _, holders: _, period: _, services: _ } => {
+                in_office(office)
+            }
+            RosterEvent::EditProgram { program, name: _, split: _, holders: _, period: _, services: _ }
+            | RosterEvent::AssignTurn(Turn { program, period: _, members: _ })
             | RosterEvent::SendToPastor { program, year: _, month: _ }
             | RosterEvent::RecordPastorAnswer { program, service: _, date: _, role: _, approved: _, note: _ } => {
                 runs(program)
@@ -815,15 +969,20 @@ fn check(setup: &Setup, recorded: &Recorded) -> Result<(), RosterError> {
     }
     match event {
         RosterEvent::AddHelper { office: o, name: _, email: _ } => office(o),
-        RosterEvent::AddProgram { office: o, name: _, split: _, services } => {
+        RosterEvent::AddProgram { office: o, name: _, split: _, holders: _, period: _, services } => {
             office(o)?;
             services.iter().try_for_each(|s| service(&s.service))
         }
-        RosterEvent::EditProgram { program: _, name: _, split: _, services } => {
+        RosterEvent::EditProgram { program: _, name: _, split: _, holders: _, period: _, services } => {
             services.iter().try_for_each(|s| service(&s.service))
         }
-        RosterEvent::AssignTurn { program: _, period: _, member: Some(Member::Charge(id)) }
-        | RosterEvent::FillSlot {
+        RosterEvent::AssignTurn(Turn { program: _, period: _, members }) => {
+            members.iter().try_for_each(|member| match member {
+                Member::Charge(id) => charge(*id),
+                Member::Helper(_) => Ok(()),
+            })
+        }
+        RosterEvent::FillSlot {
             program: _,
             service: _,
             date: _,
@@ -832,7 +991,6 @@ fn check(setup: &Setup, recorded: &Recorded) -> Result<(), RosterError> {
             from_outside_district: _,
         } => charge(*id),
         RosterEvent::EditHelper { helper: _, name: _, email: _, active: _ }
-        | RosterEvent::AssignTurn { program: _, period: _, member: _ }
         | RosterEvent::FillSlot { program: _, service: _, date: _, role: _, filler: _, from_outside_district: _ }
         | RosterEvent::NotifyPastor { program: _, service: _, date: _, role: _, on: _ }
         | RosterEvent::AddExtraRole { program: _, service: _, date: _, role: _ }
@@ -998,10 +1156,10 @@ mod tests {
         /// The first elder edits the elders' roles so the pastor approves
         /// whoever fills `role` on `on`.
         fn pastor_approves(&mut self, on: &str, role: &str) {
-            let Program { name, split, mut services, .. } = self.roster.program(ELDERS).unwrap().clone();
-            let listed = services.iter_mut().find(|s| s.service == service(on)).unwrap();
+            let mut elders = self.roster.program(ELDERS).unwrap().clone();
+            let listed = elders.services.iter_mut().find(|s| s.service == service(on)).unwrap();
             listed.roles.iter_mut().find(|r| r.name == role).unwrap().kind = APPROVED;
-            self.by(PEDRO, RosterEvent::EditProgram { program: ELDERS, name, split, services });
+            self.by(PEDRO, edit(elders));
         }
 
         fn not_notified(&self) -> Vec<(ServiceId, Date, String)> {
@@ -1011,7 +1169,17 @@ mod tests {
     }
 
     fn roles(roles: &[(&str, RoleKind)]) -> Vec<Role> {
-        roles.iter().map(|&(name, kind)| Role { name: name.into(), kind }).collect()
+        roles.iter().map(|&(name, kind)| role(name, kind)).collect()
+    }
+
+    fn role(name: &str, kind: RoleKind) -> Role {
+        Role { name: name.into(), kind, on: true }
+    }
+
+    /// The event that makes the program read as `program`.
+    fn edit(program: Program) -> RosterEvent {
+        let Program { id, office: _, name, split, holders, period, services } = program;
+        RosterEvent::EditProgram { program: id, name, split, holders, period, services }
     }
 
     fn listed(on: &str, with: &[(&str, RoleKind)]) -> ProgramService {
@@ -1036,11 +1204,11 @@ mod tests {
     }
 
     fn add_program(office: &str, name: &str, split: Split, services: Vec<ProgramService>) -> RosterEvent {
-        RosterEvent::AddProgram { office: office.into(), name: name.into(), split, services }
+        RosterEvent::AddProgram { office: office.into(), name: name.into(), split, holders: 1, period: SheetPeriod::Month, services }
     }
 
     fn assign(program: ProgramId, period: Period, member: Member) -> RosterEvent {
-        RosterEvent::AssignTurn { program, period, member: Some(member) }
+        RosterEvent::AssignTurn(Turn { program, period, members: vec![member] })
     }
 
     fn month(year: u16, month: u8) -> Period {
@@ -1147,10 +1315,10 @@ mod tests {
         assert_eq!(sabbath.len(), 7);
         assert_eq!(church.role_names(ELDERS, SUNDAY, day(2026, 12, 6)), [REFLECTION]);
         assert_eq!(church.role_names(ELDERS, WEDNESDAY, day(2026, 12, 2)), [REFLECTION]);
-        let Program { name, split, mut services, .. } = church.roster.program(ELDERS).unwrap().clone();
-        let wednesday = services.iter_mut().find(|s| s.service == service(WEDNESDAY)).unwrap();
+        let mut elders = church.roster.program(ELDERS).unwrap().clone();
+        let wednesday = elders.services.iter_mut().find(|s| s.service == service(WEDNESDAY)).unwrap();
         wednesday.roles = roles(&[(REFLECTION, RoleKind::Normal), ("Himno", RoleKind::Normal)]);
-        church.by(ELENA, RosterEvent::EditProgram { program: ELDERS, name, split, services });
+        church.by(ELENA, edit(elders));
         assert_eq!(church.role_names(ELDERS, WEDNESDAY, day(2026, 12, 2)), [REFLECTION, "Himno"]);
         assert_eq!(church.slot(ELDERS, WEDNESDAY, day(2026, 12, 2), REFLECTION).unwrap().role.kind, RoleKind::Normal);
         assert_eq!(church.role_names(ELDERS, SABBATH, day(2026, 12, 5)), sabbath);
@@ -1249,7 +1417,7 @@ mod tests {
         church.by(ELENA, from_outside(WEDNESDAY, day(2026, 12, 2), REFLECTION, "Pr. Gómez"));
         assert_eq!(church.approval(ELDERS, WEDNESDAY, day(2026, 12, 2), REFLECTION), Some(PastorApproval::Proposed));
         let pending = church.roster.without_approval(&church.setup, ELDERS, TODAY, 14);
-        assert_eq!(pending, [(service(WEDNESDAY), day(2026, 12, 2), Role { name: REFLECTION.into(), kind: APPROVED })]);
+        assert_eq!(pending, [(service(WEDNESDAY), day(2026, 12, 2), role(REFLECTION, APPROVED))]);
         assert_eq!(church.not_notified(), [], "the pastor's approval covers the outside speaker");
     }
 
@@ -1349,7 +1517,7 @@ mod tests {
         church.pastor_approves(SABBATH, PREACHER);
         church.by(ELENA, fill(ELDERS, SABBATH, day(2026, 12, 5), PREACHER, guest("Pr. Gómez")));
         let pending = |church: &Church| church.roster.without_approval(&church.setup, ELDERS, TODAY, 14);
-        let preacher = Role { name: PREACHER.into(), kind: APPROVED };
+        let preacher = role(PREACHER, APPROVED);
         assert_eq!(pending(&church), [(service(SABBATH), day(2026, 12, 5), preacher)]);
         church.by(ELENA, answer(day(2026, 12, 5), true, None));
         assert_eq!(pending(&church), []);
@@ -1358,7 +1526,7 @@ mod tests {
     #[test]
     fn an_extra_role_exists_only_on_its_date() {
         let mut church = Church::new();
-        let duet = Role { name: "Dúo".into(), kind: RoleKind::Normal };
+        let duet = role("Dúo", RoleKind::Normal);
         let add = RosterEvent::AddExtraRole { program: YOUTH, service: service(YOUTH_SOCIETY), date: day(2026, 12, 12), role: duet };
         church.by(MARTA, add);
         assert_eq!(church.slot(YOUTH, YOUTH_SOCIETY, day(2026, 12, 12), "Dúo").map(|s| s.extra), Some(true));
@@ -1371,7 +1539,7 @@ mod tests {
     #[test]
     fn an_extra_role_on_sunday_does_not_appear_on_the_sabbath() {
         let mut church = Church::new();
-        let duet = Role { name: "Dúo".into(), kind: RoleKind::Normal };
+        let duet = role("Dúo", RoleKind::Normal);
         church.by(ELENA, RosterEvent::AddExtraRole { program: ELDERS, service: service(SUNDAY), date: day(2026, 12, 6), role: duet });
         assert_eq!(church.slot(ELDERS, SUNDAY, day(2026, 12, 6), "Dúo").map(|s| s.extra), Some(true));
         assert_eq!(church.slot(ELDERS, SABBATH, day(2026, 12, 5), "Dúo"), None);
@@ -1458,8 +1626,8 @@ mod tests {
         let twice = vec![listed(SABBATH, &[]), listed(SUNDAY, &[]), listed(SABBATH, &[])];
         let refused = church.record(Actor::Charge(PEDRO), add_program("anciano", "X", Split::ByMonth, twice.clone()));
         assert_eq!(refused, Err(RosterError::RepeatedService(service(SABBATH))));
-        let edit = RosterEvent::EditProgram { program: ELDERS, name: "X".into(), split: Split::ByMonth, services: twice };
-        assert_eq!(church.record(Actor::Charge(PEDRO), edit), Err(RosterError::RepeatedService(service(SABBATH))));
+        let elders = Program { services: twice, ..church.roster.program(ELDERS).unwrap().clone() };
+        assert_eq!(church.record(Actor::Charge(PEDRO), edit(elders)), Err(RosterError::RepeatedService(service(SABBATH))));
         assert_eq!(church.roster, Roster::replay(&church.events).unwrap(), "a refused event leaves no trace");
     }
 
@@ -1476,9 +1644,9 @@ mod tests {
         church.by(ELENA, send(2026, 12));
         church.by(ELENA, answer(day(2026, 12, 5), false, Some("Otra fecha")));
         church.by(MARTA, assign(YOUTH, Period::Date(day(2026, 12, 12)), Member::Helper(HelperId(1))));
-        let duet = Role { name: "Dúo".into(), kind: RoleKind::Normal };
+        let duet = role("Dúo", RoleKind::Normal);
         church.by(MARTA, RosterEvent::AddExtraRole { program: YOUTH, service: service(YOUTH_SOCIETY), date: day(2026, 12, 12), role: duet });
-        church.by(MARTA, RosterEvent::AssignTurn { program: YOUTH, period: Period::Date(day(2026, 12, 12)), member: None });
+        church.by(MARTA, assign_all(YOUTH, Period::Date(day(2026, 12, 12)), &[]));
         assert_eq!(Roster::replay(&church.events).unwrap(), church.roster);
     }
 
@@ -1509,8 +1677,8 @@ mod tests {
         let mut church = Church::new();
         let december = |church: &Church| church.roster.periods(&church.setup, ELDERS, day(2026, 12, 1), day(2026, 12, 13));
         assert_eq!(december(&church), [month(2026, 12)]);
-        let Program { name, services, .. } = church.roster.program(ELDERS).unwrap().clone();
-        church.by(PEDRO, RosterEvent::EditProgram { program: ELDERS, name, split: Split::ByDate, services });
+        let elders = Program { split: Split::ByDate, ..church.roster.program(ELDERS).unwrap().clone() };
+        church.by(PEDRO, edit(elders));
         assert_eq!(december(&church), [2, 5, 6, 9, 12, 13].map(|d| Period::Date(day(2026, 12, d))));
     }
 
@@ -1549,9 +1717,9 @@ mod tests {
     fn changing_how_many_sing_is_an_edit_of_the_services_roles() {
         let mut church = Church::new();
         church.by(DANIEL, template("musica").add_program(church.setup.services()));
-        let Program { name, split, mut services, .. } = church.roster.program(NEXT).unwrap().clone();
-        services.iter_mut().find(|s| s.service == service(SABBATH)).unwrap().roles = singers(5);
-        church.by(DANIEL, RosterEvent::EditProgram { program: NEXT, name, split, services });
+        let mut singing = church.roster.program(NEXT).unwrap().clone();
+        singing.services.iter_mut().find(|s| s.service == service(SABBATH)).unwrap().roles = singers(5);
+        church.by(DANIEL, edit(singing));
         let five: Vec<String> = (1..=5).map(|i| format!("Cantante {i}")).collect();
         assert_eq!(church.role_names(NEXT, SABBATH, day(2026, 12, 5)), five);
         assert_eq!(church.role_names(NEXT, SUNDAY, day(2026, 12, 6)).len(), 2, "other services keep their two");
@@ -1617,5 +1785,149 @@ mod tests {
         let stored = r#"{"service":"culto-divino","roles":[{"name":"Predicador","kind":"normal"}]}"#;
         let listed: ProgramService = serde_json::from_str(stored).unwrap();
         assert!(!listed.songs);
+    }
+
+    impl Church {
+        /// With Sabbath School from its template, as program `NEXT`.
+        fn with_sabbath_school() -> Self {
+            let mut church = Self::new();
+            church.by(RUT, template("escuela-sabatica").add_program(church.setup.services()));
+            church
+        }
+
+        fn open_roles(&self, program: ProgramId, date: Date) -> Vec<String> {
+            let open = self.roster.empty_slots(&self.setup, program, TODAY, 21);
+            open.into_iter().filter(|(_, d, _)| *d == date).map(|(_, _, role)| role.name).collect()
+        }
+    }
+
+    fn assign_all(program: ProgramId, period: Period, members: &[ChargeId]) -> RosterEvent {
+        RosterEvent::AssignTurn(Turn { program, period, members: members.iter().map(|&c| Member::Charge(c)).collect() })
+    }
+
+    fn sabbath(d: u8) -> Period {
+        Period::Date(day(2026, 12, d))
+    }
+
+    #[test]
+    fn a_turn_stored_with_one_member_reads_as_one_holder_and_null_as_nobody() {
+        let one = r#"{"kind":"assign_turn","program":2,"period":{"date":"2026-12-05"},"member":{"charge":5}}"#;
+        assert_eq!(serde_json::from_str::<RosterEvent>(one).unwrap(), assign(YOUTH, sabbath(5), Member::Charge(JUAN)));
+        let nobody = r#"{"kind":"assign_turn","program":2,"period":{"date":"2026-12-05"},"member":null}"#;
+        assert_eq!(serde_json::from_str::<RosterEvent>(nobody).unwrap(), assign_all(YOUTH, sabbath(5), &[]));
+        let two = assign_all(YOUTH, sabbath(5), &[JUAN, LUIS]);
+        let written = serde_json::to_string(&two).unwrap();
+        assert!(written.contains(r#""members":[{"charge":5},{"charge":3}]"#), "{written}");
+        assert_eq!(serde_json::from_str::<RosterEvent>(&written).unwrap(), two);
+    }
+
+    #[test]
+    fn both_holders_of_a_sabbath_may_fill_its_roles_and_an_outsider_may_not() {
+        let mut church = Church::with_sabbath_school();
+        church.by(RUT, assign_all(NEXT, sabbath(5), &[JUAN, LUIS]));
+        let misionero = |d: u8| fill(NEXT, SABBATH_SCHOOL, day(2026, 12, d), "Misionero", guest("Ana"));
+        assert!(church.may(JUAN, &misionero(5)), "Juan is a cargo on Dec 5");
+        assert!(church.may(LUIS, &misionero(5)), "Luis is a cargo on Dec 5");
+        assert!(!church.may(MARTA, &misionero(5)), "the youth director is not a cargo");
+        assert!(!church.may(JUAN, &misionero(12)), "Dec 12 is not his");
+        assert!(church.may(RUT, &misionero(12)), "the director fills any Sabbath");
+        assert_eq!(church.roster.turn_on(NEXT, day(2026, 12, 5)), [Member::Charge(JUAN), Member::Charge(LUIS)]);
+    }
+
+    #[test]
+    fn a_turn_short_of_holders_is_short_and_one_with_none_is_unassigned() {
+        let mut church = Church::with_sabbath_school();
+        church.by(RUT, assign_all(NEXT, Period::Date(day(2026, 11, 28)), &[JUAN]));
+        church.by(RUT, assign_all(NEXT, sabbath(5), &[JUAN, LUIS, MARTA]));
+        church.by(RUT, assign_all(NEXT, sabbath(19), &[JUAN, LUIS]));
+        assert_eq!(church.roster.short_turns(&church.setup, NEXT, TODAY, 30), [Period::Date(day(2026, 11, 28))]);
+        assert_eq!(church.roster.unassigned(&church.setup, NEXT, TODAY, 30), [sabbath(12), sabbath(26)]);
+        church.by(RUT, assign_all(NEXT, sabbath(5), &[]));
+        assert_eq!(church.roster.unassigned(&church.setup, NEXT, TODAY, 30), [sabbath(5), sabbath(12), sabbath(26)]);
+    }
+
+    #[test]
+    fn an_off_role_asks_nobody_to_fill_it_and_filling_it_is_accepted() {
+        let mut church = Church::with_sabbath_school();
+        church.by(RUT, assign_all(NEXT, sabbath(5), &[JUAN, LUIS]));
+        assert_eq!(church.open_roles(NEXT, day(2026, 12, 5)), ["Misionero", "Nuevo Horizonte"]);
+        let prayer = fill(NEXT, SABBATH_SCHOOL, day(2026, 12, 5), "Oración", guest("Ana"));
+        assert_eq!(church.record(Actor::Charge(JUAN), prayer), Ok(()));
+        let slot = church.slot(NEXT, SABBATH_SCHOOL, day(2026, 12, 5), "Oración").unwrap();
+        assert_eq!((slot.role.on, slot.filler), (false, Some(guest("Ana"))));
+    }
+
+    #[test]
+    fn turning_a_role_on_makes_it_pending() {
+        let mut church = Church::with_sabbath_school();
+        church.by(RUT, assign_all(NEXT, sabbath(5), &[JUAN, LUIS]));
+        let mut sabbath_school = church.roster.program(NEXT).unwrap().clone();
+        sabbath_school.services[0].roles.iter_mut().find(|r| r.name == "Himno").unwrap().on = true;
+        church.by(RUT, edit(sabbath_school));
+        assert_eq!(church.open_roles(NEXT, day(2026, 12, 5)), ["Misionero", "Nuevo Horizonte", "Himno"]);
+    }
+
+    #[test]
+    fn an_off_role_is_not_shared_with_another_program() {
+        let mut church = Church::new();
+        let mut special = listed(SABBATH, &[("Música especial", RoleKind::Normal)]);
+        special.roles[0].on = false;
+        church.by(RUT, add_program("escuela-sabatica", "Escuela Sabática", Split::ByDate, vec![special]));
+        assert_eq!(church.roster.shared_roles(), []);
+    }
+
+    #[test]
+    fn the_sabbath_school_template_has_two_a_cargo_each_sabbath_on_a_quarterly_sheet() {
+        let church = Church::with_sabbath_school();
+        let sabbath_school = church.roster.program(NEXT).unwrap();
+        assert_eq!(
+            (sabbath_school.name.as_str(), sabbath_school.office.0.as_str(), sabbath_school.split),
+            ("Escuela Sabática", "escuela-sabatica", Split::ByDate)
+        );
+        assert_eq!((sabbath_school.holders, sabbath_school.period), (2, SheetPeriod::Quarter));
+        let roles: Vec<(&str, bool)> =
+            sabbath_school.services[0].roles.iter().map(|r| (r.name.as_str(), r.on)).collect();
+        assert_eq!(
+            roles,
+            [
+                ("Misionero", true),
+                ("Nuevo Horizonte", true),
+                ("Oración", false),
+                ("Lectura bíblica", false),
+                ("Himno", false),
+                ("Especial", false),
+            ]
+        );
+        assert_eq!(shape(sabbath_school).len(), 1, "never on the youth society's sheet");
+        assert_eq!((sabbath_school.services[0].service.0.as_str(), sabbath_school.services[0].songs), (SABBATH_SCHOOL, false));
+        let december = church.roster.periods(&church.setup, NEXT, day(2026, 12, 1), day(2026, 12, 31));
+        assert_eq!(december, [5, 12, 19, 26].map(sabbath));
+    }
+
+    #[test]
+    fn a_sheet_covers_its_calendar_month_or_quarter() {
+        let nov14 = day(2026, 11, 14);
+        assert_eq!(SheetPeriod::Quarter.range(nov14), (day(2026, 10, 1), day(2026, 12, 31)));
+        assert_eq!(SheetPeriod::Quarter.range(day(2028, 3, 31)), (day(2028, 1, 1), day(2028, 3, 31)));
+        assert_eq!(SheetPeriod::Quarter.range(day(2026, 4, 1)), (day(2026, 4, 1), day(2026, 6, 30)));
+        assert_eq!(SheetPeriod::Month.range(nov14), (day(2026, 11, 1), day(2026, 11, 30)));
+    }
+
+    #[test]
+    fn the_singing_template_has_no_role_for_whoever_leads_the_singers() {
+        let singing = template("musica");
+        let names: Vec<&str> = singing.services.iter().flat_map(|s| &s.roles).map(|r| r.name.as_str()).collect();
+        assert!(names.iter().all(|name| name.starts_with("Cantante ")), "{names:?}");
+        assert_eq!((singing.holders, singing.period), (1, SheetPeriod::Month));
+    }
+
+    #[test]
+    fn a_program_stored_without_period_holders_or_on_reads_as_a_month_one_holder_and_on() {
+        let stored = r#"{"kind":"add_program","office":"anciano","name":"Cultos","split":"by_month","services":[{"service":"culto-divino","roles":[{"name":"Predicador","kind":"normal"}]}]}"#;
+        let recorded = Recorded { at: "2026-11-27T05:32:43Z".into(), by: Actor::Charge(PEDRO), event: serde_json::from_str(stored).unwrap() };
+        let roster = Roster::replay(&[recorded]).unwrap();
+        let program = roster.program(ProgramId(1)).unwrap();
+        assert_eq!((program.holders, program.period), (1, SheetPeriod::Month));
+        assert_eq!(program.services[0].roles, [role(PREACHER, RoleKind::Normal)]);
     }
 }

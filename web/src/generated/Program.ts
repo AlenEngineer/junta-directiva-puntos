@@ -2,6 +2,7 @@
 import type { OfficeId } from "./OfficeId";
 import type { ProgramId } from "./ProgramId";
 import type { ProgramService } from "./ProgramService";
+import type { SheetPeriod } from "./SheetPeriod";
 import type { Split } from "./Split";
 
 /**
@@ -10,6 +11,11 @@ import type { Split } from "./Split";
  * the office, not to a charge, so a new head inherits them.
  */
 export type Program = { id: ProgramId, office: OfficeId, name: string, split: Split, 
+/**
+ * How many people each turn expects, such as the two a cargo of a
+ * Sabbath at Sabbath School.
+ */
+holders: number, period: SheetPeriod, 
 /**
  * Each service at most once.
  */
