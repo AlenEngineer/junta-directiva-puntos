@@ -30,8 +30,19 @@ pub struct Viewer {
     /// Trimmed and lowercased, as holders' emails are kept.
     pub email: String,
     pub name: String,
-    /// The charges held under this email that serve today.
-    pub charges: Vec<Charge>,
+    /// The charges held under this email that serve today, each with
+    /// what it alone allows, so each opens its own desk.
+    pub desks: Vec<Desk>,
+    /// Everything the desks allow together, or everything for the developer.
+    pub may: May,
+}
+
+/// One serving charge and what that charge alone allows. The page lays
+/// out a desk's work from `may`, so it never repeats the rule here.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct Desk {
+    pub charge: Charge,
     pub may: May,
 }
 
@@ -43,18 +54,18 @@ impl Viewer {
     pub fn new(setup: &Setup, person: Person, today: Date, developer: Option<&str>) -> Self {
         let email = normalize_email(&person.email);
         let year = church_year(today, setup.year_starts());
-        let charges: Vec<Charge> = setup
+        let desks: Vec<Desk> = setup
             .charges()
             .iter()
             .filter(|c| c.holder.email.as_deref() == Some(email.as_str()) && c.serves_in(year, setup.charges()))
-            .cloned()
+            .map(|c| Desk { charge: c.clone(), may: May::of(c, setup.catalog()) })
             .collect();
         let may = if is_developer(&email, developer) {
             May::EVERYTHING
         } else {
-            charges.iter().map(|c| May::of(c, setup.catalog())).fold(May::default(), May::or)
+            desks.iter().map(|d| d.may).fold(May::default(), May::or)
         };
-        Self { email, name: person.name, charges, may }
+        Self { email, name: person.name, desks, may }
     }
 
     /// `person` before the church has a setup. Nobody holds anything yet,
@@ -63,7 +74,7 @@ impl Viewer {
     pub fn before_setup(person: Person, developer: Option<&str>) -> Self {
         let email = normalize_email(&person.email);
         let may = May { start_setup: is_developer(&email, developer), ..May::default() };
-        Self { email, name: person.name, charges: Vec::new(), may }
+        Self { email, name: person.name, desks: Vec::new(), may }
     }
 }
 
@@ -192,6 +203,18 @@ mod tests {
     }
 
     #[test]
+    fn each_desk_carries_only_what_its_own_charge_allows() {
+        let setup = church(
+            Month::JANUARY,
+            vec![holding("secretario", "ana@example.org", 2026), holding("tesorero", "ana@example.org", 2026)],
+        );
+        let viewer = Viewer::new(&setup, person("ana@example.org"), TODAY, None);
+        let recorders: Vec<(&str, bool)> = viewer.desks.iter().map(|d| (d.charge.office.0.as_str(), d.may.record_votes)).collect();
+        assert_eq!(recorders, [("secretario", true), ("tesorero", false)]);
+        assert!(viewer.may.record_votes);
+    }
+
+    #[test]
     fn board_members_read_meetings_and_the_agenda_module_runs_them() {
         let setup = officers();
         let board = |who: &str| {
@@ -213,13 +236,13 @@ mod tests {
     fn emails_match_whatever_their_case_and_spacing() {
         let setup = church(Month::JANUARY, vec![holding("tesorero", " Luis@Example.org ", 2026)]);
         let viewer = Viewer::new(&setup, person(" LUIS@example.ORG"), TODAY, None);
-        assert_eq!((viewer.email.as_str(), viewer.charges.len()), ("luis@example.org", 1));
+        assert_eq!((viewer.email.as_str(), viewer.desks.len()), ("luis@example.org", 1));
     }
 
     #[test]
     fn the_developer_may_do_everything_while_holding_nothing() {
         let viewer = Viewer::new(&officers(), person(" Dev@Example.org "), TODAY, Some("dev@example.org"));
-        assert_eq!((viewer.may, viewer.charges.len()), (May::EVERYTHING, 0));
+        assert_eq!((viewer.may, viewer.desks.len()), (May::EVERYTHING, 0));
     }
 
     #[test]
@@ -233,7 +256,7 @@ mod tests {
     #[test]
     fn someone_the_setup_does_not_name_may_do_nothing() {
         let viewer = Viewer::new(&officers(), person("nadie@example.org"), TODAY, Some("dev@example.org"));
-        assert_eq!((viewer.may, viewer.charges.len()), (May::default(), 0));
+        assert_eq!((viewer.may, viewer.desks.len()), (May::default(), 0));
     }
 
     #[test]
@@ -253,7 +276,7 @@ mod tests {
         let mid_january = Date { year: 2027, month: Month::JANUARY, day: 15 };
         let serves = |year_starts, start_year| {
             let setup = church(year_starts, vec![holding("tesorero", "luis@example.org", start_year)]);
-            !Viewer::new(&setup, person("luis@example.org"), mid_january, None).charges.is_empty()
+            !Viewer::new(&setup, person("luis@example.org"), mid_january, None).desks.is_empty()
         };
         assert!(serves(Month::JANUARY, 2027));
         assert!(!serves(Month(10), 2027), "church year 2027 starts in October 2027");

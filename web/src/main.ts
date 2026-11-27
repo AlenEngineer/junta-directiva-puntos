@@ -1,6 +1,6 @@
 import { boardView } from "./board";
 import { directory, history } from "./church";
-import { desk } from "./desk";
+import { type DeskTab, deskView, hasPlan } from "./desk";
 import type { CatalogOffice } from "./generated/CatalogOffice";
 import type { Setup } from "./generated/Setup";
 import type { Viewer } from "./generated/Viewer";
@@ -13,7 +13,7 @@ const me = await api<Viewer>("/api/me");
 /** Every page the hash can name. Inicio is personal, a desk is one charge, the rest is the church's shared area. */
 type Route =
   | { page: "inicio" }
-  | { page: "cargo"; charge: number; tab: "responsabilidades" | "historial" }
+  | { page: "cargo"; charge: number; tab: DeskTab | null }
   | { page: "oficiales"; byPerson: boolean }
   | { page: "votos" }
   | { page: "junta" }
@@ -24,7 +24,7 @@ function parse(hash: string): Route {
   const [path, arg, sub] = hash.replace(/^#\/?/, "").split("/");
   switch (path) {
     case "cargo":
-      return { page: "cargo", charge: Number(arg), tab: sub === "historial" ? "historial" : "responsabilidades" };
+      return { page: "cargo", charge: Number(arg), tab: sub === "plan" || sub === "responsabilidades" || sub === "historial" ? sub : null };
     case "iglesia":
       return arg === "votos" ? { page: "votos" } : { page: "oficiales", byPerson: arg === "personas" };
     case "junta":
@@ -103,12 +103,12 @@ function shell(setup: Setup | null, route: Route, page: HTMLElement, wide = fals
               return a;
             }),
           ),
-        me.charges.length > 0 &&
+        me.desks.length > 0 &&
           h(
             "section",
             { class: "mine", "aria-label": "Mis cargos" },
             h("p", { class: "label" }, "Mis cargos"),
-            ...me.charges.map((c) => {
+            ...me.desks.map(({ charge: c }) => {
               const a = h("a", { href: `#/cargo/${c.id}` }, officeName(c.office));
               if (c.id === current) a.setAttribute("aria-current", "page");
               return a;
@@ -141,7 +141,11 @@ async function route() {
     wide = true;
   } else if (setup && r.page === "invitar" && me.may.record_votes)
     page = await invitations(setup, r.from, me.email, () => location.assign("#/iglesia"));
-  else if (setup && r.page === "cargo" && me.charges.some((c) => c.id === r.charge)) page = await desk(setup, me.charges.find((c) => c.id === r.charge)!, r.tab);
+  else if (setup && r.page === "cargo" && me.desks.some((d) => d.charge.id === r.charge)) {
+    const d = me.desks.find((d) => d.charge.id === r.charge)!;
+    page = await deskView(me, setup, d, r.tab ?? (hasPlan(d) ? "plan" : "responsabilidades"));
+    wide = true;
+  }
   else page = await home(me, setup, route);
   shell(setup, r, page, wide);
 }

@@ -277,14 +277,14 @@ mod tests {
         let (status, me) = app.call(&app.sign_in("ana@example.org").await, Method::GET, "/api/me", None).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!((me["email"].as_str(), me["name"].as_str()), (Some("ana@example.org"), Some("ana Prueba")));
-        assert_eq!((me["charges"][0]["id"].as_i64(), me["charges"][0]["office"].as_str()), (Some(2), Some("secretario")));
-        assert_eq!(me["charges"].as_array().map(Vec::len), Some(1));
+        assert_eq!((me["desks"][0]["charge"]["id"].as_i64(), me["desks"][0]["charge"]["office"].as_str()), (Some(2), Some("secretario")));
+        assert_eq!(me["desks"].as_array().map(Vec::len), Some(1));
         assert_eq!(me["may"], json!({ "read_setup": true, "record_votes": true, "read_board": true, "run_board": false, "start_setup": false }));
 
         let (_, developer) = app.call(&dev, Method::GET, "/api/me", None).await;
-        assert_eq!((&developer["charges"], &developer["may"]["run_board"]), (&json!([]), &json!(true)));
+        assert_eq!((&developer["desks"], &developer["may"]["run_board"]), (&json!([]), &json!(true)));
         let (_, nobody) = app.call(&app.sign_in("nadie@example.org").await, Method::GET, "/api/me", None).await;
-        assert_eq!(nobody["charges"], json!([]));
+        assert_eq!(nobody["desks"], json!([]));
         assert_eq!(
             nobody["may"],
             json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false, "start_setup": false })
@@ -296,7 +296,7 @@ mod tests {
         let app = TestApp::unseeded().await;
         let dev = app.sign_in(DEVELOPER).await;
         let (status, me) = app.call(&dev, Method::GET, "/api/me", None).await;
-        assert_eq!((status, &me["charges"]), (StatusCode::OK, &json!([])));
+        assert_eq!((status, &me["desks"]), (StatusCode::OK, &json!([])));
         assert_eq!(
             me["may"],
             json!({ "read_setup": false, "record_votes": false, "read_board": false, "run_board": false, "start_setup": true })
@@ -347,7 +347,7 @@ mod tests {
         let rename = vote(3, "church", json!({ "church": "Iglesia Central" }));
         let (status, body) = app.call(&ana, Method::POST, "/api/setup/history", rename).await;
         assert_eq!((status, body["error"].as_str()), (StatusCode::FORBIDDEN, Some("recording votes and inviting holders needs the clerk or the first elder")));
-        assert_eq!(app.call(&ana, Method::GET, "/api/me", None).await.1["charges"], json!([]), "same session, new answer");
+        assert_eq!(app.call(&ana, Method::GET, "/api/me", None).await.1["desks"], json!([]), "same session, new answer");
     }
 
     #[tokio::test]

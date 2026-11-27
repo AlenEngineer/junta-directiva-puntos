@@ -909,3 +909,26 @@ details.unused summary {
 .row-form.add {
   margin-top: 0.75rem;
 }
+
+.desk-grid {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .desk-grid {
+    grid-template-columns: minmax(0, 1fr) 19rem;
+  }
+}
+.stack.tight {
+  gap: 0.5rem;
+}
+.more {
+  margin-top: 0.5rem;
+}
+.sheet h2 {
+  font-size: 1.2rem;
+}
+.sheet .needs {
+  margin-top: 1rem;
+}
