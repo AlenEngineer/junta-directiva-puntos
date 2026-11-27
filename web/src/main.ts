@@ -1,8 +1,7 @@
-import type { Catalog } from "./generated/Catalog";
-import type { Charge } from "./generated/Charge";
 import type { Meeting } from "./generated/Meeting";
 import type { NewItem } from "./generated/NewItem";
 import type { NewMeeting } from "./generated/NewMeeting";
+import type { Setup } from "./generated/Setup";
 
 async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -29,11 +28,7 @@ function button(label: string, action: () => Promise<unknown>) {
   return b;
 }
 
-const [church, catalog, charges] = await Promise.all([
-  api<{ name: string }>("/api/church"),
-  api<Catalog>("/api/catalog"),
-  api<Charge[]>("/api/charges"),
-]);
+const { church, catalog, charges } = await api<Setup>("/api/setup");
 
 const stateLabel = { draft: "Borrador", called: "Convocada", held: "Celebrada" } as const;
 const nextLabel = { draft: "Convocar", called: "Marcar como celebrada", held: null } as const;
@@ -94,7 +89,7 @@ async function render() {
   const meetings = await api<Meeting[]>("/api/meetings");
   const runsAgenda = charges.some((c) => c.responsibilities.some((r) => r.module === "agenda"));
   document.getElementById("app")!.replaceChildren(
-    el("h1", church.name),
+    el("h1", church),
     ...charges.map((charge) =>
       el(
         "section",

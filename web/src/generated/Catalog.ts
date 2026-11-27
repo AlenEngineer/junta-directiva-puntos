@@ -4,6 +4,11 @@ import type { CatalogOffice } from "./CatalogOffice";
 
 export type Catalog = { 
 /**
- * Layer names in the order they were applied.
+ * Layer names in the order they were applied. A layer applied in
+ * several steps, as a church's votes are, is listed once.
  */
-layers: Array<string>, offices: Array<CatalogOffice>, board_agenda: Array<AgendaSection>, };
+layers: Array<string>, offices: Array<CatalogOffice>, 
+/**
+ * Offices the church hid, kept so a later change can restore them.
+ */
+hidden: Array<CatalogOffice>, board_agenda: Array<AgendaSection>, };

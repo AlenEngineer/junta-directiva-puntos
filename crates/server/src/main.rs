@@ -1,5 +1,5 @@
 mod api;
-mod setup;
+mod seed;
 mod store;
 
 use std::{net::SocketAddr, path::PathBuf};
@@ -29,15 +29,19 @@ async fn main() {
         ));
     }
 
-    let setup_path = PathBuf::from(env("SETUP_FILE", "setup.json"));
-    let setup = setup::load(&setup_path)
-        .unwrap_or_else(|e| fail(format!("cannot load the church setup: {e}\nSet SETUP_FILE, or start from examples/setup.json.")));
     let database = env("DATABASE_URL", "sqlite://mayordomo.db");
     let store = store::Store::open(&database)
         .await
         .unwrap_or_else(|e| fail(format!("cannot open {database}: {e}")));
+    let setup_path = PathBuf::from(env("SETUP_FILE", "setup.json"));
+    let setup = seed::ensure(&store, &setup_path).await.unwrap_or_else(|e| {
+        fail(format!(
+            "cannot load the church setup: {e}\nSet SETUP_FILE to seed an empty database, or start from examples/setup.json."
+        ))
+    });
+    println!("{}: setup history at entry {}", setup.church(), setup.latest().0);
 
-    let mut router = api::router(api::App { church: setup.church, catalog: setup.catalog, charges: setup.charges, store });
+    let mut router = api::router(api::App { store });
     if let Ok(dir) = std::env::var("WEB_DIR") {
         let index = PathBuf::from(&dir).join("index.html");
         router = router.fallback_service(ServeDir::new(&dir).fallback(ServeFile::new(index)));

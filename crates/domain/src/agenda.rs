@@ -131,9 +131,7 @@ impl std::fmt::Display for AgendaError {
 
 impl NewMeeting {
     pub fn validate(&self) -> Result<(), AgendaError> {
-        let ok = self.date.len() == 10
-            && self.date.char_indices().all(|(i, c)| if i == 4 || i == 7 { c == '-' } else { c.is_ascii_digit() });
-        ok.then_some(()).ok_or_else(|| AgendaError::BadDate(self.date.clone()))
+        crate::is_iso_date(&self.date).then_some(()).ok_or_else(|| AgendaError::BadDate(self.date.clone()))
     }
 }
 

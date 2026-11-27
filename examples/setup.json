@@ -2,6 +2,6 @@
   "church": "Iglesia de ejemplo",
   "layers": ["iglesia.json"],
   "charges": [
-    { "office": "primer-anciano", "term": { "start_year": 2026 } }
+    { "office": "primer-anciano", "holder": { "name": "Hermano de ejemplo" }, "term": { "start_year": 2026 } }
   ]
 }

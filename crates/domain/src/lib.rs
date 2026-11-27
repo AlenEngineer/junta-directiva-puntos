@@ -5,6 +5,7 @@
 
 pub mod agenda;
 pub mod catalog;
+pub mod setup;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -22,6 +23,7 @@ pub struct ChargeId(pub u32);
 pub struct Charge {
     pub id: ChargeId,
     pub office: OfficeId,
+    pub holder: Holder,
     pub term: Term,
     pub responsibilities: Vec<Responsibility>,
 }
@@ -29,17 +31,45 @@ pub struct Charge {
 impl Charge {
     /// A charge for an office in the catalog, with its responsibilities.
     /// A variant such as first elder also carries the base office's.
-    pub fn from_catalog(catalog: &Catalog, id: ChargeId, office: &OfficeId, term: Term) -> Option<Self> {
+    pub fn from_catalog(catalog: &Catalog, id: ChargeId, new: &NewCharge) -> Option<Self> {
         Some(Self {
             id,
-            office: office.clone(),
-            term,
-            responsibilities: catalog.default_responsibilities(office)?,
+            office: new.office.clone(),
+            holder: new.holder.clone(),
+            term: new.term,
+            responsibilities: catalog.default_responsibilities(&new.office)?,
         })
     }
 
     pub fn modules(&self) -> impl Iterator<Item = Module> + '_ {
         self.responsibilities.iter().filter_map(|r| r.module)
+    }
+}
+
+/// A charge as a vote elects it, or as the setup file lists it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct NewCharge {
+    pub office: OfficeId,
+    pub holder: Holder,
+    pub term: Term,
+}
+
+/// Who holds a charge. Login will match a signed-in email to the charges
+/// held, so the setup keeps the email lowercased.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct Holder {
+    pub name: String,
+    pub email: Option<String>,
+}
+
+impl Holder {
+    pub(crate) fn normalized(&self) -> Self {
+        Self {
+            name: self.name.trim().to_owned(),
+            email: self.email.as_deref().map(str::trim).filter(|e| !e.is_empty()).map(str::to_lowercase),
+        }
     }
 }
 
@@ -97,9 +127,22 @@ pub enum Module {
     Agenda,
 }
 
+/// `YYYY-MM-DD`, by shape only. Meetings and votes share this one date rule.
+pub(crate) fn is_iso_date(date: &str) -> bool {
+    date.len() == 10 && date.char_indices().all(|(i, c)| if i == 4 || i == 7 { c == '-' } else { c.is_ascii_digit() })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn elder(office: &str) -> NewCharge {
+        NewCharge {
+            office: OfficeId::from(office),
+            holder: Holder { name: "Hermano de ejemplo".into(), email: None },
+            term: Term::one_year(2026),
+        }
+    }
 
     #[test]
     fn a_term_covers_its_length_plus_any_extension() {
@@ -111,8 +154,7 @@ mod tests {
     #[test]
     fn a_first_elder_inherits_the_elder_duties_and_runs_the_agenda() {
         let catalog = Catalog::manual_2025();
-        let charge = Charge::from_catalog(&catalog, ChargeId(1), &OfficeId::from("primer-anciano"), Term::one_year(2026))
-            .expect("first elder is in the catalog");
+        let charge = Charge::from_catalog(&catalog, ChargeId(1), &elder("primer-anciano")).expect("first elder is in the catalog");
         let summaries: Vec<_> = charge.responsibilities.iter().map(|r| r.summary.as_str()).collect();
         assert!(summaries.contains(&"Dirigir los cultos de la iglesia"), "{summaries:?}");
         assert!(summaries.contains(&"Presidir la junta directiva cuando el pastor lo pida"), "{summaries:?}");
@@ -122,6 +164,6 @@ mod tests {
     #[test]
     fn an_unknown_office_is_not_a_catalog_charge() {
         let catalog = Catalog::manual_2025();
-        assert!(Charge::from_catalog(&catalog, ChargeId(1), &OfficeId::from("obispo"), Term::one_year(2026)).is_none());
+        assert!(Charge::from_catalog(&catalog, ChargeId(1), &elder("obispo")).is_none());
     }
 }
