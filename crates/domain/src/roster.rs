@@ -5,8 +5,9 @@
 //!
 //! The roster is never stored. Its history is: one `Recorded` event per
 //! change, and `Roster` replays it. The process is never blocked: a turn
-//! left empty, a preacher filled before the pastor answers or an answer
-//! recorded out of order is a state the queries report, not a refusal.
+//! left empty, a preacher filled before the pastor answers, an answer
+//! recorded out of order or a speaker from outside the district the pastor
+//! has not heard about is a state the queries report, not a refusal.
 //! Only input that names something that does not exist, or a program that
 //! lists one service twice, is refused.
 
@@ -95,8 +96,10 @@ pub struct Role {
 #[ts(export)]
 pub enum RoleKind {
     Normal,
-    /// Needs the pastor's approval, which the elder records.
-    Preaching,
+    /// Who preaches or gives the reflection. With `pastor_approves` the
+    /// elder records the pastor's approval; without it, the elder tells the
+    /// pastor when the speaker comes from outside the district.
+    Pulpit { pastor_approves: bool },
 }
 
 /// The roles offered when a program takes up `service`, for the office to
@@ -105,7 +108,7 @@ pub enum RoleKind {
 pub fn suggested_roles(service: &Service) -> Vec<Role> {
     let roles: &[(&str, RoleKind)] = match service.weekday {
         Weekday::Saturday => &[
-            ("Predicador", RoleKind::Preaching),
+            ("Predicador", RoleKind::Pulpit { pastor_approves: false }),
             ("Anuncios", RoleKind::Normal),
             ("Invocación", RoleKind::Normal),
             ("Lectura bíblica", RoleKind::Normal),
@@ -113,8 +116,7 @@ pub fn suggested_roles(service: &Service) -> Vec<Role> {
             ("Diezmos y ofrendas", RoleKind::Normal),
             ("Música especial", RoleKind::Normal),
         ],
-        Weekday::Sunday => &[("Predicador", RoleKind::Preaching)],
-        Weekday::Wednesday => &[("Meditación", RoleKind::Preaching)],
+        Weekday::Sunday | Weekday::Wednesday => &[("Reflexión", RoleKind::Pulpit { pastor_approves: false })],
         Weekday::Monday | Weekday::Tuesday | Weekday::Thursday | Weekday::Friday => &[],
     };
     roles.iter().map(|&(name, kind)| Role { name: name.into(), kind }).collect()
@@ -157,7 +159,7 @@ impl Period {
     }
 }
 
-/// A preaching role's way to the pulpit: proposed by the elder, sent to the
+/// The way to the pulpit of a role the pastor approves: proposed by the elder, sent to the
 /// pastor with the rest of the month, then his answer as the elder records it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -178,8 +180,13 @@ pub struct Slot {
     /// Added for this service and date only, not in the service's roles.
     pub extra: bool,
     pub filler: Option<Filler>,
-    /// Only ever on a preaching role.
+    /// Only ever on a pulpit role the pastor approves.
     pub approval: Option<PastorApproval>,
+    /// Only ever on a pulpit role the pastor does not approve.
+    pub from_outside_district: bool,
+    /// When the elder told the pastor about a speaker from outside the
+    /// district. Only ever on a pulpit role the pastor does not approve.
+    pub pastor_notified: Option<Date>,
 }
 
 /// A change to the roster. Edits carry the whole new value, so the event
@@ -197,9 +204,18 @@ pub enum RosterEvent {
     /// One turn covers every service of the program in `period`. `None`
     /// leaves the period without anyone.
     AssignTurn { program: ProgramId, period: Period, member: Option<Member> },
-    /// `None` empties the role. Filling a preaching role proposes it again,
-    /// whatever the pastor said about the one before.
-    FillSlot { program: ProgramId, service: ServiceId, date: Date, role: String, filler: Option<Filler> },
+    /// `None` empties the role. Filling a pulpit role proposes it again,
+    /// whatever the pastor said about the one before, and forgets any
+    /// notice to the pastor.
+    FillSlot {
+        program: ProgramId,
+        service: ServiceId,
+        date: Date,
+        role: String,
+        filler: Option<Filler>,
+        #[serde(default)]
+        from_outside_district: bool,
+    },
     AddExtraRole { program: ProgramId, service: ServiceId, date: Date, role: Role },
     /// Every proposed preacher of the month, on every service, goes to the
     /// pastor at once.
@@ -213,6 +229,9 @@ pub enum RosterEvent {
         approved: bool,
         note: Option<String>,
     },
+    /// The elder told the pastor, `on` that date, who comes from outside
+    /// the district to fill the role.
+    NotifyPastor { program: ProgramId, service: ServiceId, date: Date, role: String, on: Date },
 }
 
 /// Who recorded an event.
@@ -238,6 +257,8 @@ pub struct Recorded {
 struct SlotState {
     filler: Option<Filler>,
     approval: Option<PastorApproval>,
+    from_outside_district: bool,
+    pastor_notified: Option<Date>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -329,14 +350,17 @@ impl Roster {
                 };
                 touched.push(Touched::Turn(*program, *period));
             }
-            RosterEvent::FillSlot { program, service, date, role, filler } => {
+            RosterEvent::FillSlot { program, service, date, role, filler, from_outside_district } => {
                 let kind = self.role_kind(*program, service, *date, role)?;
                 if let Some(Filler::Member(Member::Helper(helper))) = filler {
                     self.known_helper(*helper)?;
                 }
                 let slot = self.slots.entry((*program, service.clone(), *date, role.clone())).or_default();
                 slot.filler = filler.clone();
-                slot.approval = (kind == RoleKind::Preaching && filler.is_some()).then_some(PastorApproval::Proposed);
+                slot.approval = (kind == RoleKind::Pulpit { pastor_approves: true } && filler.is_some())
+                    .then_some(PastorApproval::Proposed);
+                slot.from_outside_district = *from_outside_district && filler.is_some();
+                slot.pastor_notified = None;
                 touched.push(Touched::Slot(*program, service.clone(), *date, role.clone()));
             }
             RosterEvent::AddExtraRole { program, service, date, role } => {
@@ -358,8 +382,8 @@ impl Roster {
                 }
             }
             RosterEvent::RecordPastorAnswer { program, service, date, role, approved, note } => {
-                if self.role_kind(*program, service, *date, role)? != RoleKind::Preaching {
-                    return Err(RosterError::NotPreaching { program: *program, role: role.clone() });
+                if self.role_kind(*program, service, *date, role)? == RoleKind::Normal {
+                    return Err(RosterError::NotPulpit { program: *program, role: role.clone() });
                 }
                 let slot = self.slots.entry((*program, service.clone(), *date, role.clone())).or_default();
                 if *approved {
@@ -368,6 +392,12 @@ impl Roster {
                     slot.filler = None;
                     slot.approval = Some(PastorApproval::NotApproved { note: note.clone().unwrap_or_default() });
                 }
+                touched.push(Touched::Slot(*program, service.clone(), *date, role.clone()));
+            }
+            RosterEvent::NotifyPastor { program, service, date, role, on } => {
+                self.role_kind(*program, service, *date, role)?;
+                let slot = self.slots.entry((*program, service.clone(), *date, role.clone())).or_default();
+                slot.pastor_notified = Some(*on);
                 touched.push(Touched::Slot(*program, service.clone(), *date, role.clone()));
             }
         }
@@ -449,11 +479,15 @@ impl Roster {
             .chain(extras)
             .map(|(role, extra)| {
                 let state = self.slots.get(&(program, service.clone(), date, role.name.clone()));
+                let approves = role.kind == RoleKind::Pulpit { pastor_approves: true };
+                let notifies = role.kind == RoleKind::Pulpit { pastor_approves: false };
                 Slot {
                     role: role.clone(),
                     extra,
                     filler: state.and_then(|s| s.filler.clone()),
-                    approval: state.and_then(|s| s.approval.clone()).filter(|_| role.kind == RoleKind::Preaching),
+                    approval: state.and_then(|s| s.approval.clone()).filter(|_| approves),
+                    from_outside_district: state.is_some_and(|s| s.from_outside_district) && notifies,
+                    pastor_notified: state.and_then(|s| s.pastor_notified).filter(|_| notifies),
                 }
             })
             .collect()
@@ -501,10 +535,26 @@ impl Roster {
     ) -> Vec<(ServiceId, Date, Role)> {
         self.window(setup, program, today, window_days)
             .filter(|(_, _, slot)| {
-                slot.role.kind == RoleKind::Preaching
+                slot.role.kind == RoleKind::Pulpit { pastor_approves: true }
                     && slot.filler.is_some()
                     && slot.approval != Some(PastorApproval::Approved)
             })
+            .map(|(service, date, slot)| (service, date, slot.role))
+            .collect()
+    }
+
+    /// Speakers from outside the district filled in the next `window_days`
+    /// on a pulpit the pastor does not approve, whom the elder has not told
+    /// him about: the turn holder's "Para hacer".
+    pub fn pastor_not_notified(
+        &self,
+        setup: &Setup,
+        program: ProgramId,
+        today: Date,
+        window_days: u16,
+    ) -> Vec<(ServiceId, Date, Role)> {
+        self.window(setup, program, today, window_days)
+            .filter(|(_, _, slot)| slot.filler.is_some() && slot.from_outside_district && slot.pastor_notified.is_none())
             .map(|(service, date, slot)| (service, date, slot.role))
             .collect()
     }
@@ -573,7 +623,8 @@ impl Roster {
             | RosterEvent::RecordPastorAnswer { program, service: _, date: _, role: _, approved: _, note: _ } => {
                 runs(program)
             }
-            RosterEvent::FillSlot { program, service: _, date, role: _, filler: _ }
+            RosterEvent::FillSlot { program, service: _, date, role: _, filler: _, from_outside_district: _ }
+            | RosterEvent::NotifyPastor { program, service: _, date, role: _, on: _ }
             | RosterEvent::AddExtraRole { program, service: _, date, role: _ } => in_turn(program, date),
         }
     }
@@ -648,10 +699,12 @@ fn check(setup: &Setup, recorded: &Recorded) -> Result<(), RosterError> {
             date: _,
             role: _,
             filler: Some(Filler::Member(Member::Charge(id))),
+            from_outside_district: _,
         } => charge(*id),
         RosterEvent::EditHelper { helper: _, name: _, email: _, active: _ }
         | RosterEvent::AssignTurn { program: _, period: _, member: _ }
-        | RosterEvent::FillSlot { program: _, service: _, date: _, role: _, filler: _ }
+        | RosterEvent::FillSlot { program: _, service: _, date: _, role: _, filler: _, from_outside_district: _ }
+        | RosterEvent::NotifyPastor { program: _, service: _, date: _, role: _, on: _ }
         | RosterEvent::AddExtraRole { program: _, service: _, date: _, role: _ }
         | RosterEvent::SendToPastor { program: _, year: _, month: _ }
         | RosterEvent::RecordPastorAnswer { program: _, service: _, date: _, role: _, approved: _, note: _ } => Ok(()),
@@ -671,8 +724,8 @@ pub enum RosterError {
     RepeatedService(ServiceId),
     /// Neither in the service's roles nor added for that date.
     UnknownRole { program: ProgramId, service: ServiceId, date: Date, role: String },
-    /// The pastor answers only for preachers.
-    NotPreaching { program: ProgramId, role: String },
+    /// The pastor answers only for a pulpit role.
+    NotPulpit { program: ProgramId, role: String },
 }
 
 impl fmt::Display for RosterError {
@@ -690,8 +743,8 @@ impl fmt::Display for RosterError {
             Self::UnknownRole { program, service, date, role } => {
                 write!(f, "program {} has no role {role} on service {} of {date}", program.0, service.0)
             }
-            Self::NotPreaching { program, role } => {
-                write!(f, "role {role} of program {} is not preaching, so the pastor does not answer for it", program.0)
+            Self::NotPulpit { program, role } => {
+                write!(f, "role {role} of program {} is not a pulpit, so the pastor does not answer for it", program.0)
             }
         }
     }
@@ -715,7 +768,9 @@ mod tests {
     const WEDNESDAY: &str = "culto-de-oracion";
     const YOUTH_SOCIETY: &str = "jovenes";
     const PREACHER: &str = "Predicador";
-    const MEDITATION: &str = "Meditación";
+    const REFLECTION: &str = "Reflexión";
+    const LOCAL: RoleKind = RoleKind::Pulpit { pastor_approves: false };
+    const APPROVED: RoleKind = RoleKind::Pulpit { pastor_approves: true };
     const TODAY: Date = Date { year: 2026, month: Month(11), day: 27 };
 
     fn day(year: u16, month: u8, day: u8) -> Date {
@@ -804,6 +859,20 @@ mod tests {
         fn role_names(&self, program: ProgramId, on: &str, date: Date) -> Vec<String> {
             self.roster.slots_on(program, &service(on), date).into_iter().map(|s| s.role.name).collect()
         }
+
+        /// The first elder edits the elders' roles so the pastor approves
+        /// whoever fills `role` on `on`.
+        fn pastor_approves(&mut self, on: &str, role: &str) {
+            let Program { name, split, mut services, .. } = self.roster.program(ELDERS).unwrap().clone();
+            let listed = services.iter_mut().find(|s| s.service == service(on)).unwrap();
+            listed.roles.iter_mut().find(|r| r.name == role).unwrap().kind = APPROVED;
+            self.by(PEDRO, RosterEvent::EditProgram { program: ELDERS, name, split, services });
+        }
+
+        fn not_notified(&self) -> Vec<(ServiceId, Date, String)> {
+            let pending = self.roster.pastor_not_notified(&self.setup, ELDERS, TODAY, 14);
+            pending.into_iter().map(|(on, date, role)| (on, date, role.name)).collect()
+        }
     }
 
     fn roles(roles: &[(&str, RoleKind)]) -> Vec<Role> {
@@ -827,7 +896,30 @@ mod tests {
     }
 
     fn fill(program: ProgramId, on: &str, date: Date, role: &str, filler: Filler) -> RosterEvent {
-        RosterEvent::FillSlot { program, service: service(on), date, role: role.into(), filler: Some(filler) }
+        RosterEvent::FillSlot {
+            program,
+            service: service(on),
+            date,
+            role: role.into(),
+            filler: Some(filler),
+            from_outside_district: false,
+        }
+    }
+
+    /// An elders' pulpit filled by `name`, who comes from outside the district.
+    fn from_outside(on: &str, date: Date, role: &str, name: &str) -> RosterEvent {
+        RosterEvent::FillSlot {
+            program: ELDERS,
+            service: service(on),
+            date,
+            role: role.into(),
+            filler: Some(guest(name)),
+            from_outside_district: true,
+        }
+    }
+
+    fn notify(on: &str, date: Date, role: &str) -> RosterEvent {
+        RosterEvent::NotifyPastor { program: ELDERS, service: service(on), date, role: role.into(), on: TODAY }
     }
 
     fn guest(name: &str) -> Filler {
@@ -867,7 +959,7 @@ mod tests {
     #[test]
     fn by_date_periods_of_a_sabbath_and_wednesday_program_include_both_weekdays() {
         let mut church = Church::new();
-        let services = vec![listed(SABBATH, &[(PREACHER, RoleKind::Preaching)]), listed(WEDNESDAY, &[(MEDITATION, RoleKind::Preaching)])];
+        let services = vec![listed(SABBATH, &[(PREACHER, LOCAL)]), listed(WEDNESDAY, &[(REFLECTION, LOCAL)])];
         church.by(PEDRO, add_program("anciano", "Predicación", Split::ByDate, services));
         let december = church.roster.periods(&church.setup, ProgramId(3), day(2026, 12, 1), day(2026, 12, 31));
         assert_eq!(december, [2, 5, 9, 12, 16, 19, 23, 26, 30].map(|d| Period::Date(day(2026, 12, d))));
@@ -878,10 +970,12 @@ mod tests {
         let mut church = Church::new();
         church.by(PEDRO, assign(ELDERS, month(2026, 12), Member::Charge(LUIS)));
         for (on, date, role) in
-            [(WEDNESDAY, day(2026, 12, 2), MEDITATION), (SABBATH, day(2026, 12, 5), PREACHER), (SUNDAY, day(2026, 12, 6), PREACHER)]
+            [(WEDNESDAY, day(2026, 12, 2), REFLECTION), (SABBATH, day(2026, 12, 5), PREACHER), (SUNDAY, day(2026, 12, 6), REFLECTION)]
         {
             assert!(church.may(LUIS, &fill(ELDERS, on, date, role, guest("Ana"))), "Luis holds {on} on {date}");
+            assert!(church.may(LUIS, &notify(on, date, role)), "Luis tells the pastor about {on} on {date}");
         }
+        assert!(!church.may(MARTA, &notify(SABBATH, day(2026, 12, 5), PREACHER)), "the youth director holds no elders' turn");
         assert!(!church.may(LUIS, &fill(ELDERS, SABBATH, day(2027, 1, 2), PREACHER, guest("Ana"))), "January is not his");
         let mut open: Vec<_> = church
             .roster
@@ -899,23 +993,23 @@ mod tests {
         let mut church = Church::new();
         let sabbath = church.role_names(ELDERS, SABBATH, day(2026, 12, 5));
         assert_eq!(sabbath.len(), 7);
-        assert_eq!(church.role_names(ELDERS, SUNDAY, day(2026, 12, 6)), [PREACHER]);
-        assert_eq!(church.role_names(ELDERS, WEDNESDAY, day(2026, 12, 2)), [MEDITATION]);
+        assert_eq!(church.role_names(ELDERS, SUNDAY, day(2026, 12, 6)), [REFLECTION]);
+        assert_eq!(church.role_names(ELDERS, WEDNESDAY, day(2026, 12, 2)), [REFLECTION]);
         let Program { name, split, mut services, .. } = church.roster.program(ELDERS).unwrap().clone();
         let wednesday = services.iter_mut().find(|s| s.service == service(WEDNESDAY)).unwrap();
-        wednesday.roles = roles(&[(MEDITATION, RoleKind::Normal), ("Himno", RoleKind::Normal)]);
+        wednesday.roles = roles(&[(REFLECTION, RoleKind::Normal), ("Himno", RoleKind::Normal)]);
         church.by(ELENA, RosterEvent::EditProgram { program: ELDERS, name, split, services });
-        assert_eq!(church.role_names(ELDERS, WEDNESDAY, day(2026, 12, 2)), [MEDITATION, "Himno"]);
-        assert_eq!(church.slot(ELDERS, WEDNESDAY, day(2026, 12, 2), MEDITATION).unwrap().role.kind, RoleKind::Normal);
+        assert_eq!(church.role_names(ELDERS, WEDNESDAY, day(2026, 12, 2)), [REFLECTION, "Himno"]);
+        assert_eq!(church.slot(ELDERS, WEDNESDAY, day(2026, 12, 2), REFLECTION).unwrap().role.kind, RoleKind::Normal);
         assert_eq!(church.role_names(ELDERS, SABBATH, day(2026, 12, 5)), sabbath);
-        assert_eq!(church.role_names(ELDERS, SUNDAY, day(2026, 12, 6)), [PREACHER]);
+        assert_eq!(church.role_names(ELDERS, SUNDAY, day(2026, 12, 6)), [REFLECTION]);
     }
 
     #[test]
-    fn suggested_roles_follow_the_manuals_sabbath_order_and_wednesdays_meditation_needs_the_pastor() {
+    fn suggested_roles_follow_the_manuals_sabbath_order_and_no_pulpit_needs_the_pastor() {
         let mut church = Church::new();
         let sabbath = [
-            (PREACHER, RoleKind::Preaching),
+            (PREACHER, LOCAL),
             ("Anuncios", RoleKind::Normal),
             ("Invocación", RoleKind::Normal),
             ("Lectura bíblica", RoleKind::Normal),
@@ -924,15 +1018,100 @@ mod tests {
             ("Música especial", RoleKind::Normal),
         ];
         assert_eq!(suggested_roles(church.service(SABBATH)), roles(&sabbath));
-        assert_eq!(suggested_roles(church.service(SUNDAY)), roles(&[(PREACHER, RoleKind::Preaching)]));
-        assert_eq!(suggested_roles(church.service(WEDNESDAY)), roles(&[(MEDITATION, RoleKind::Preaching)]));
+        assert_eq!(suggested_roles(church.service(SUNDAY)), roles(&[(REFLECTION, LOCAL)]));
+        assert_eq!(suggested_roles(church.service(WEDNESDAY)), roles(&[(REFLECTION, LOCAL)]));
         let friday = Service { weekday: Weekday::Friday, ..church.service(SABBATH).clone() };
         assert_eq!(suggested_roles(&friday), []);
 
-        church.by(ELENA, fill(ELDERS, WEDNESDAY, day(2026, 12, 2), MEDITATION, guest("Hna. Pérez")));
-        assert_eq!(church.approval(ELDERS, WEDNESDAY, day(2026, 12, 2), MEDITATION), Some(PastorApproval::Proposed));
+        for (on, date, role) in
+            [(WEDNESDAY, day(2026, 12, 2), REFLECTION), (SABBATH, day(2026, 12, 5), PREACHER), (SUNDAY, day(2026, 12, 6), REFLECTION)]
+        {
+            church.by(ELENA, fill(ELDERS, on, date, role, guest("Hna. Pérez")));
+            assert_eq!(church.approval(ELDERS, on, date, role), None, "{on}");
+        }
+        assert_eq!(church.roster.without_approval(&church.setup, ELDERS, TODAY, 14), []);
+    }
+
+    #[test]
+    fn an_outside_speaker_without_notice_is_pending_on_every_service_until_the_pastor_is_told() {
+        let mut church = Church::new();
+        let filled = [(WEDNESDAY, day(2026, 12, 2), REFLECTION), (SABBATH, day(2026, 12, 5), PREACHER), (SUNDAY, day(2026, 12, 6), REFLECTION)];
+        for (on, date, role) in filled {
+            church.by(ELENA, from_outside(on, date, role, "Pr. Gómez"));
+        }
+        let pending = filled.map(|(on, date, role)| (service(on), date, role.to_owned()));
+        assert_eq!(church.not_notified(), pending);
+        church.by(ELENA, notify(SUNDAY, day(2026, 12, 6), REFLECTION));
+        assert_eq!(church.not_notified(), pending[..2]);
+        assert_eq!(church.slot(ELDERS, SUNDAY, day(2026, 12, 6), REFLECTION).unwrap().pastor_notified, Some(TODAY));
+    }
+
+    #[test]
+    fn refilling_a_notified_pulpit_makes_it_pending_again() {
+        let mut church = Church::new();
+        let dec6 = day(2026, 12, 6);
+        church.by(ELENA, from_outside(SUNDAY, dec6, REFLECTION, "Pr. Gómez"));
+        church.by(ELENA, notify(SUNDAY, dec6, REFLECTION));
+        assert_eq!(church.not_notified(), []);
+        church.by(ELENA, from_outside(SUNDAY, dec6, REFLECTION, "Pr. Ruiz"));
+        assert_eq!(church.not_notified(), [(service(SUNDAY), dec6, REFLECTION.to_owned())]);
+        assert_eq!(church.slot(ELDERS, SUNDAY, dec6, REFLECTION).unwrap().pastor_notified, None);
+    }
+
+    #[test]
+    fn a_local_speaker_is_never_pending() {
+        let mut church = Church::new();
+        church.by(ELENA, from_outside(WEDNESDAY, day(2026, 12, 2), REFLECTION, "Pr. Gómez"));
+        church.by(ELENA, fill(ELDERS, WEDNESDAY, day(2026, 12, 2), REFLECTION, Filler::Member(Member::Charge(ELENA))));
+        church.by(ELENA, fill(ELDERS, SABBATH, day(2026, 12, 5), PREACHER, guest("Hno. Díaz")));
+        assert_eq!(church.not_notified(), []);
+        assert!(!church.slot(ELDERS, WEDNESDAY, day(2026, 12, 2), REFLECTION).unwrap().from_outside_district);
+    }
+
+    #[test]
+    fn emptying_an_outside_speakers_pulpit_leaves_nothing_pending() {
+        let mut church = Church::new();
+        church.by(ELENA, from_outside(SUNDAY, day(2026, 12, 6), REFLECTION, "Pr. Gómez"));
+        let empty = RosterEvent::FillSlot {
+            program: ELDERS,
+            service: service(SUNDAY),
+            date: day(2026, 12, 6),
+            role: REFLECTION.into(),
+            filler: None,
+            from_outside_district: true,
+        };
+        church.by(ELENA, empty);
+        assert_eq!(church.not_notified(), []);
+    }
+
+    #[test]
+    fn an_elder_turns_the_pastors_approval_on_for_wednesday_by_editing_the_roles() {
+        let mut church = Church::new();
+        church.pastor_approves(WEDNESDAY, REFLECTION);
+        church.by(ELENA, from_outside(WEDNESDAY, day(2026, 12, 2), REFLECTION, "Pr. Gómez"));
+        assert_eq!(church.approval(ELDERS, WEDNESDAY, day(2026, 12, 2), REFLECTION), Some(PastorApproval::Proposed));
         let pending = church.roster.without_approval(&church.setup, ELDERS, TODAY, 14);
-        assert_eq!(pending, [(service(WEDNESDAY), day(2026, 12, 2), Role { name: MEDITATION.into(), kind: RoleKind::Preaching })]);
+        assert_eq!(pending, [(service(WEDNESDAY), day(2026, 12, 2), Role { name: REFLECTION.into(), kind: APPROVED })]);
+        assert_eq!(church.not_notified(), [], "the pastor's approval covers the outside speaker");
+    }
+
+    #[test]
+    fn a_notice_about_a_preacher_the_pastor_approves_is_accepted_and_kept_in_the_history() {
+        let mut church = Church::new();
+        church.pastor_approves(SABBATH, PREACHER);
+        let dec5 = day(2026, 12, 5);
+        church.by(ELENA, from_outside(SABBATH, dec5, PREACHER, "Pr. Gómez"));
+        assert_eq!(church.record(Actor::Charge(ELENA), notify(SABBATH, dec5, PREACHER)), Ok(()));
+        let history: Vec<&RosterEvent> = church.roster.history(ELDERS, &service(SABBATH), dec5, PREACHER).into_iter().map(|r| &r.event).collect();
+        assert_eq!(history, [&from_outside(SABBATH, dec5, PREACHER, "Pr. Gómez"), &notify(SABBATH, dec5, PREACHER)]);
+        assert_eq!(church.approval(ELDERS, SABBATH, dec5, PREACHER), Some(PastorApproval::Proposed));
+    }
+
+    #[test]
+    fn a_fill_stored_before_the_district_rule_reads_as_a_local_speaker() {
+        let stored = r#"{"kind":"fill_slot","program":1,"service":"culto-de-la-noche","date":"2026-12-06","role":"Reflexión","filler":{"name":"Pr. Gómez"}}"#;
+        let event: RosterEvent = serde_json::from_str(stored).unwrap();
+        assert_eq!(event, fill(ELDERS, SUNDAY, day(2026, 12, 6), REFLECTION, guest("Pr. Gómez")));
     }
 
     #[test]
@@ -946,8 +1125,9 @@ mod tests {
     }
 
     #[test]
-    fn filling_a_preaching_role_proposes_it() {
+    fn filling_a_preacher_the_pastor_approves_proposes_it() {
         let mut church = Church::new();
+        church.pastor_approves(SABBATH, PREACHER);
         church.by(ELENA, fill(ELDERS, SABBATH, day(2026, 12, 5), PREACHER, guest("Pr. Gómez")));
         assert_eq!(church.approval(ELDERS, SABBATH, day(2026, 12, 5), PREACHER), Some(PastorApproval::Proposed));
     }
@@ -955,10 +1135,13 @@ mod tests {
     #[test]
     fn sending_the_month_moves_only_that_months_proposed_slots_on_every_service() {
         let mut church = Church::new();
+        church.pastor_approves(SABBATH, PREACHER);
+        church.pastor_approves(WEDNESDAY, REFLECTION);
         for date in [day(2026, 12, 5), day(2026, 12, 12), day(2027, 1, 2)] {
             church.by(ELENA, fill(ELDERS, SABBATH, date, PREACHER, guest("Pr. Gómez")));
         }
-        church.by(ELENA, fill(ELDERS, WEDNESDAY, day(2026, 12, 9), MEDITATION, guest("Hna. Pérez")));
+        church.by(ELENA, fill(ELDERS, WEDNESDAY, day(2026, 12, 9), REFLECTION, guest("Hna. Pérez")));
+        church.by(ELENA, fill(ELDERS, SUNDAY, day(2026, 12, 6), REFLECTION, guest("Hna. Pérez")));
         church.by(ELENA, answer(day(2026, 12, 12), true, None));
         church.by(PEDRO, send(2026, 12));
         let states = [day(2026, 12, 5), day(2026, 12, 12), day(2027, 1, 2)].map(|d| church.approval(ELDERS, SABBATH, d, PREACHER));
@@ -966,12 +1149,14 @@ mod tests {
             states,
             [Some(PastorApproval::WithPastor), Some(PastorApproval::Approved), Some(PastorApproval::Proposed)]
         );
-        assert_eq!(church.approval(ELDERS, WEDNESDAY, day(2026, 12, 9), MEDITATION), Some(PastorApproval::WithPastor));
+        assert_eq!(church.approval(ELDERS, WEDNESDAY, day(2026, 12, 9), REFLECTION), Some(PastorApproval::WithPastor));
+        assert_eq!(church.approval(ELDERS, SUNDAY, day(2026, 12, 6), REFLECTION), None, "Sunday needs no approval");
     }
 
     #[test]
     fn a_not_approved_answer_empties_the_slot_and_keeps_the_note() {
         let mut church = Church::new();
+        church.pastor_approves(SABBATH, PREACHER);
         church.by(ELENA, fill(ELDERS, SABBATH, day(2026, 12, 5), PREACHER, guest("Pr. Gómez")));
         church.by(ELENA, send(2026, 12));
         church.by(ELENA, answer(day(2026, 12, 5), false, Some("Ya predicó en noviembre")));
@@ -983,6 +1168,7 @@ mod tests {
     #[test]
     fn an_answer_recorded_without_sending_is_accepted() {
         let mut church = Church::new();
+        church.pastor_approves(SABBATH, PREACHER);
         church.by(ELENA, fill(ELDERS, SABBATH, day(2026, 12, 5), PREACHER, guest("Pr. Gómez")));
         assert_eq!(church.record(Actor::Charge(ELENA), answer(day(2026, 12, 5), true, None)), Ok(()));
         assert_eq!(church.approval(ELDERS, SABBATH, day(2026, 12, 5), PREACHER), Some(PastorApproval::Approved));
@@ -991,6 +1177,7 @@ mod tests {
     #[test]
     fn filling_a_preacher_while_with_the_pastor_is_accepted_and_proposes_again() {
         let mut church = Church::new();
+        church.pastor_approves(SABBATH, PREACHER);
         church.by(ELENA, fill(ELDERS, SABBATH, day(2026, 12, 5), PREACHER, guest("Pr. Gómez")));
         church.by(ELENA, send(2026, 12));
         let refill = fill(ELDERS, SABBATH, day(2026, 12, 5), PREACHER, guest("Pr. Ruiz"));
@@ -1001,9 +1188,10 @@ mod tests {
     #[test]
     fn a_filled_preacher_reads_as_without_approval_until_the_pastor_approves() {
         let mut church = Church::new();
+        church.pastor_approves(SABBATH, PREACHER);
         church.by(ELENA, fill(ELDERS, SABBATH, day(2026, 12, 5), PREACHER, guest("Pr. Gómez")));
         let pending = |church: &Church| church.roster.without_approval(&church.setup, ELDERS, TODAY, 14);
-        let preacher = Role { name: PREACHER.into(), kind: RoleKind::Preaching };
+        let preacher = Role { name: PREACHER.into(), kind: APPROVED };
         assert_eq!(pending(&church), [(service(SABBATH), day(2026, 12, 5), preacher)]);
         church.by(ELENA, answer(day(2026, 12, 5), true, None));
         assert_eq!(pending(&church), []);
@@ -1124,7 +1312,9 @@ mod tests {
         church.by(MARTA, RosterEvent::AddHelper { office: "ministerio-joven".into(), name: " Rosa ".into(), email: rosa });
         church.by(ELENA, assign(ELDERS, month(2026, 12), Member::Charge(ELENA)));
         church.by(ELENA, fill(ELDERS, SABBATH, day(2026, 12, 5), PREACHER, guest("Pr. Gómez")));
-        church.by(ELENA, fill(ELDERS, WEDNESDAY, day(2026, 12, 2), MEDITATION, guest("Hna. Pérez")));
+        church.pastor_approves(SABBATH, PREACHER);
+        church.by(ELENA, from_outside(WEDNESDAY, day(2026, 12, 2), REFLECTION, "Hna. Pérez"));
+        church.by(ELENA, notify(WEDNESDAY, day(2026, 12, 2), REFLECTION));
         church.by(ELENA, send(2026, 12));
         church.by(ELENA, answer(day(2026, 12, 5), false, Some("Otra fecha")));
         church.by(MARTA, assign(YOUTH, Period::Date(day(2026, 12, 12)), Member::Helper(HelperId(1))));
@@ -1140,8 +1330,9 @@ mod tests {
         let dec5 = day(2026, 12, 5);
         church.by(ELENA, fill(ELDERS, SABBATH, dec5, PREACHER, guest("Pr. Gómez")));
         church.by(ELENA, fill(ELDERS, SABBATH, day(2026, 12, 12), PREACHER, guest("Pr. Ruiz")));
-        church.by(ELENA, fill(ELDERS, SUNDAY, day(2026, 12, 6), PREACHER, guest("Pr. Ruiz")));
+        church.by(ELENA, fill(ELDERS, SUNDAY, day(2026, 12, 6), REFLECTION, guest("Pr. Ruiz")));
         church.by(PEDRO, fill(ELDERS, SABBATH, dec5, PREACHER, Filler::Member(Member::Charge(ELENA))));
+        church.by(ELENA, notify(SABBATH, dec5, PREACHER));
         church.by(PEDRO, send(2026, 12));
         let history: Vec<(Actor, &RosterEvent)> =
             church.roster.history(ELDERS, &service(SABBATH), dec5, PREACHER).into_iter().map(|r| (r.by, &r.event)).collect();
@@ -1150,7 +1341,7 @@ mod tests {
             [
                 (Actor::Charge(ELENA), &fill(ELDERS, SABBATH, dec5, PREACHER, guest("Pr. Gómez"))),
                 (Actor::Charge(PEDRO), &fill(ELDERS, SABBATH, dec5, PREACHER, Filler::Member(Member::Charge(ELENA)))),
-                (Actor::Charge(PEDRO), &send(2026, 12)),
+                (Actor::Charge(ELENA), &notify(SABBATH, dec5, PREACHER)),
             ]
         );
     }
