@@ -32,7 +32,8 @@
   --rule: #c5d3bf;
   --ink: #1d2742;
   --ink-soft: #56607a;
-  --margin: #c0473d;
+  --margin: #b23f36;
+  --on-margin: #f8faf5;
   --stamp: #5b3a8e;
   --stamp-deep: #3f2766;
   --on-stamp: #f8faf5;
@@ -44,15 +45,16 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #12161f;
-    --sheet: #1a202b;
-    --rule: #2c3646;
-    --ink: #e4e8f0;
-    --ink-soft: #a2aabd;
-    --margin: #d7675c;
-    --stamp: #b49ae6;
-    --stamp-deep: #cdbbf0;
-    --on-stamp: #12161f;
+    --paper: #111712;
+    --sheet: #182019;
+    --rule: #3a4a3e;
+    --ink: #e3e8e0;
+    --ink-soft: #a3ae9f;
+    --margin: #e8806f;
+    --on-margin: #111712;
+    --stamp: #bba3ee;
+    --stamp-deep: #d3c2f7;
+    --on-stamp: #111712;
     color-scheme: dark;
   }
 }
@@ -883,7 +885,7 @@ details.unused summary {
 }
 .toast.error {
   background: var(--margin);
-  color: #fff;
+  color: var(--on-margin);
 }
 
 [hidden] {
