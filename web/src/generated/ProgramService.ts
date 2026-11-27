@@ -5,4 +5,8 @@ import type { ServiceId } from "./ServiceId";
 /**
  * A service of a program and the roles filled on each of its dates.
  */
-export type ProgramService = { service: ServiceId, roles: Array<Role>, };
+export type ProgramService = { service: ServiceId, roles: Array<Role>, 
+/**
+ * Keeps a list of what is sung on each date ("qué se canta").
+ */
+songs: boolean, };
