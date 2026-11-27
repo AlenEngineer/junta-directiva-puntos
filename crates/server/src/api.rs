@@ -337,6 +337,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_business_meeting_moves_the_start_of_the_church_year() {
+        let app = app_with("sqlite::memory:").await;
+        assert_eq!(call(&app, Method::GET, "/api/setup", None).await.1["year_starts"], 1);
+        let october = vote(1, "business_meeting", json!({ "year_starts": 10 }));
+        assert_eq!(call(&app, Method::POST, "/api/setup/history", october).await.0, StatusCode::CREATED);
+        assert_eq!(call(&app, Method::GET, "/api/setup", None).await.1["year_starts"], 10);
+        let thirteenth = vote(2, "business_meeting", json!({ "year_starts": 13 }));
+        assert_eq!(call(&app, Method::POST, "/api/setup/history", thirteenth).await.0, StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
     async fn a_hidden_office_is_restored_by_a_later_vote() {
         let app = app_with("sqlite::memory:").await;
         let hide = json!({ "catalog": { "hide": ["club-de-aventureros"] } });
