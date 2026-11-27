@@ -7,9 +7,10 @@
 //! change, and `Roster` replays it. The process is never blocked: a turn
 //! left empty, a preacher filled before the pastor answers, an answer
 //! recorded out of order or a speaker from outside the district the pastor
-//! has not heard about is a state the queries report, not a refusal.
-//! Only input that names something that does not exist, or a program that
-//! lists one service twice, is refused.
+//! has not heard about is a state the queries report, not a refusal, and so
+//! is a role two programs both assign, or songs written for a service that
+//! keeps no song list. Only input that names something that does not exist,
+//! or a program that lists one service twice, is refused.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -18,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::catalog::OfficeId;
-use crate::schedule::{Service, ServiceId, Weekday};
+use crate::schedule::{Service, ServiceId, ServiceKind};
 use crate::setup::Setup;
 use crate::{Charge, ChargeId, Date, Month, church_year, normalize_email};
 
@@ -72,6 +73,9 @@ impl Program {
 pub struct ProgramService {
     pub service: ServiceId,
     pub roles: Vec<Role>,
+    /// Keeps a list of what is sung on each date ("qué se canta").
+    #[serde(default)]
+    pub songs: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -102,23 +106,97 @@ pub enum RoleKind {
     Pulpit { pastor_approves: bool },
 }
 
-/// The roles offered when a program takes up `service`, for the office to
-/// edit; nobody leads by role, the turn's holder does. The Sabbath list is
-/// the order of worship in the Church Manual, p. 229.
-pub fn suggested_roles(service: &Service) -> Vec<Role> {
-    let roles: &[(&str, RoleKind)] = match service.weekday {
-        Weekday::Saturday => &[
-            ("Predicador", RoleKind::Pulpit { pastor_approves: false }),
-            ("Anuncios", RoleKind::Normal),
-            ("Invocación", RoleKind::Normal),
-            ("Lectura bíblica", RoleKind::Normal),
-            ("Oración", RoleKind::Normal),
-            ("Diezmos y ofrendas", RoleKind::Normal),
-            ("Música especial", RoleKind::Normal),
-        ],
-        Weekday::Sunday | Weekday::Wednesday => &[("Reflexión", RoleKind::Pulpit { pastor_approves: false })],
-        Weekday::Monday | Weekday::Tuesday | Weekday::Thursday | Weekday::Friday => &[],
-    };
+/// A program Mayordomo offers an office to start from. It is only a
+/// suggestion: the office edits the program it adds, and `apply` never
+/// reads a template.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgramTemplate {
+    pub name: String,
+    pub office: OfficeId,
+    pub split: Split,
+    pub services: Vec<TemplateService>,
+}
+
+/// The roles a template gives each of the church's services of `kind`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TemplateService {
+    pub kind: ServiceKind,
+    pub roles: Vec<Role>,
+    pub songs: bool,
+}
+
+/// Singers each service of the singing template starts with.
+pub const DEFAULT_SINGERS: u8 = 3;
+
+impl ProgramTemplate {
+    /// The program this template makes on the church's `services`: each
+    /// service whose kind the template covers, in the template's order. A
+    /// kind the church holds no service of is left out.
+    pub fn add_program(&self, services: &[Service]) -> RosterEvent {
+        let services = self
+            .services
+            .iter()
+            .flat_map(|t| {
+                services.iter().filter(move |s| s.kind == t.kind).map(move |s| ProgramService {
+                    service: s.id.clone(),
+                    roles: t.roles.clone(),
+                    songs: t.songs,
+                })
+            })
+            .collect();
+        RosterEvent::AddProgram { office: self.office.clone(), name: self.name.clone(), split: self.split, services }
+    }
+}
+
+/// The programs offered to start from. Nobody leads by role, the turn's
+/// holder does. The elders' divine service follows the order of worship in
+/// the Church Manual, p. 229; its "Música especial" is the elder's to choose.
+pub fn templates() -> Vec<ProgramTemplate> {
+    let speaker = RoleKind::Pulpit { pastor_approves: false };
+    let reflection = || roles(&[("Reflexión", speaker)]);
+    let divine_service = roles(&[
+        ("Predicador", speaker),
+        ("Anuncios", RoleKind::Normal),
+        ("Invocación", RoleKind::Normal),
+        ("Lectura bíblica", RoleKind::Normal),
+        ("Oración", RoleKind::Normal),
+        ("Diezmos y ofrendas", RoleKind::Normal),
+        ("Música especial", RoleKind::Normal),
+    ]);
+    let on = |kind, roles, songs| TemplateService { kind, roles, songs };
+    let sing = |kind, songs| on(kind, singers(DEFAULT_SINGERS), songs);
+    vec![
+        ProgramTemplate {
+            name: "Cultos del anciano".into(),
+            office: "anciano".into(),
+            split: Split::ByMonth,
+            services: vec![
+                on(ServiceKind::DivineService, divine_service, false),
+                on(ServiceKind::SundayNight, reflection(), false),
+                on(ServiceKind::PrayerMeeting, reflection(), false),
+            ],
+        },
+        ProgramTemplate {
+            name: "Servicio de canto".into(),
+            office: "musica".into(),
+            split: Split::ByMonth,
+            services: vec![
+                sing(ServiceKind::SabbathSchool, true),
+                sing(ServiceKind::DivineService, false),
+                sing(ServiceKind::SundayNight, false),
+                sing(ServiceKind::PrayerMeeting, false),
+            ],
+        },
+    ]
+}
+
+/// "Cantante 1" through "Cantante `n`". The head changes how many sing on a
+/// service by editing its roles.
+pub fn singers(n: u8) -> Vec<Role> {
+    (1..=n).map(|i| Role { name: format!("Cantante {i}"), kind: RoleKind::Normal }).collect()
+}
+
+fn roles(roles: &[(&str, RoleKind)]) -> Vec<Role> {
     roles.iter().map(|&(name, kind)| Role { name: name.into(), kind }).collect()
 }
 
@@ -232,6 +310,9 @@ pub enum RosterEvent {
     /// The elder told the pastor, `on` that date, who comes from outside
     /// the district to fill the role.
     NotifyPastor { program: ProgramId, service: ServiceId, date: Date, role: String, on: Date },
+    /// What is sung on the service that date, replacing the list before;
+    /// an empty list clears it.
+    SetSongs { program: ProgramId, service: ServiceId, date: Date, songs: Vec<String> },
 }
 
 /// Who recorded an event.
@@ -265,6 +346,7 @@ struct SlotState {
 enum Touched {
     Turn(ProgramId, Period),
     Slot(ProgramId, ServiceId, Date, String),
+    Songs(ProgramId, ServiceId, Date),
 }
 
 /// The roster a history adds up to.
@@ -276,6 +358,7 @@ pub struct Roster {
     turns: BTreeMap<(ProgramId, Period), Member>,
     slots: BTreeMap<(ProgramId, ServiceId, Date, String), SlotState>,
     extras: BTreeMap<(ProgramId, ServiceId, Date), Vec<Role>>,
+    songs: BTreeMap<(ProgramId, ServiceId, Date), Vec<String>>,
     log: Vec<Recorded>,
     /// For each turn and slot, the positions in `log` that changed it.
     touched: BTreeMap<Touched, Vec<usize>>,
@@ -399,6 +482,17 @@ impl Roster {
                 let slot = self.slots.entry((*program, service.clone(), *date, role.clone())).or_default();
                 slot.pastor_notified = Some(*on);
                 touched.push(Touched::Slot(*program, service.clone(), *date, role.clone()));
+            }
+            RosterEvent::SetSongs { program, service, date, songs } => {
+                self.service_roles(*program, service)?;
+                let songs: Vec<String> =
+                    songs.iter().map(|s| s.trim()).filter(|s| !s.is_empty()).map(str::to_owned).collect();
+                let key = (*program, service.clone(), *date);
+                match songs.is_empty() {
+                    true => self.songs.remove(&key),
+                    false => self.songs.insert(key, songs),
+                };
+                touched.push(Touched::Songs(*program, service.clone(), *date));
             }
         }
         let at = self.log.len();
@@ -587,6 +681,41 @@ impl Roster {
         self.recorded(&Touched::Turn(program, *period))
     }
 
+    /// What is sung on `service` that date, in order. Read whether or not
+    /// the service keeps a song list now, so nothing recorded is hidden.
+    pub fn songs_on(&self, program: ProgramId, service: &ServiceId, date: Date) -> &[String] {
+        self.songs.get(&(program, service.clone(), date)).map_or(&[], Vec::as_slice)
+    }
+
+    /// Every event that changed the songs of this service on this date,
+    /// oldest first.
+    pub fn songs_history(&self, program: ProgramId, service: &ServiceId, date: Date) -> Vec<&Recorded> {
+        self.recorded(&Touched::Songs(program, service.clone(), date))
+    }
+
+    /// Each role, by service and name, that more than one program assigns,
+    /// with those programs in order, such as a "Música especial" both the
+    /// elders and Sabbath School list on the divine service. Reported for
+    /// the offices to settle, never refused.
+    pub fn shared_roles(&self) -> Vec<(ServiceId, String, Vec<ProgramId>)> {
+        let mut assigners: BTreeMap<(ServiceId, String), Vec<ProgramId>> = BTreeMap::new();
+        for program in &self.programs {
+            for listed in &program.services {
+                for role in &listed.roles {
+                    let by = assigners.entry((listed.service.clone(), role.name.clone())).or_default();
+                    if !by.contains(&program.id) {
+                        by.push(program.id);
+                    }
+                }
+            }
+        }
+        assigners
+            .into_iter()
+            .filter(|(_, by)| by.len() > 1)
+            .map(|((service, role), by)| (service, role, by))
+            .collect()
+    }
+
     fn recorded(&self, key: &Touched) -> Vec<&Recorded> {
         self.touched.get(key).into_iter().flatten().map(|&at| &self.log[at]).collect()
     }
@@ -595,8 +724,9 @@ impl Roster {
     /// record anything. A charge serving today in the office that owns the
     /// work, or in a variant of it such as first elder for the elders, may
     /// record anything about it. Whoever holds a turn may also fill its
-    /// roles and add roles to its dates. A charge that does not serve today
-    /// may record nothing. This function is the whole rule.
+    /// roles, add roles to its dates and write its songs. A charge that
+    /// does not serve today may record nothing. This function is the whole
+    /// rule.
     pub fn may_record(&self, setup: &Setup, today: Date, actor: &Actor, event: &RosterEvent) -> bool {
         let id = match actor {
             Actor::Developer => return true,
@@ -625,7 +755,8 @@ impl Roster {
             }
             RosterEvent::FillSlot { program, service: _, date, role: _, filler: _, from_outside_district: _ }
             | RosterEvent::NotifyPastor { program, service: _, date, role: _, on: _ }
-            | RosterEvent::AddExtraRole { program, service: _, date, role: _ } => in_turn(program, date),
+            | RosterEvent::AddExtraRole { program, service: _, date, role: _ }
+            | RosterEvent::SetSongs { program, service: _, date, songs: _ } => in_turn(program, date),
         }
     }
 }
@@ -706,6 +837,7 @@ fn check(setup: &Setup, recorded: &Recorded) -> Result<(), RosterError> {
         | RosterEvent::FillSlot { program: _, service: _, date: _, role: _, filler: _, from_outside_district: _ }
         | RosterEvent::NotifyPastor { program: _, service: _, date: _, role: _, on: _ }
         | RosterEvent::AddExtraRole { program: _, service: _, date: _, role: _ }
+        | RosterEvent::SetSongs { program: _, service: _, date: _, songs: _ }
         | RosterEvent::SendToPastor { program: _, year: _, month: _ }
         | RosterEvent::RecordPastorAnswer { program: _, service: _, date: _, role: _, approved: _, note: _ } => Ok(()),
     }
@@ -761,8 +893,13 @@ mod tests {
     const LUIS: ChargeId = ChargeId(3);
     const MARTA: ChargeId = ChargeId(4);
     const JUAN: ChargeId = ChargeId(5);
+    const DANIEL: ChargeId = ChargeId(6);
+    const RUT: ChargeId = ChargeId(7);
     const ELDERS: ProgramId = ProgramId(1);
     const YOUTH: ProgramId = ProgramId(2);
+    /// The next program a test adds.
+    const NEXT: ProgramId = ProgramId(3);
+    const SABBATH_SCHOOL: &str = "escuela-sabatica";
     const SABBATH: &str = "culto-divino";
     const SUNDAY: &str = "culto-de-la-noche";
     const WEDNESDAY: &str = "culto-de-oracion";
@@ -781,8 +918,9 @@ mod tests {
         ServiceId::from(id)
     }
 
-    /// An elder, the first elder, the treasurer, the youth director and the
-    /// head deacon, with the elders' three services and the youth society.
+    /// An elder, the first elder, the treasurer, the youth director, the
+    /// head deacon, the music coordinator and the Sabbath School director,
+    /// with Sabbath School, the elders' three services and the youth society.
     fn setup() -> Setup {
         let held = |office: &str, name: &str| NewCharge {
             office: OfficeId::from(office),
@@ -790,10 +928,11 @@ mod tests {
             term: Term::one_year(2026),
         };
         let places = r#"[{"id":"templo","name":"Templo","kind":"own"}]"#;
-        let services = r#"[{"id":"culto-divino","name":"Culto divino","weekday":"saturday","time":"11:00","place":"templo"},
-                           {"id":"culto-de-la-noche","name":"Culto de la noche","weekday":"sunday","time":"19:00","place":"templo"},
-                           {"id":"culto-de-oracion","name":"Culto de oración","weekday":"wednesday","time":"19:00","place":"templo"},
-                           {"id":"jovenes","name":"Sociedad de Jóvenes","weekday":"saturday","time":"15:30","place":"templo"}]"#;
+        let services = r#"[{"id":"escuela-sabatica","name":"Escuela Sabática","kind":"sabbath_school","weekday":"saturday","time":"09:00","place":"templo"},
+                           {"id":"culto-divino","name":"Culto divino","kind":"divine_service","weekday":"saturday","time":"11:00","place":"templo"},
+                           {"id":"culto-de-la-noche","name":"Culto de la noche","kind":"sunday_night","weekday":"sunday","time":"19:00","place":"templo"},
+                           {"id":"culto-de-oracion","name":"Culto de oración","kind":"prayer_meeting","weekday":"wednesday","time":"19:00","place":"templo"},
+                           {"id":"jovenes","name":"Sociedad de Jóvenes","kind":"youth_society","weekday":"saturday","time":"15:30","place":"templo"}]"#;
         Setup::initial(&Change {
             church: Some("Iglesia".into()),
             places: Some(serde_json::from_str(places).unwrap()),
@@ -804,6 +943,8 @@ mod tests {
                 held("tesorero", "Luis"),
                 held("ministerio-joven", "Marta"),
                 held("jefe-de-diaconos", "Juan"),
+                held("musica", "Daniel"),
+                held("escuela-sabatica", "Rut"),
             ],
             ..Change::default()
         })
@@ -817,20 +958,15 @@ mod tests {
     }
 
     impl Church {
-        /// With the elders' services by month, each with its suggested
-        /// roles, and the youth society by Sabbath.
+        /// With the elders' program from its template, and the youth
+        /// society by Sabbath.
         fn new() -> Self {
             let mut church = Self { setup: setup(), roster: Roster::default(), events: Vec::new() };
-            let elders = [SABBATH, SUNDAY, WEDNESDAY]
-                .map(|id| ProgramService { service: service(id), roles: suggested_roles(church.service(id)) });
-            church.by(PEDRO, add_program("anciano", "Cultos del anciano", Split::ByMonth, elders.into()));
+            let elders = template("anciano").add_program(church.setup.services());
+            church.by(PEDRO, elders);
             let youth = listed(YOUTH_SOCIETY, &[("Bienvenida", RoleKind::Normal), ("Himno especial", RoleKind::Normal)]);
             church.by(MARTA, add_program("ministerio-joven", "Sociedad de Jóvenes", Split::ByDate, vec![youth]));
             church
-        }
-
-        fn service(&self, id: &str) -> &Service {
-            self.setup.services().iter().find(|s| s.id == service(id)).unwrap()
         }
 
         fn record(&mut self, by: Actor, event: RosterEvent) -> Result<(), RosterError> {
@@ -880,7 +1016,24 @@ mod tests {
     }
 
     fn listed(on: &str, with: &[(&str, RoleKind)]) -> ProgramService {
-        ProgramService { service: service(on), roles: roles(with) }
+        ProgramService { service: service(on), roles: roles(with), songs: false }
+    }
+
+    fn template(office: &str) -> ProgramTemplate {
+        templates().into_iter().find(|t| t.office == OfficeId::from(office)).unwrap()
+    }
+
+    fn set_songs(program: ProgramId, on: &str, date: Date, songs: &[&str]) -> RosterEvent {
+        RosterEvent::SetSongs { program, service: service(on), date, songs: songs.iter().map(|&s| s.into()).collect() }
+    }
+
+    /// The program's services as (service, role names, keeps songs).
+    fn shape(program: &Program) -> Vec<(&str, Vec<&str>, bool)> {
+        program
+            .services
+            .iter()
+            .map(|s| (s.service.0.as_str(), s.roles.iter().map(|r| r.name.as_str()).collect(), s.songs))
+            .collect()
     }
 
     fn add_program(office: &str, name: &str, split: Split, services: Vec<ProgramService>) -> RosterEvent {
@@ -1006,7 +1159,7 @@ mod tests {
     }
 
     #[test]
-    fn suggested_roles_follow_the_manuals_sabbath_order_and_no_pulpit_needs_the_pastor() {
+    fn the_elders_template_follows_the_manuals_order_of_worship_and_no_pulpit_needs_the_pastor() {
         let mut church = Church::new();
         let sabbath = [
             (PREACHER, LOCAL),
@@ -1017,11 +1170,17 @@ mod tests {
             ("Diezmos y ofrendas", RoleKind::Normal),
             ("Música especial", RoleKind::Normal),
         ];
-        assert_eq!(suggested_roles(church.service(SABBATH)), roles(&sabbath));
-        assert_eq!(suggested_roles(church.service(SUNDAY)), roles(&[(REFLECTION, LOCAL)]));
-        assert_eq!(suggested_roles(church.service(WEDNESDAY)), roles(&[(REFLECTION, LOCAL)]));
-        let friday = Service { weekday: Weekday::Friday, ..church.service(SABBATH).clone() };
-        assert_eq!(suggested_roles(&friday), []);
+        let elders = church.roster.program(ELDERS).unwrap();
+        assert_eq!((elders.office.0.as_str(), elders.split), ("anciano", Split::ByMonth));
+        assert_eq!(
+            elders.services,
+            [
+                ProgramService { service: service(SABBATH), roles: roles(&sabbath), songs: false },
+                listed(SUNDAY, &[(REFLECTION, LOCAL)]),
+                listed(WEDNESDAY, &[(REFLECTION, LOCAL)]),
+            ],
+            "the Sabbath School and the youth society are not the elders'"
+        );
 
         for (on, date, role) in
             [(WEDNESDAY, day(2026, 12, 2), REFLECTION), (SABBATH, day(2026, 12, 5), PREACHER), (SUNDAY, day(2026, 12, 6), REFLECTION)]
@@ -1344,5 +1503,120 @@ mod tests {
                 (Actor::Charge(ELENA), &notify(SABBATH, dec5, PREACHER)),
             ]
         );
+    }
+
+    #[test]
+    fn editing_a_programs_split_changes_its_periods() {
+        let mut church = Church::new();
+        let december = |church: &Church| church.roster.periods(&church.setup, ELDERS, day(2026, 12, 1), day(2026, 12, 13));
+        assert_eq!(december(&church), [month(2026, 12)]);
+        let Program { name, services, .. } = church.roster.program(ELDERS).unwrap().clone();
+        church.by(PEDRO, RosterEvent::EditProgram { program: ELDERS, name, split: Split::ByDate, services });
+        assert_eq!(december(&church), [2, 5, 6, 9, 12, 13].map(|d| Period::Date(day(2026, 12, d))));
+    }
+
+    #[test]
+    fn the_singing_template_gives_four_services_singers_and_a_song_list_only_on_sabbath_school() {
+        let mut church = Church::new();
+        church.by(DANIEL, template("musica").add_program(church.setup.services()));
+        let singing = church.roster.program(NEXT).unwrap();
+        assert_eq!((singing.name.as_str(), singing.office.0.as_str()), ("Servicio de canto", "musica"));
+        let three = vec!["Cantante 1", "Cantante 2", "Cantante 3"];
+        assert_eq!(
+            shape(singing),
+            [
+                (SABBATH_SCHOOL, three.clone(), true),
+                (SABBATH, three.clone(), false),
+                (SUNDAY, three.clone(), false),
+                (WEDNESDAY, three, false),
+            ],
+            "the youth society is not the singers'"
+        );
+    }
+
+    #[test]
+    fn a_service_kind_the_church_does_not_hold_is_left_out_of_the_template() {
+        let church = Church::new();
+        let without_sunday: Vec<Service> =
+            church.setup.services().iter().filter(|s| s.id != service(SUNDAY)).cloned().collect();
+        let RosterEvent::AddProgram { services, .. } = template("musica").add_program(&without_sunday) else {
+            panic!("a template adds a program");
+        };
+        let held: Vec<&str> = services.iter().map(|s| s.service.0.as_str()).collect();
+        assert_eq!(held, [SABBATH_SCHOOL, SABBATH, WEDNESDAY]);
+    }
+
+    #[test]
+    fn changing_how_many_sing_is_an_edit_of_the_services_roles() {
+        let mut church = Church::new();
+        church.by(DANIEL, template("musica").add_program(church.setup.services()));
+        let Program { name, split, mut services, .. } = church.roster.program(NEXT).unwrap().clone();
+        services.iter_mut().find(|s| s.service == service(SABBATH)).unwrap().roles = singers(5);
+        church.by(DANIEL, RosterEvent::EditProgram { program: NEXT, name, split, services });
+        let five: Vec<String> = (1..=5).map(|i| format!("Cantante {i}")).collect();
+        assert_eq!(church.role_names(NEXT, SABBATH, day(2026, 12, 5)), five);
+        assert_eq!(church.role_names(NEXT, SUNDAY, day(2026, 12, 6)).len(), 3, "other services keep three");
+        assert_eq!(church.record(Actor::Charge(DANIEL), fill(NEXT, SABBATH, day(2026, 12, 5), "Cantante 5", guest("Ana"))), Ok(()));
+    }
+
+    #[test]
+    fn songs_set_for_a_date_read_back_and_an_empty_list_clears_them() {
+        let mut church = Church::new();
+        church.by(DANIEL, template("musica").add_program(church.setup.services()));
+        let dec5 = day(2026, 12, 5);
+        let hymns = set_songs(NEXT, SABBATH_SCHOOL, dec5, &["Himno 100", " Cuán grande es Él "]);
+        church.by(DANIEL, hymns.clone());
+        let read = |church: &Church| church.roster.songs_on(NEXT, &service(SABBATH_SCHOOL), dec5).to_vec();
+        assert_eq!(read(&church), ["Himno 100", "Cuán grande es Él"]);
+        assert_eq!(church.roster.songs_on(NEXT, &service(SABBATH_SCHOOL), day(2026, 12, 12)), [] as [String; 0]);
+        church.by(DANIEL, set_songs(NEXT, SABBATH_SCHOOL, dec5, &[]));
+        assert_eq!(read(&church), [] as [String; 0]);
+        let history: Vec<&RosterEvent> =
+            church.roster.songs_history(NEXT, &service(SABBATH_SCHOOL), dec5).into_iter().map(|r| &r.event).collect();
+        assert_eq!(history, [&hymns, &set_songs(NEXT, SABBATH_SCHOOL, dec5, &[])]);
+        assert_eq!(Roster::replay(&church.events).unwrap(), church.roster);
+    }
+
+    #[test]
+    fn the_office_and_the_turns_holder_write_the_songs_and_nobody_else() {
+        let mut church = Church::new();
+        church.by(DANIEL, template("musica").add_program(church.setup.services()));
+        church.by(DANIEL, assign(NEXT, month(2026, 12), Member::Charge(JUAN)));
+        let december = set_songs(NEXT, SABBATH_SCHOOL, day(2026, 12, 5), &["Himno 100"]);
+        let january = set_songs(NEXT, SABBATH_SCHOOL, day(2027, 1, 2), &["Himno 100"]);
+        assert!(church.may(DANIEL, &january), "the music coordinator runs the program");
+        assert!(church.may(JUAN, &december), "Juan holds December");
+        assert!(!church.may(JUAN, &january), "January is not his");
+        assert!(!church.may(LUIS, &december), "the treasurer holds no turn");
+    }
+
+    #[test]
+    fn songs_on_a_service_without_a_song_list_are_accepted() {
+        let mut church = Church::new();
+        church.by(DANIEL, template("musica").add_program(church.setup.services()));
+        let dec5 = day(2026, 12, 5);
+        assert!(!church.roster.program(NEXT).unwrap().services.iter().any(|s| s.service == service(SABBATH) && s.songs));
+        assert_eq!(church.record(Actor::Charge(DANIEL), set_songs(NEXT, SABBATH, dec5, &["Himno 50"])), Ok(()));
+        assert_eq!(church.roster.songs_on(NEXT, &service(SABBATH), dec5), ["Himno 50"]);
+        let refused = church.record(Actor::Charge(DANIEL), set_songs(NEXT, YOUTH_SOCIETY, dec5, &["Himno 50"]));
+        assert_eq!(refused, Err(RosterError::ServiceNotInProgram { program: NEXT, service: service(YOUTH_SOCIETY) }));
+    }
+
+    #[test]
+    fn a_role_two_programs_assign_on_one_service_shows_as_shared() {
+        let mut church = Church::new();
+        assert_eq!(church.roster.shared_roles(), []);
+        let special = [("Música especial", RoleKind::Normal)];
+        let sabbath_school = vec![listed(SABBATH_SCHOOL, &special), listed(SABBATH, &special)];
+        church.by(RUT, add_program("escuela-sabatica", "Escuela Sabática", Split::ByDate, sabbath_school));
+        church.by(DANIEL, template("musica").add_program(church.setup.services()));
+        assert_eq!(church.roster.shared_roles(), [(service(SABBATH), "Música especial".to_owned(), vec![ELDERS, NEXT])]);
+    }
+
+    #[test]
+    fn a_program_service_stored_before_song_lists_keeps_none() {
+        let stored = r#"{"service":"culto-divino","roles":[{"name":"Predicador","kind":"normal"}]}"#;
+        let listed: ProgramService = serde_json::from_str(stored).unwrap();
+        assert!(!listed.songs);
     }
 }
