@@ -1,22 +1,41 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::DutyId;
+use crate::ChargeId;
+use crate::catalog::AgendaSection;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct MeetingId(pub u32);
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SectionId(pub String);
+
+/// A church board meeting. The board meets at least monthly (p. 167).
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Meeting {
     pub id: MeetingId,
-    pub duty: DutyId,
-    pub title: String,
+    /// The charge through which the user prepares this meeting.
+    pub charge: ChargeId,
     /// Calendar date as `YYYY-MM-DD`.
     pub date: String,
+    pub kind: MeetingKind,
     pub state: MeetingState,
+    /// Starts from the catalog's board agenda; the church may reorder,
+    /// drop or add sections.
+    pub sections: Vec<AgendaSection>,
     pub items: Vec<AgendaItem>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum MeetingKind {
+    Regular,
+    /// Once a quarter the whole meeting may go to evangelism planning (p. 168).
+    Evangelism,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -25,7 +44,7 @@ pub struct Meeting {
 pub enum MeetingState {
     /// Items are still being collected.
     Draft,
-    /// The agenda is closed and sent out.
+    /// The agenda is closed and the meeting announced.
     Called,
     Held,
 }
@@ -43,6 +62,7 @@ impl MeetingState {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct AgendaItem {
+    pub section: SectionId,
     pub title: String,
     pub kind: ItemKind,
     pub status: ItemStatus,
