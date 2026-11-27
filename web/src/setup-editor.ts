@@ -15,7 +15,9 @@ import type { Charge } from "./generated/Charge";
 import type { NewCharge } from "./generated/NewCharge";
 import type { NewEntry } from "./generated/NewEntry";
 import type { Setup } from "./generated/Setup";
-import { MONTHS, api, button, churchYearSpan, fill, h, monthName, notify, saved, fold } from "./ui";
+import { stampLines } from "./church";
+import type { Entry } from "./generated/Entry";
+import { MONTHS, andList, api, button, churchYearSpan, fill, h, monthName, notify, saved, fold, stamp } from "./ui";
 
 /** What the editor starts from: the church as it stands, or the bare manual for a first setup. */
 export type Base = {
@@ -128,8 +130,8 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
 
   function edit() {
     refreshPeople();
-    const filter = h("input", { type: "search", placeholder: "Buscar oficio o persona", class: "grow" });
-    const cards = h("div", { class: "cards" });
+    const filter = h("input", { type: "search", placeholder: "Buscar oficio o persona", "aria-label": "Buscar" });
+    const cards = h("div", { class: "ledger" });
     const used = allOffices().filter((o) => isUsed(o.id));
     const unused = allOffices().filter((o) => !isUsed(o.id));
     const cardFor = new Map<string, HTMLElement>();
@@ -167,7 +169,7 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
       cards,
       newOfficePanel(),
       unused.length > 0 && unusedPanel(unused),
-      h("div", { class: "actions sticky" }, button("Revisar cambios →", async () => review(), "primary")),
+      h("div", { class: "actions sticky" }, button("Revisar cambios", async () => review(), "primary")),
       datalist,
     );
   }
@@ -194,9 +196,8 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
     };
     return h(
       "section",
-      { class: "panel grid2" },
-      h("label", null, "Nombre de la iglesia", name),
-      h("label", null, "El año eclesiástico empieza en", month),
+      { class: "sheet" },
+      h("div", { class: "form" }, h("label", null, "Nombre de la iglesia", name), h("label", null, "El año eclesiástico empieza en", month)),
     );
   }
 
@@ -225,19 +226,14 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
     };
     return h(
       "section",
-      { class: "panel grid2" },
-      h("label", null, "Los elegidos sirven desde el año eclesiástico", year),
-      h("label", null, "Por un período de", length),
-      h(
-        "p",
-        { class: "muted span2" },
-        "Quien ya tiene el cargo sigue sirviendo hasta que empiece el período de su sucesor (Manual, pp. 91-92).",
-      ),
+      { class: "sheet" },
+      h("div", { class: "form" }, h("label", null, "Los elegidos sirven desde el año eclesiástico", year), h("label", null, "Por un período de", length)),
+      h("p", { class: "muted small" }, "Quien ya tiene el cargo sigue sirviendo hasta que empiece el período de su sucesor (Manual, pp. 91-92)."),
     );
   }
 
   function officeCard(office: CatalogOffice): HTMLElement {
-    const card = h("article", { class: "card" });
+    const card = h("article", { class: "office" });
     const redraw = () => {
       const fresh = officeCard(office);
       card.replaceWith(fresh);
@@ -266,22 +262,22 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
             edit();
           }, "link");
     card.append(
-      h(
-        "header",
-        null,
-        h("h3", null, office.name, isNew && h("span", { class: "tag new" }, "nuevo")),
-        hideButton,
-      ),
-      ...holders.map((c) => holderLine(c, () => redraw())),
-      ...rows.map((r) => rowLine(r, () => redraw())),
+      h("header", null, h("h3", null, office.name, isNew && h("span", { class: "new" }, "nuevo")), hideButton),
       h(
         "div",
-        { class: "more" },
-        button("+ Otra persona", async () => {
-          draft.rows.push({ key: nextKey++, office: office.id, name: "", email: "" });
-          keep();
-          redraw().querySelector<HTMLInputElement>(".person:last-of-type input")?.focus();
-        }, "link"),
+        { class: "holders" },
+        ...holders.map((c) => holderLine(c, () => redraw())),
+        ...rows.map((r) => rowLine(r, () => redraw())),
+        h(
+          "div",
+          null,
+          button("+ Otra persona", async () => {
+            draft.rows.push({ key: nextKey++, office: office.id, name: "", email: "" });
+            keep();
+            const people = redraw().querySelectorAll<HTMLInputElement>(".person input:first-child");
+            people[people.length - 1]?.focus();
+          }, "link"),
+        ),
       ),
     );
     return card;
@@ -292,8 +288,7 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
     return h(
       "div",
       { class: `holder${ends ? " ends" : ""}` },
-      h("span", null, h("strong", null, charge.holder.name), " ", h("span", { class: "muted" }, charge.holder.email ?? "sin correo")),
-      h("span", { class: "muted" }, `desde ${charge.term.start_year}`),
+      h("span", null, charge.holder.name, " ", h("span", { class: "muted small" }, `${charge.holder.email ?? "sin correo"}, desde ${charge.term.start_year}`)),
       button(ends ? "Deshacer" : "Termina", async () => {
         draft.release = ends ? draft.release.filter((id) => id !== charge.id) : [...draft.release, charge.id];
         keep();
@@ -343,10 +338,11 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
     const board = h("input", { type: "checkbox" });
     const form = h(
       "form",
-      { class: "panel stack" },
+      { class: "sheet" },
       h("h3", null, "Oficio propio de la iglesia"),
-      h("p", { class: "muted" }, "Para un oficio que el Manual no trae y que la iglesia votó crear."),
-      h("div", { class: "row" }, name, h("label", { class: "check" }, board, "Miembro de la junta directiva"), h("button", null, "Agregar")),
+      h("p", { class: "muted small" }, "Para un oficio que el Manual no trae y que la iglesia votó crear."),
+      h("label", null, "Nombre del oficio", name),
+      h("div", { class: "row-form" }, h("label", { class: "check" }, board, "Miembro de la junta directiva"), h("button", null, "Agregar")),
     );
     form.onsubmit = (event) => {
       event.preventDefault();
@@ -364,17 +360,16 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
   function unusedPanel(unused: CatalogOffice[]): HTMLElement {
     return h(
       "details",
-      { class: "panel" },
+      { class: "unused" },
       h("summary", null, `Oficios que la iglesia no usa (${unused.length})`),
       h(
         "ul",
-        { class: "plain" },
+        { class: "rows" },
         ...unused.map((o) =>
           h(
             "li",
             null,
-            o.name,
-            " ",
+            h("span", { class: "grow" }, o.name),
             button("Usar", async () => {
               if (draft.hide.includes(o.id)) draft.hide = draft.hide.filter((id) => id !== o.id);
               else draft.restore.push(o.id);
@@ -473,14 +468,21 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
 
     const term = `${draft.two_years ? "dos años" : "un año"} desde ${draft.term_year} (${churchYearSpan(draft.term_year, draft.year_starts)})`;
     const date = h("input", { type: "date", required: true, value: draft.date });
+    const minute = h("input", { value: draft.minute, placeholder: "Por ejemplo: Acta 12/2026" });
+    // The stamp shows exactly what saving records, filling in as the vote is written.
+    const preview = h("div");
+    const restamp = () =>
+      preview.replaceChildren(stamp(draft.date ? stampLines({ kind: "vote", body: "church", date: draft.date, minute: draft.minute.trim() || null }) : []));
+    restamp();
     date.oninput = () => {
       draft.date = date.value;
       keep();
+      restamp();
     };
-    const minute = h("input", { value: draft.minute, placeholder: "Por ejemplo: Acta 12/2026" });
     minute.oninput = () => {
       draft.minute = minute.value;
       keep();
+      restamp();
     };
 
     const save = async () => {
@@ -505,26 +507,30 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
 
     fill(page,
       h("header", { class: "intro" }, h("h1", null, "Revisar antes de guardar"), h("p", null, base.first ? draft.church : `${base.church}`)),
-      churchChanges.length > 0 && h("section", { class: "panel" }, h("h2", null, "La iglesia"), h("ul", null, ...churchChanges.map((l) => h("li", null, l)))),
+      churchChanges.length > 0 && h("section", null, h("h2", null, "La iglesia"), h("ul", { class: "rows" }, ...churchChanges.map((l) => h("li", null, l)))),
       byPerson.size > 0 &&
         h(
           "section",
-          { class: "panel" },
+          null,
           h("h2", null, `Elegidos (${byPerson.size} ${byPerson.size === 1 ? "persona" : "personas"})`),
           h("p", { class: "muted" }, `Por ${term}.`),
           h(
             "ul",
-            { class: "people" },
+            { class: "rows" },
             ...[...byPerson.values()]
               .sort((a, b) => a.name.localeCompare(b.name, "es"))
               .map((p) =>
                 h(
                   "li",
                   null,
-                  h("strong", null, p.name),
-                  " ",
-                  p.email ? h("span", { class: "muted" }, p.email) : h("span", { class: "warn" }, "sin correo: no podrá entrar"),
-                  h("div", null, p.offices.join(" · ")),
+                  h(
+                    "div",
+                    { class: "grow" },
+                    h("strong", null, p.name),
+                    " ",
+                    p.email ? h("span", { class: "muted small" }, p.email) : h("span", { class: "warn small" }, "sin correo: no podrá entrar"),
+                    h("div", { class: "sub" }, andList(p.offices)),
+                  ),
                 ),
               ),
           ),
@@ -532,28 +538,28 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
       ending.length > 0 &&
         h(
           "section",
-          { class: "panel" },
+          null,
           h("h2", null, "Terminan su cargo"),
-          h("ul", null, ...ending.map((c) => h("li", null, `${officeName(c.office)}: ${c.holder.name}`))),
+          h("ul", { class: "rows" }, ...ending.map((c) => h("li", null, `${officeName(c.office)}: ${c.holder.name}`))),
         ),
       base.first
-        ? h("section", { class: "panel" }, h("p", null, "Esta es la configuración inicial: no lleva voto. Después podrás enviar las invitaciones."))
+        ? h("section", { class: "sheet" }, h("p", null, "Esta es la configuración inicial: no lleva voto. Después podrás enviar las invitaciones."))
         : h(
             "section",
-            { class: "panel grid2" },
-            h("h2", { class: "span2" }, "El voto"),
+            { class: "sheet" },
+            h("h2", null, "El voto"),
             h(
               "p",
-              { class: "muted span2" },
+              { class: "muted small" },
               "La elección de oficiales y los cambios de oficios los vota la iglesia, en el culto del sábado o en una reunión administrativa (Manual, p. 145).",
             ),
-            h("label", null, "Fecha del voto de la iglesia", date),
-            h("label", null, "Acta (opcional)", minute),
+            h("div", { class: "form" }, h("label", null, "Fecha del voto de la iglesia", date), h("label", null, "Acta (opcional)", minute)),
+            preview,
           ),
       h(
         "div",
         { class: "actions sticky" },
-        button("← Volver a editar", async () => edit(), "secondary"),
+        button("Volver a editar", async () => edit()),
         button(base.first ? "Guardar configuración" : "Guardar voto", save, "primary"),
       ),
     );
@@ -565,7 +571,8 @@ export function setupEditor(base: Base, onSaved: (firstNewCharge: number) => voi
 }
 
 /** Invitations for the people a save elected: one per person, sent only on a click. */
-export function invitations(setup: Setup, from: number, viewer: string, done: () => void): HTMLElement {
+export async function invitations(setup: Setup, from: number, viewer: string, done: () => void): Promise<HTMLElement> {
+  const last = (await api<Entry[]>("/api/setup/history")).at(-1);
   const officeName = (id: string) => setup.catalog.offices.find((o) => o.id === id)?.name ?? id;
   const elected = setup.charges.filter((c) => c.id >= from);
   const byEmail = new Map<string, Charge[]>();
@@ -576,9 +583,9 @@ export function invitations(setup: Setup, from: number, viewer: string, done: ()
   const sends: (() => Promise<void>)[] = [];
   const list = h(
     "ul",
-    { class: "people" },
+    { class: "rows" },
     ...[...byEmail.entries()].map(([email, charges]) => {
-      const status = h("span", { class: "muted" });
+      const status = h("span", { class: "muted small" });
       let sent = false;
       const send = async () => {
         if (sent) return;
@@ -586,23 +593,28 @@ export function invitations(setup: Setup, from: number, viewer: string, done: ()
           await api(`/api/setup/charges/${charges[0]!.id}/invitation`, "POST");
           sent = true;
           status.textContent = "Invitación enviada";
-          status.className = "ok";
+          status.className = "done small";
           action.remove();
         } catch (e) {
           status.textContent = (e as Error).message;
-          status.className = "warn";
+          status.className = "warn small";
         }
       };
       sends.push(send);
-      const action = button("Invitar", send, "secondary");
+      const action = button("Invitar", send);
       return h(
         "li",
         null,
-        h("strong", null, charges[0]!.holder.name),
-        " ",
-        h("span", { class: "muted" }, email),
-        h("div", null, charges.map((c) => officeName(c.office)).join(" · ")),
-        h("div", { class: "row" }, action, status),
+        h(
+          "div",
+          { class: "grow" },
+          h("strong", null, charges[0]!.holder.name),
+          " ",
+          h("span", { class: "muted small" }, email),
+          h("div", { class: "sub" }, andList(charges.map((c) => officeName(c.office)))),
+          status,
+        ),
+        action,
       );
     }),
   );
@@ -616,29 +628,30 @@ export function invitations(setup: Setup, from: number, viewer: string, done: ()
       h("h1", null, "Guardado"),
       h("p", null, "Invita a los elegidos para que puedan entrar. Cada persona recibe un solo correo, aunque tenga varios cargos."),
     ),
+    last && stamp(stampLines(last.approval), { pressed: true }),
     byEmail.size > 0
       ? h(
           "section",
-          { class: "panel stack" },
+          null,
           h(
             "div",
-            { class: "row" },
+            { class: "actions start" },
             button("Invitar a todos", async () => {
               for (const send of sends) await send();
             }, "primary"),
           ),
           list,
         )
-      : h("section", { class: "panel" }, h("p", null, "Nadie elegido tiene correo, así que no hay invitaciones que enviar.")),
+      : h("p", null, "Nadie elegido tiene correo, así que no hay invitaciones que enviar."),
     without.length > 0 &&
       h(
         "section",
-        { class: "panel" },
+        null,
         h("h2", null, "Sin correo"),
         h("p", { class: "muted" }, "No podrán entrar hasta que un voto registre su correo."),
-        h("ul", null, ...without.map((c) => h("li", null, `${c.holder.name}: ${officeName(c.office)}`))),
+        h("ul", { class: "rows" }, ...without.map((c) => h("li", null, `${c.holder.name}: ${officeName(c.office)}`))),
       ),
-    h("div", { class: "actions" }, button("Listo", async () => done(), "primary")),
+    h("div", { class: "actions" }, button("Listo", async () => done())),
   );
 }
 
